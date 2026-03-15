@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper: Is the user logged in?
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: Is the user the owner of the document?
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Helper: Is the user an admin?
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Services Collection
+    match /services/{serviceId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Bookings Collection
+    match /bookings/{bookingId} {
+      allow read: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+    }
+
+    // Reviews Collection
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Societies Collection
+    match /societies/{societyId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Transactions Collection
+    match /transactions/{txId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Messages Collection
+    match /messages/{convId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      
+      match /chats/{msgId} {
+        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
+        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
+      }
+    }
+  }
+}
