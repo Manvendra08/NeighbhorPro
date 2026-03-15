@@ -19,8 +19,8 @@ export default function BrowsePros() {
     const load = async () => {
       try {
         const data = await listProfessionals();
-        // Only show users who have at least one skill
-        const withSkills = data.filter((u) => (u.skills as string[])?.length > 0);
+        // Only show users who are service providers and have at least one skill
+        const withSkills = data.filter((u) => u.isServiceProvider && (u.skills as string[])?.length > 0);
         setPros(withSkills);
         setFiltered(withSkills);
       } catch { /* ignore */ }
@@ -109,12 +109,13 @@ export default function BrowsePros() {
               className="pro-card"
               onClick={() => navigate(`/pro/${p.uid}`)}
             >
-              <div className="pro-card-img">
+              <div className="pro-card-img" style={{ position: "relative" }}>
                 {(p.photoURL as string) ? (
                   <img src={p.photoURL as string} alt={p.displayName as string} />
                 ) : (
                   <span>{initials((p.displayName as string) || "?")}</span>
                 )}
+                <div className="provider-badge" style={{ position: "absolute", bottom: 8, right: 8, background: "var(--success)", color: "#000", width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--surface)", fontSize: 11, fontWeight: "bold", zIndex: 1 }} title="Service Provider">✓</div>
               </div>
               <div className="pro-card-body">
                 <div className="pro-card-name">{(p.displayName as string) || "Anonymous"}</div>
@@ -130,10 +131,10 @@ export default function BrowsePros() {
                   )}
                 </div>
                 <div className="pro-card-footer">
-                  {(p.isFreeConsultation as boolean) ? (
-                    <span className="badge badge-success">Free Consultation</span>
+                  {(p.priceAfterQuote as boolean) ? (
+                    <span className="badge badge-accent">Quote-based</span>
                   ) : (
-                    <span className="pro-card-rate">₹{(p.hourlyRate as number) || 0}/hr</span>
+                    <span className="pro-card-rate">{(p.hourlyRate as number) === 0 ? "Free" : `₹${(p.hourlyRate as number)}/hr`}</span>
                   )}
                   <div className="pro-card-rating">
                     ★ {(p.rating as number) || 0}

@@ -21,6 +21,8 @@ export interface UserProfile {
   hourlyRate: number;
   isFreeConsultation: boolean;
   society: string;
+  isServiceProvider?: boolean;
+  priceAfterQuote?: boolean;
   role: "user" | "admin";
   rating: number;
   reviewCount: number;
@@ -85,6 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hourlyRate: 0,
         isFreeConsultation: true,
         society: "",
+        isServiceProvider: false,
+        priceAfterQuote: false,
         role: "user",
         rating: 0,
         reviewCount: 0,

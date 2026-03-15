@@ -68,11 +68,16 @@ export default function ProDetail() {
       {/* Profile header */}
       <div className="card" style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div className="avatar avatar-xl" style={{ fontSize: 28 }}>
-            {(pro.photoURL as string) ? (
-              <img src={pro.photoURL as string} alt="" />
-            ) : (
-              initials
+          <div style={{ position: "relative" }}>
+            <div className="avatar avatar-xl" style={{ fontSize: 28 }}>
+              {(pro.photoURL as string) ? (
+                <img src={pro.photoURL as string} alt="" />
+              ) : (
+                initials
+              )}
+            </div>
+            {(pro.isServiceProvider as boolean) && (
+              <div className="provider-badge" style={{ position: "absolute", bottom: -2, right: -2, background: "var(--success)", color: "#000", width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--surface)", fontSize: 14, fontWeight: "bold", zIndex: 1 }} title="Service Provider">✓</div>
             )}
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
@@ -84,11 +89,11 @@ export default function ProDetail() {
               <span style={{ color: "var(--warning)", fontWeight: 600 }}>
                 ★ {(pro.rating as number) || 0} <span className="text-muted text-sm">({(pro.reviewCount as number) || 0} reviews)</span>
               </span>
-              {(pro.isFreeConsultation as boolean) ? (
-                <span className="badge badge-success">Offers Free Consultation</span>
+              {(pro.priceAfterQuote as boolean) ? (
+                <span className="badge badge-accent">Quote-based pricing</span>
               ) : (
                 <span style={{ fontWeight: 700, color: "var(--accent2)" }}>
-                  ₹{(pro.hourlyRate as number) || 0}/hr
+                  {(pro.hourlyRate as number) === 0 ? "Free Consultation" : `₹${(pro.hourlyRate as number)}/hr`}
                 </span>
               )}
             </div>

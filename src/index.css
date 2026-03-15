@@ -1081,3 +1081,8 @@ select.form-input {
 .mobile-nav-item:hover { color: var(--text); text-decoration: none; }
 .mobile-nav-item.active { color: var(--accent); }
 .mobile-nav-item svg { width: 22px; height: 22px; }
+
+/* Custom Avatar Upload Hover */
+.avatar-upload:hover .avatar-upload-overlay {
+  opacity: 1 !important;
+}

@@ -15,7 +15,9 @@ import {
   Unsubscribe,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "../firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { updateProfile } from "firebase/auth";
+import { db, storage, auth } from "../firebase";
 
 /* ═══════════════════════════════════════════
    USERS
@@ -27,6 +29,22 @@ export async function getUserProfile(uid: string) {
 
 export async function updateUserProfile(uid: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, "users", uid), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function uploadProfilePhoto(uid: string, file: File) {
+  const fileRef = ref(storage, `profilePhotos/${uid}`);
+  await uploadBytes(fileRef, file);
+  const photoURL = await getDownloadURL(fileRef);
+
+  // Update in auth
+  if (auth.currentUser) {
+    await updateProfile(auth.currentUser, { photoURL });
+  }
+
+  // Update in firestore
+  await updateDoc(doc(db, "users", uid), { photoURL, updatedAt: serverTimestamp() });
+  
+  return photoURL;
 }
 
 export async function listProfessionals(categoryFilter?: string) {
