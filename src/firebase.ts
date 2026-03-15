@@ -1,8 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-
 const firebaseConfig = {
   apiKey: "AIzaSyDLa5-OsjK3iSTfHur4kKfRPJl9_fu8Pk0",
   authDomain: "neighbhorpro.firebaseapp.com",
@@ -16,5 +14,4 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();

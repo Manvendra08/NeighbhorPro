@@ -15,9 +15,8 @@ import {
   Unsubscribe,
   Timestamp,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { updateProfile } from "firebase/auth";
-import { db, storage, auth } from "../firebase";
+import { db, auth } from "../firebase";
 
 /* ═══════════════════════════════════════════
    USERS
@@ -32,9 +31,30 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
 }
 
 export async function uploadProfilePhoto(uid: string, file: File) {
-  const fileRef = ref(storage, `profilePhotos/${uid}`);
-  await uploadBytes(fileRef, file);
-  const photoURL = await getDownloadURL(fileRef);
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Cloudinary configuration is missing. Please check your .env.local file.");
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  formData.append("folder", "neighborpro/profiles");
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || "Failed to upload image to Cloudinary");
+  }
+
+  const data = await response.json();
+  const photoURL = data.secure_url;
 
   // Update in auth
   if (auth.currentUser) {
