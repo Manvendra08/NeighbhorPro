@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { listProfessionals } from "../services/firestoreService";
 
 const CATEGORIES = [
-  "All", "Tutoring", "IT & Tech", "Health", "Legal", "Plumbing",
-  "Electrical", "Fitness", "Finance", "Design", "Cooking", "Music", "Other"
+  "All", "Tutoring", "IT & Tech", "Health", "Legal", "Food",
+  "Event Management", "Fitness", "Finance", "Design", "Music", "Other"
 ];
 
 export default function BrowsePros() {

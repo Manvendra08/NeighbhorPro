@@ -4,9 +4,9 @@ import { updateUserProfile, createService, getServicesByUser, deleteService } fr
 import { useEffect } from "react";
 
 const SKILL_SUGGESTIONS = [
-  "Tutoring", "IT & Tech", "Web Development", "Graphic Design", "Plumbing",
-  "Electrical", "Health & Wellness", "Fitness", "Legal Advice", "Finance",
-  "Cooking", "Music", "Photography", "Interior Design", "Yoga", "Language",
+  "Tutoring", "IT & Tech", "Web Development", "Graphic Design", "Food",
+  "Event Management", "Health & Wellness", "Fitness", "Legal Advice", "Finance",
+  "Interior Design", "Music", "Photography", "Catering", "Yoga", "Language",
   "Career Coaching", "Gardening", "AC Repair", "Carpentry",
 ];
 
