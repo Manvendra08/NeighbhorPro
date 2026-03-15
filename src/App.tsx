@@ -1,32 +1,52 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import { LoginPage, RegisterPage } from "./components/auth/AuthPages";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import Layout from "./components/layout/Layout";
 
-// Placeholder — replace with real Dashboard component
-function Dashboard() {
-  const { user, logout } = useAuth();
-  return (
-    <div style={{ padding: 40, fontFamily: "sans-serif", background: "#060b18", minHeight: "100vh", color: "#f0f4ff" }}>
-      <h1>Welcome, {user?.displayName || user?.email}</h1>
-      <button onClick={logout} style={{ marginTop: 16, padding: "8px 20px", cursor: "pointer" }}>
-        Sign Out
-      </button>
-    </div>
-  );
-}
+// Pages
+import Dashboard from "./pages/Dashboard";
+import BrowsePros from "./pages/BrowsePros";
+import ProDetail from "./pages/ProDetail";
+import BookingFlow from "./pages/BookingFlow";
+import MyBookings from "./pages/MyBookings";
+import Profile from "./pages/Profile";
+import Messages from "./pages/Messages";
+
+// Admin pages
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminSocieties from "./pages/admin/AdminSocieties";
+import AdminTransactions from "./pages/admin/AdminTransactions";
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/dashboard" element={
-            <ProtectedRoute><Dashboard /></ProtectedRoute>
-          } />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+
+          {/* Protected routes with layout shell */}
+          <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/browse" element={<BrowsePros />} />
+            <Route path="/pro/:id" element={<ProDetail />} />
+            <Route path="/book/:id" element={<BookingFlow />} />
+            <Route path="/bookings" element={<MyBookings />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/messages" element={<Messages />} />
+
+            {/* Admin routes */}
+            <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/societies" element={<ProtectedRoute adminOnly><AdminSocieties /></ProtectedRoute>} />
+            <Route path="/admin/transactions" element={<ProtectedRoute adminOnly><AdminTransactions /></ProtectedRoute>} />
+          </Route>
+
+          {/* Redirect everything else to dashboard */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
