@@ -187,9 +187,17 @@ export function RegisterPage() {
 ══════════════════════════════════════════ */
 function BrandPanel({ register }: { register?: boolean }) {
   return (
-    <div className="auth-brand">
-      <div className="brand-logo">NeighbhorPro</div>
-      <h2 className="brand-headline">
+    <div className="auth-brand" style={{
+      backgroundImage: "linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6)), url('/images/auth_bg.png')",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      color: "white"
+    }}>
+      <div className="brand-logo" style={{ display: "flex", alignItems: "center", gap: "12px", color: "white" }}>
+        <img src="/images/logo.png" alt="Logo" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
+        NeighborPro
+      </div>
+      <h2 className="brand-headline" style={{ color: "white" }}>
         {register ? "Find trusted pros,\nnear you." : "Your community,\nyour experts."}
       </h2>
       <p className="brand-sub">

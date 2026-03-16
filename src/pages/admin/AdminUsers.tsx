@@ -1,121 +1,372 @@
 import { useEffect, useState } from "react";
 import { getAllUsers, updateUserProfile } from "../../services/firestoreService";
+import { deleteDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../firebase";
+import { useAuth } from "../../contexts/AuthContext";
+import { logAudit } from "./AdminAuditLog";
+
+type UserRow = Record<string, unknown>;
+type FilterTab = "all" | "active" | "disabled" | "admins" | "pros";
 
 export default function AdminUsers() {
-  const [users, setUsers] = useState<Record<string, unknown>[]>([]);
+  const { userProfile } = useAuth();
+  const adminId = userProfile?.uid || "unknown";
+  const adminName = userProfile?.displayName || "Admin";
+
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<FilterTab>("all");
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<UserRow | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const load = async () => {
     setLoading(true);
-    try {
-      const data = await getAllUsers();
-      setUsers(data);
-    } catch { /* ignore */ }
+    try { setUsers(await getAllUsers()); } catch { /* ignore */ }
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
-  const filtered = users.filter((u) => {
-    if (!search.trim()) return true;
+  const counts = {
+    all: users.length,
+    active: users.filter(u => !u.disabled).length,
+    disabled: users.filter(u => !!u.disabled).length,
+    admins: users.filter(u => u.role === "admin").length,
+    pros: users.filter(u => !!u.isServiceProvider).length,
+  };
+
+  const filtered = users.filter(u => {
     const q = search.toLowerCase();
-    return (
+    const matchSearch = !q ||
       ((u.displayName as string) || "").toLowerCase().includes(q) ||
       ((u.email as string) || "").toLowerCase().includes(q) ||
-      ((u.society as string) || "").toLowerCase().includes(q)
-    );
+      ((u.society as string) || "").toLowerCase().includes(q);
+    const matchTab =
+      tab === "all" ? true : tab === "active" ? !u.disabled :
+      tab === "disabled" ? !!u.disabled : tab === "admins" ? u.role === "admin" :
+      tab === "pros" ? !!u.isServiceProvider : true;
+    return matchSearch && matchTab;
   });
 
-  const toggleRole = async (uid: string, currentRole: string) => {
-    const newRole = currentRole === "admin" ? "user" : "admin";
-    await updateUserProfile(uid, { role: newRole });
-    load();
+  const doAction = async (
+    uid: string, patch: Record<string, unknown>, successMsg: string,
+    auditAction: string, auditDetails: string
+  ) => {
+    setActionLoading(uid);
+    try {
+      await updateUserProfile(uid, patch);
+      await logAudit(auditAction, adminId, adminName, auditDetails, uid);
+      showToast(successMsg);
+      await load();
+    } catch { showToast("Action failed", "error"); }
+    setActionLoading(null);
   };
+
+  const handleToggleDisable = (u: UserRow) => {
+    const disabled = !u.disabled;
+    const name = (u.displayName as string) || (u.email as string) || u.uid as string;
+    doAction(
+      u.uid as string, { disabled },
+      disabled ? "User disabled" : "User enabled",
+      disabled ? "user.disable" : "user.enable",
+      `${disabled ? "Disabled" : "Enabled"} user: ${name}`
+    );
+  };
+
+  const handleToggleRole = (u: UserRow) => {
+    const role = u.role === "admin" ? "user" : "admin";
+    const name = (u.displayName as string) || (u.email as string) || u.uid as string;
+    doAction(
+      u.uid as string, { role },
+      role === "admin" ? "Elevated to Admin" : "Role reverted to User",
+      "user.role_change",
+      `Changed role of ${name} to "${role}"`
+    );
+  };
+
+  const handleTogglePro = (u: UserRow) => {
+    const isServiceProvider = !u.isServiceProvider;
+    const name = (u.displayName as string) || (u.email as string) || u.uid as string;
+    doAction(
+      u.uid as string, { isServiceProvider },
+      isServiceProvider ? "Marked as Service Pro" : "Pro status removed",
+      "user.pro_change",
+      `${isServiceProvider ? "Set" : "Removed"} Pro status for: ${name}`
+    );
+  };
+
+  const handleDelete = async (u: UserRow) => {
+    setActionLoading(u.uid as string);
+    try {
+      await deleteDoc(doc(db, "users", u.uid as string));
+      await logAudit(
+        "user.delete", adminId, adminName,
+        `Deleted profile of: ${(u.displayName as string) || u.email as string}`,
+        u.uid as string
+      );
+      showToast("User profile removed");
+      setDeleteConfirm(null);
+      await load();
+    } catch { showToast("Delete failed", "error"); }
+    setActionLoading(null);
+  };
+
+  const tabs: { key: FilterTab; label: string }[] = [
+    { key: "all", label: "All" }, { key: "active", label: "Active" },
+    { key: "disabled", label: "Disabled" }, { key: "admins", label: "Admins" },
+    { key: "pros", label: "Service Pros" },
+  ];
+
+  const initials = (u: UserRow) => ((u.displayName as string) || (u.email as string) || "?").slice(0, 2).toUpperCase();
 
   return (
     <div>
+      {toast && (
+        <div style={{
+          position: "fixed", top: 20, right: 24, zIndex: 9999,
+          background: toast.type === "success" ? "var(--success)" : "var(--error)",
+          color: "#fff", padding: "10px 20px", borderRadius: "var(--radius-sm)",
+          fontWeight: 600, fontSize: 13, boxShadow: "var(--shadow-lg)", animation: "dropIn 0.2s ease",
+        }}>{toast.msg}</div>
+      )}
+
       <div className="page-header">
         <div>
-          <h1 className="page-title">Manage Users</h1>
-          <p className="page-subtitle">{users.length} registered users</p>
+          <h1 className="page-title">User Management</h1>
+          <p className="page-subtitle">{users.length} registered users on platform</p>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => {
+            const csv = ["Name,Email,Society,Role,Pro,Status"]
+              .concat(users.map(u => `"${u.displayName}","${u.email}","${u.society || ""}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`))
+              .join("\n");
+            const a = document.createElement("a");
+            a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+            a.download = "users.csv"; a.click();
+          }}>⬇ Export CSV</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAddModal(true)}>+ Add User</button>
         </div>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <input
-          className="form-input"
-          placeholder="Search users by name, email, or society…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 420 }}
-          id="admin-users-search"
-        />
+      <div className="grid grid-4" style={{ marginBottom: 24 }}>
+        {[
+          { label: "Total Users", val: counts.all, icon: "👥", color: "var(--accent-dim)", ic: "var(--accent)" },
+          { label: "Active", val: counts.active, icon: "✅", color: "rgba(91,122,91,0.12)", ic: "var(--success)" },
+          { label: "Disabled", val: counts.disabled, icon: "🚫", color: "rgba(255,92,92,0.1)", ic: "var(--error)" },
+          { label: "Admins", val: counts.admins, icon: "🛡️", color: "rgba(196,136,42,0.1)", ic: "var(--warning)" },
+        ].map(c => (
+          <div className="stat-card" key={c.label} style={{ padding: "16px 20px" }}>
+            <div className="stat-icon" style={{ background: c.color, color: c.ic }}>{c.icon}</div>
+            <div className="stat-value" style={{ fontSize: 22 }}>{c.val}</div>
+            <div className="stat-label">{c.label}</div>
+          </div>
+        ))}
       </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
+        <div className="tabs" style={{ marginBottom: 0, border: "none" }}>
+          {tabs.map(t => (
+            <button key={t.key} className={`tab${tab === t.key ? " active" : ""}`} onClick={() => setTab(t.key)}>
+              {t.label} <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.7 }}>({counts[t.key]})</span>
+            </button>
+          ))}
+        </div>
+        <input className="form-input" placeholder="Search name, email, society…" value={search}
+          onChange={e => setSearch(e.target.value)} style={{ maxWidth: 280, padding: "8px 12px" }} />
+      </div>
+      <div style={{ borderBottom: "1px solid var(--border)", marginBottom: 20 }} />
 
       {loading ? (
         <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state"><div className="empty-state-icon">👤</div><div className="empty-state-title">No users found</div></div>
       ) : (
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr>
-                <th>User</th>
-                <th>Email</th>
-                <th>Society</th>
-                <th>Skills</th>
-                <th>Rating</th>
-                <th>Role</th>
-                <th>Actions</th>
-              </tr>
+              <tr><th>User</th><th>Email</th><th>Society</th><th>Role</th><th>Pro</th><th>Rating</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {filtered.map((u) => (
-                <tr key={u.uid as string}>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div className="avatar avatar-sm">
-                        {(u.photoURL as string) ? (
-                          <img src={u.photoURL as string} alt="" />
-                        ) : (
-                          ((u.displayName as string) || "?").slice(0, 2).toUpperCase()
-                        )}
+              {filtered.map(u => {
+                const uid = u.uid as string;
+                const busy = actionLoading === uid;
+                return (
+                  <tr key={uid} style={{ opacity: busy ? 0.5 : 1 }}>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => setSelectedUser(u)}>
+                        <div className="avatar avatar-sm" style={{ background: u.disabled ? "rgba(255,92,92,0.1)" : "var(--accent-dim)", color: u.disabled ? "var(--error)" : "var(--accent)" }}>
+                          {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" /> : initials(u)}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{(u.displayName as string) || "—"}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)" }}>uid: {uid.slice(0, 8)}…</div>
+                        </div>
                       </div>
-                      <span style={{ fontWeight: 500 }}>{(u.displayName as string) || "—"}</span>
-                    </div>
-                  </td>
-                  <td className="text-muted">{(u.email as string)}</td>
-                  <td>{(u.society as string) || "—"}</td>
-                  <td>
-                    {((u.skills as string[]) || []).slice(0, 2).map((s: string) => (
-                      <span className="skill-tag" key={s} style={{ marginRight: 4 }}>{s}</span>
-                    ))}
-                    {((u.skills as string[]) || []).length > 2 && (
-                      <span className="text-muted text-xs">+{(u.skills as string[]).length - 2}</span>
-                    )}
-                  </td>
-                  <td>
-                    <span style={{ color: "var(--warning)" }}>★ {(u.rating as number) || 0}</span>
-                  </td>
-                  <td>
-                    <span className={`badge ${(u.role as string) === "admin" ? "badge-accent" : "badge-muted"}`}>
-                      {(u.role as string) || "user"}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => toggleRole(u.uid as string, (u.role as string) || "user")}
-                    >
-                      {(u.role as string) === "admin" ? "Remove Admin" : "Make Admin"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="text-muted">{u.email as string}</td>
+                    <td>{(u.society as string) || <span className="text-muted">—</span>}</td>
+                    <td>
+                      <span className={`badge ${u.role === "admin" ? "badge-warning" : "badge-muted"}`}>
+                        {u.role === "admin" ? "🛡 Admin" : "User"}
+                      </span>
+                    </td>
+                    <td>{u.isServiceProvider ? <span className="badge badge-accent">✓ Pro</span> : <span className="text-muted" style={{ fontSize: 12 }}>—</span>}</td>
+                    <td style={{ color: "var(--warning)" }}>★ {(u.rating as number) || 0}</td>
+                    <td><span className={`badge ${u.disabled ? "badge-error" : "badge-success"}`}>{u.disabled ? "Disabled" : "Active"}</span></td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button className={`btn btn-sm ${u.disabled ? "btn-success" : "btn-danger"}`} onClick={() => handleToggleDisable(u)} disabled={busy}>{u.disabled ? "Enable" : "Disable"}</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleToggleRole(u)} disabled={busy}>{u.role === "admin" ? "Demote" : "Make Admin"}</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleTogglePro(u)} disabled={busy} style={{ color: u.isServiceProvider ? "var(--warning)" : "var(--accent)" }}>{u.isServiceProvider ? "Remove Pro" : "Set Pro"}</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(u)} disabled={busy}>🗑</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      {selectedUser && (
+        <div className="modal-overlay" onClick={() => setSelectedUser(null)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">User Profile</h3>
+              <button className="modal-close" onClick={() => setSelectedUser(null)}>✕</button>
+            </div>
+            <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+              <div className="avatar avatar-xl">{(selectedUser.photoURL as string) ? <img src={selectedUser.photoURL as string} alt="" /> : initials(selectedUser)}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-heading)", marginBottom: 4 }}>{(selectedUser.displayName as string) || "—"}</div>
+                <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>{selectedUser.email as string}</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                  <span className={`badge ${selectedUser.role === "admin" ? "badge-warning" : "badge-muted"}`}>{selectedUser.role as string || "user"}</span>
+                  <span className={`badge ${selectedUser.disabled ? "badge-error" : "badge-success"}`}>{selectedUser.disabled ? "Disabled" : "Active"}</span>
+                  {!!selectedUser.isServiceProvider && <span className="badge badge-accent">Service Pro</span>}
+                </div>
+                {[
+                  { label: "Society", val: (selectedUser.society as string) || "—" },
+                  { label: "Rating", val: `★ ${(selectedUser.rating as number) || 0} (${(selectedUser.reviewCount as number) || 0} reviews)` },
+                  { label: "Hourly Rate", val: (selectedUser.hourlyRate as number) ? `₹${selectedUser.hourlyRate}` : "Free consultation" },
+                  { label: "Skills", val: ((selectedUser.skills as string[]) || []).join(", ") || "—" },
+                ].map(r => (
+                  <div key={r.label} style={{ display: "flex", gap: 12, marginBottom: 6, fontSize: 13 }}>
+                    <span style={{ color: "var(--muted)", minWidth: 90 }}>{r.label}</span>
+                    <span style={{ fontWeight: 500 }}>{r.val}</span>
+                  </div>
+                ))}
+                {(selectedUser.bio as string) && <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 10 }}>{selectedUser.bio as string}</div>}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className={`btn ${selectedUser.disabled ? "btn-success" : "btn-danger"} btn-sm`} onClick={() => { handleToggleDisable(selectedUser); setSelectedUser(null); }}>
+                {selectedUser.disabled ? "Enable User" : "Disable User"}
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: "var(--error)" }}>⚠ Delete User</h3>
+              <button className="modal-close" onClick={() => setDeleteConfirm(null)}>✕</button>
+            </div>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>
+              Permanently remove <strong style={{ color: "var(--text)" }}>{deleteConfirm.displayName as string || deleteConfirm.email as string}</strong>'s profile?
+              This cannot be undone.
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-secondary btn-sm" onClick={() => setDeleteConfirm(null)}>Cancel</button>
+              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(deleteConfirm)}>Yes, Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <AddUserModal
+          adminId={adminId} adminName={adminName}
+          onClose={() => setShowAddModal(false)}
+          onDone={() => { setShowAddModal(false); load(); showToast("User record created"); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string; adminName: string; onClose: () => void; onDone: () => void }) {
+  const [form, setForm] = useState({ displayName: "", email: "", society: "", role: "user", isServiceProvider: false });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async () => {
+    if (!form.displayName.trim() || !form.email.trim()) { setError("Name and email are required"); return; }
+    setSaving(true);
+    try {
+      const uid = `manual_${Date.now()}`;
+      await setDoc(doc(db, "users", uid), {
+        uid, displayName: form.displayName.trim(), email: form.email.trim(),
+        society: form.society.trim(), role: form.role, isServiceProvider: form.isServiceProvider,
+        photoURL: "", bio: "", skills: [], hourlyRate: 0, isFreeConsultation: true,
+        rating: 0, reviewCount: 0, disabled: false, createdAt: serverTimestamp(),
+      });
+      await logAudit("user.create", adminId, adminName, `Created manual user record: ${form.displayName} (${form.email})`, uid);
+      onDone();
+    } catch (e: unknown) { setError((e as Error).message || "Failed"); }
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3 className="modal-title">Add User Record</h3>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Creates a Firestore profile stub. Firebase Auth account must be created separately.</p>
+        {error && <div className="error-box">{error}</div>}
+        {[
+          { label: "Full Name *", key: "displayName", placeholder: "Rajesh Kumar" },
+          { label: "Email *", key: "email", placeholder: "rajesh@example.com" },
+          { label: "Society", key: "society", placeholder: "Sunflower Heights" },
+        ].map(f => (
+          <div className="form-group" key={f.key}>
+            <label className="form-label">{f.label}</label>
+            <input className="form-input" placeholder={f.placeholder} value={form[f.key as "displayName" | "email" | "society"]} onChange={e => set(f.key, e.target.value)} />
+          </div>
+        ))}
+        <div className="form-group">
+          <label className="form-label">Role</label>
+          <select className="form-input" value={form.role} onChange={e => set("role", e.target.value)}>
+            <option value="user">User</option><option value="admin">Admin</option>
+          </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <input type="checkbox" id="ispro" checked={form.isServiceProvider} onChange={e => set("isServiceProvider", e.target.checked)} style={{ width: 16, height: 16 }} />
+          <label htmlFor="ispro" style={{ fontSize: 14, cursor: "pointer" }}>Mark as Service Professional</label>
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={saving}>{saving ? "Creating…" : "Create User"}</button>
+        </div>
+      </div>
     </div>
   );
 }

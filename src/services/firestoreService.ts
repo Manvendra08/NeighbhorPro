@@ -215,6 +215,16 @@ export async function getTransactions() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
 }
 
+export async function getTransactionsForPro(proId: string) {
+  const q = query(
+    collection(db, "transactions"),
+    where("proId", "==", proId),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+}
+
 /* ═══════════════════════════════════════════
    MESSAGES (real-time)
 ═══════════════════════════════════════════ */

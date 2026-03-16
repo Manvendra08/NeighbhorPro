@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { updateUserProfile, createService, getServicesByUser, deleteService, uploadProfilePhoto } from "../services/firestoreService";
+import { updateUserProfile, createService, getServicesByUser, deleteService, uploadProfilePhoto, getAllSocieties } from "../services/firestoreService";
 
 const SKILL_SUGGESTIONS = [
   "Tutoring", "IT & Tech", "Web Development", "Graphic Design", "Food",
@@ -19,6 +19,8 @@ export default function Profile() {
   const [isServiceProvider, setIsServiceProvider] = useState(false);
   const [priceAfterQuote, setPriceAfterQuote] = useState(false);
   const [society, setSociety] = useState("");
+  const [societies, setSocieties] = useState<Record<string, unknown>[]>([]);
+  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string }>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -46,6 +48,18 @@ export default function Profile() {
   }, [userProfile]);
 
   useEffect(() => {
+    const loadSocieties = async () => {
+      try {
+        const data = await getAllSocieties();
+        setSocieties(data);
+      } catch {
+        // ignore
+      }
+    };
+    loadSocieties();
+  }, []);
+
+  useEffect(() => {
     if (user) {
       getServicesByUser(user.uid).then(setServices);
     }
@@ -64,6 +78,20 @@ export default function Profile() {
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    const nextErrors: typeof errors = {};
+    if (!displayName.trim()) {
+      nextErrors.displayName = "Display name is required.";
+    }
+    if (!bio.trim()) {
+      nextErrors.bio = "Bio is required.";
+    }
+    if (!society.trim()) {
+      nextErrors.society = "Society / Community is required.";
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
     setSaving(true);
     try {
       await updateUserProfile(user.uid, {
@@ -174,7 +202,9 @@ export default function Profile() {
           <h3 className="card-title" style={{ marginBottom: 16 }}>Basic Information</h3>
 
           <div className="form-group">
-            <label className="form-label">Display Name</label>
+            <label className="form-label">
+              Display Name <span style={{ color: "var(--error)" }}>*</span>
+            </label>
             <input
               className="form-input"
               value={displayName}
@@ -182,10 +212,17 @@ export default function Profile() {
               placeholder="Your full name"
               id="profile-name-input"
             />
+            {errors.displayName && (
+              <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>
+                {errors.displayName}
+              </div>
+            )}
           </div>
 
           <div className="form-group">
-            <label className="form-label">Bio</label>
+            <label className="form-label">
+              Bio <span style={{ color: "var(--error)" }}>*</span>
+            </label>
             <textarea
               className="form-input"
               value={bio}
@@ -196,14 +233,27 @@ export default function Profile() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Society / Community</label>
-            <input
+            <label className="form-label">
+              Society / Community <span style={{ color: "var(--error)" }}>*</span>
+            </label>
+            <select
               className="form-input"
               value={society}
               onChange={(e) => setSociety(e.target.value)}
-              placeholder="e.g., Sunflower Heights, Pimpri"
               id="profile-society-input"
-            />
+            >
+              <option value="">Select your society…</option>
+              {societies.map((s) => (
+                <option key={s.id as string} value={s.name as string}>
+                  {s.name as string}
+                </option>
+              ))}
+            </select>
+            {errors.society && (
+              <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>
+                {errors.society}
+              </div>
+            )}
           </div>
         </div>
 

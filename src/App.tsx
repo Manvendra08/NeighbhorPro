@@ -4,7 +4,6 @@ import { LoginPage, RegisterPage } from "./components/auth/AuthPages";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import Layout from "./components/layout/Layout";
 
-// Pages
 import Dashboard from "./pages/Dashboard";
 import BrowsePros from "./pages/BrowsePros";
 import ProDetail from "./pages/ProDetail";
@@ -13,22 +12,25 @@ import MyBookings from "./pages/MyBookings";
 import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
 
-// Admin pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminSocieties from "./pages/admin/AdminSocieties";
 import AdminTransactions from "./pages/admin/AdminTransactions";
+import AdminBroadcast from "./pages/admin/AdminBroadcast";
+import AdminSupport from "./pages/admin/AdminSupport";
+import AdminAuditLog from "./pages/admin/AdminAuditLog";
+import AdminSettings from "./pages/admin/AdminSettings";
+import AdminServices from "./pages/admin/AdminServices";
+import AdminReviews from "./pages/admin/AdminReviews";
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* Protected routes with layout shell */}
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/browse" element={<BrowsePros />} />
@@ -43,9 +45,14 @@ export default function App() {
             <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
             <Route path="/admin/societies" element={<ProtectedRoute adminOnly><AdminSocieties /></ProtectedRoute>} />
             <Route path="/admin/transactions" element={<ProtectedRoute adminOnly><AdminTransactions /></ProtectedRoute>} />
+            <Route path="/admin/broadcast" element={<ProtectedRoute adminOnly><AdminBroadcast /></ProtectedRoute>} />
+            <Route path="/admin/support" element={<ProtectedRoute adminOnly><AdminSupport /></ProtectedRoute>} />
+            <Route path="/admin/audit" element={<ProtectedRoute adminOnly><AdminAuditLog /></ProtectedRoute>} />
+            <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminSettings /></ProtectedRoute>} />
+            <Route path="/admin/services" element={<ProtectedRoute adminOnly><AdminServices /></ProtectedRoute>} />
+            <Route path="/admin/reviews" element={<ProtectedRoute adminOnly><AdminReviews /></ProtectedRoute>} />
           </Route>
 
-          {/* Redirect everything else to dashboard */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
