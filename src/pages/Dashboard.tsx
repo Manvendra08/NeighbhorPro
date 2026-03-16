@@ -121,7 +121,7 @@ export default function Dashboard() {
       <div className="page-header" style={{
         backgroundImage: "linear-gradient(to right, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.5)), url('/images/hero_banner.png')",
         backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundPosition: "top center",
         padding: "48px 32px",
         borderRadius: "var(--radius-lg)",
       }}>

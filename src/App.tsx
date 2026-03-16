@@ -15,7 +15,6 @@ import Messages from "./pages/Messages";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminSocieties from "./pages/admin/AdminSocieties";
-import AdminTransactions from "./pages/admin/AdminTransactions";
 import AdminBroadcast from "./pages/admin/AdminBroadcast";
 import AdminSupport from "./pages/admin/AdminSupport";
 import AdminAuditLog from "./pages/admin/AdminAuditLog";
@@ -44,7 +43,6 @@ export default function App() {
             <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
             <Route path="/admin/societies" element={<ProtectedRoute adminOnly><AdminSocieties /></ProtectedRoute>} />
-            <Route path="/admin/transactions" element={<ProtectedRoute adminOnly><AdminTransactions /></ProtectedRoute>} />
             <Route path="/admin/broadcast" element={<ProtectedRoute adminOnly><AdminBroadcast /></ProtectedRoute>} />
             <Route path="/admin/support" element={<ProtectedRoute adminOnly><AdminSupport /></ProtectedRoute>} />
             <Route path="/admin/audit" element={<ProtectedRoute adminOnly><AdminAuditLog /></ProtectedRoute>} />

@@ -70,7 +70,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <Link to="/admin/reviews" icon="reviews" label="Reviews" />
 
             {!collapsed && <div className="sidebar-section-label">Operations</div>}
-            <Link to="/admin/transactions" icon="transactions" label="Transactions" />
             <Link to="/admin/broadcast" icon="broadcast" label="Broadcast" />
             <Link to="/admin/support" icon="support" label="Support" />
 

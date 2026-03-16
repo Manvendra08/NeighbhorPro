@@ -2,11 +2,104 @@ import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { updateUserProfile, createService, getServicesByUser, deleteService, uploadProfilePhoto, getAllSocieties } from "../services/firestoreService";
 
+// ── White-collar skills for gated-society professionals — Park Street, Wakad, Pune
+// Grouped by domain for the suggestion pills (shown 8 at a time, filtered by what's not already added)
 const SKILL_SUGGESTIONS = [
-  "Tutoring", "IT & Tech", "Web Development", "Graphic Design", "Food",
-  "Event Management", "Health & Wellness", "Fitness", "Legal Advice", "Finance",
-  "Interior Design", "Music", "Photography", "Catering", "Yoga", "Language",
-  "Career Coaching", "Gardening", "AC Repair", "Carpentry",
+  // Finance & Legal
+  "Tax Filing & ITR",
+  "CA Services",
+  "Investment Advisory",
+  "Mutual Fund Planning",
+  "Insurance Planning",
+  "Legal Advice",
+  "Property & Real Estate Law",
+  "Contract Review",
+  "Will & Estate Planning",
+  // Health & Medical
+  "General Physician",
+  "Pediatrician",
+  "Dietitian & Nutrition",
+  "Mental Health Counselling",
+  "Physiotherapy",
+  "Homeopathy",
+  "Ayurveda Consultation",
+  "Dermatology Advice",
+  // Fitness & Wellness
+  "Personal Training",
+  "Yoga",
+  "Zumba",
+  "Meditation & Mindfulness",
+  "Pilates",
+  "Functional Fitness",
+  // Education & Coaching
+  "School Tutoring",
+  "JEE / NEET Coaching",
+  "CAT / MBA Prep",
+  "IELTS / GRE / TOEFL",
+  "Coding for Kids",
+  "Vedic Maths",
+  "Abacus",
+  "Olympiad Coaching",
+  // Technology
+  "IT Support",
+  "Web Development",
+  "App Development",
+  "Cybersecurity",
+  "Data & Analytics",
+  "AI & Automation",
+  "Cloud & DevOps",
+  // Design & Creative
+  "Graphic Design",
+  "UI/UX Design",
+  "Interior Design",
+  "Architecture Consultation",
+  "Video Editing",
+  "Content Writing",
+  // Photography & Events
+  "Photography",
+  "Event Planning",
+  "Wedding Planning",
+  "Birthday & Party Planning",
+  // Music & Arts
+  "Guitar",
+  "Piano / Keyboard",
+  "Vocals & Singing",
+  "Classical Dance (Bharatnatyam / Kathak)",
+  "Western Dance",
+  "Art & Painting",
+  "Pottery & Crafts",
+  // Lifestyle & Career
+  "Career Coaching",
+  "Resume & LinkedIn",
+  "Public Speaking",
+  "Language Coaching",
+  "Beauty & Makeup",
+  "Mehendi",
+  "Pet Training",
+  "Pet Grooming",
+];
+
+// Flat category list for the service form dropdown — maps 1:1 to BrowsePros CATEGORIES
+const SERVICE_CATEGORIES = [
+  "Tax & CA",
+  "Investment & Wealth",
+  "Legal",
+  "Health & Wellness",
+  "Mental Health",
+  "Fitness & Yoga",
+  "Nutrition & Diet",
+  "Tutoring & Academics",
+  "Test Prep",
+  "IT & Tech",
+  "Design & Creative",
+  "Photography",
+  "Music & Arts",
+  "Career Coaching",
+  "Language Learning",
+  "Event Planning",
+  "Beauty & Grooming",
+  "Pet Care",
+  "Other",
 ];
 
 export default function Profile() {
@@ -278,47 +371,47 @@ export default function Profile() {
               </div>
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-            {skills.map((s) => (
-              <span className="skill-tag" key={s} style={{ cursor: "pointer" }} onClick={() => removeSkill(s)}>
-                {s} ✕
-              </span>
-            ))}
-          </div>
+                {skills.map((s) => (
+                  <span className="skill-tag" key={s} style={{ cursor: "pointer" }} onClick={() => removeSkill(s)}>
+                    {s} ✕
+                  </span>
+                ))}
+              </div>
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input
-              className="form-input"
-              value={newSkill}
-              onChange={(e) => setNewSkill(e.target.value)}
-              placeholder="Add a skill…"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addSkill(newSkill);
-                }
-              }}
-              style={{ flex: 1 }}
-              id="profile-skill-input"
-            />
-            <button type="button" className="btn btn-secondary" onClick={() => addSkill(newSkill)}>
-              Add
-            </button>
-          </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input
+                  className="form-input"
+                  value={newSkill}
+                  onChange={(e) => setNewSkill(e.target.value)}
+                  placeholder="Add a skill…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addSkill(newSkill);
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                  id="profile-skill-input"
+                />
+                <button type="button" className="btn btn-secondary" onClick={() => addSkill(newSkill)}>
+                  Add
+                </button>
+              </div>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {SKILL_SUGGESTIONS.filter((s) => !skills.includes(s)).slice(0, 8).map((s) => (
-              <button
-                type="button"
-                key={s}
-                className="chip"
-                onClick={() => addSkill(s)}
-                style={{ fontSize: 11 }}
-              >
-                + {s}
-              </button>
-            ))}
-          </div>
-        </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {SKILL_SUGGESTIONS.filter((s) => !skills.includes(s)).slice(0, 10).map((s) => (
+                  <button
+                    type="button"
+                    key={s}
+                    className="chip"
+                    onClick={() => addSkill(s)}
+                    style={{ fontSize: 11 }}
+                  >
+                    + {s}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Pricing */}
             <div className="card" style={{ marginBottom: 24 }}>
@@ -347,6 +440,7 @@ export default function Profile() {
                   placeholder="500"
                   style={{ maxWidth: 200 }}
                   id="profile-rate-input"
+                  disabled={priceAfterQuote}
                 />
               </div>
             </div>
@@ -376,92 +470,93 @@ export default function Profile() {
       {/* Services */}
       {isServiceProvider && (
         <div className="card" style={{ marginBottom: 24 }}>
-        <div className="card-header">
-          <h3 className="card-title">My Services</h3>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowServiceForm(!showServiceForm)}>
-            {showServiceForm ? "Cancel" : "+ Add Service"}
-          </button>
-        </div>
-
-        {showServiceForm && (
-          <div style={{ marginBottom: 20, padding: 16, background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
-            <div className="form-group">
-              <label className="form-label">Service Title</label>
-              <input className="form-input" value={svcTitle} onChange={(e) => setSvcTitle(e.target.value)} placeholder="e.g., Math Tutoring" id="svc-title-input" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Description</label>
-              <textarea className="form-input" value={svcDesc} onChange={(e) => setSvcDesc(e.target.value)} placeholder="What does this service include?" id="svc-desc-input" />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div className="form-group">
-                <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
-                  Price (₹)
-                  <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontWeight: "normal", color: "var(--success)" }}>
-                    <input type="checkbox" checked={svcIsFree} onChange={(e) => setSvcIsFree(e.target.checked)} />
-                    Free Service
-                  </label>
-                </label>
-                <input type="number" className="form-input" value={svcIsFree ? 0 : svcPrice} onChange={(e) => setSvcPrice(Number(e.target.value))} min={0} disabled={svcIsFree} id="svc-price-input" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Duration</label>
-                <select className="form-input" value={svcDuration} onChange={(e) => setSvcDuration(e.target.value)} id="svc-duration-select">
-                  <option>15 min</option>
-                  <option>30 min</option>
-                  <option>45 min</option>
-                  <option>1 hour</option>
-                  <option>2 hours</option>
-                </select>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Category</label>
-              <select className="form-input" value={svcCategory} onChange={(e) => setSvcCategory(e.target.value)} id="svc-category-select">
-                <option value="">Select…</option>
-                {SKILL_SUGGESTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <button className="btn btn-success" onClick={handleAddService} disabled={!svcTitle.trim()}>
-              Save Service
+          <div className="card-header">
+            <h3 className="card-title">My Services</h3>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowServiceForm(!showServiceForm)}>
+              {showServiceForm ? "Cancel" : "+ Add Service"}
             </button>
           </div>
-        )}
 
-        {services.length === 0 && !showServiceForm ? (
-          <p className="text-muted">No services listed. Add your first service to attract clients!</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {services.map((svc) => (
-              <div
-                key={svc.id as string}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "12px 14px",
-                  background: "var(--surface-2)",
-                  borderRadius: "var(--radius-sm)",
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
-                  <div className="text-muted text-sm">
-                    {(svc.price as number) === 0 ? "Free" : `₹${svc.price}`} · {svc.duration as string}
-                  </div>
-                </div>
-                <button
-                  className="btn btn-danger btn-sm btn-icon"
-                  onClick={() => handleDeleteService(svc.id as string)}
-                  title="Delete"
-                >
-                  🗑
-                </button>
+          {showServiceForm && (
+            <div style={{ marginBottom: 20, padding: 16, background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
+              <div className="form-group">
+                <label className="form-label">Service Title</label>
+                <input className="form-input" value={svcTitle} onChange={(e) => setSvcTitle(e.target.value)} placeholder="e.g., ITR Filing, Yoga Sessions, JEE Maths" id="svc-title-input" />
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div className="form-group">
+                <label className="form-label">Description</label>
+                <textarea className="form-input" value={svcDesc} onChange={(e) => setSvcDesc(e.target.value)} placeholder="What does this service include?" id="svc-desc-input" />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                    Price (₹)
+                    <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontWeight: "normal", color: "var(--success)" }}>
+                      <input type="checkbox" checked={svcIsFree} onChange={(e) => setSvcIsFree(e.target.checked)} />
+                      Free Service
+                    </label>
+                  </label>
+                  <input type="number" className="form-input" value={svcIsFree ? 0 : svcPrice} onChange={(e) => setSvcPrice(Number(e.target.value))} min={0} disabled={svcIsFree} id="svc-price-input" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Duration</label>
+                  <select className="form-input" value={svcDuration} onChange={(e) => setSvcDuration(e.target.value)} id="svc-duration-select">
+                    <option>15 min</option>
+                    <option>30 min</option>
+                    <option>45 min</option>
+                    <option>1 hour</option>
+                    <option>2 hours</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Category</label>
+                <select className="form-input" value={svcCategory} onChange={(e) => setSvcCategory(e.target.value)} id="svc-category-select">
+                  <option value="">Select…</option>
+                  {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <button className="btn btn-success" onClick={handleAddService} disabled={!svcTitle.trim()}>
+                Save Service
+              </button>
+            </div>
+          )}
+
+          {services.length === 0 && !showServiceForm ? (
+            <p className="text-muted">No services listed. Add your first service to attract clients!</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {services.map((svc) => (
+                <div
+                  key={svc.id as string}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "12px 14px",
+                    background: "var(--surface-2)",
+                    borderRadius: "var(--radius-sm)",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
+                    <div className="text-muted text-sm">
+                      {(svc.price as number) === 0 ? "Free" : `₹${svc.price}`} · {svc.duration as string}
+                      {svc.category ? <span style={{ marginLeft: 8 }} className="badge badge-muted">{svc.category as string}</span> : null}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-danger btn-sm btn-icon"
+                    onClick={() => handleDeleteService(svc.id as string)}
+                    title="Delete"
+                  >
+                    🗑
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

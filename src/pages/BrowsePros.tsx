@@ -2,9 +2,28 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listProfessionals } from "../services/firestoreService";
 
+// ── Categories scoped to white-collar gated-society professionals (Park Street, Wakad, Pune)
 const CATEGORIES = [
-  "All", "Tutoring", "IT & Tech", "Health", "Legal", "Food",
-  "Event Management", "Fitness", "Finance", "Design", "Music", "Other"
+  "All",
+  "Tax & CA",
+  "Investment & Wealth",
+  "Legal",
+  "Health & Wellness",
+  "Mental Health",
+  "Fitness & Yoga",
+  "Nutrition & Diet",
+  "Tutoring & Academics",
+  "Test Prep",
+  "IT & Tech",
+  "Design & Creative",
+  "Photography",
+  "Music & Arts",
+  "Career Coaching",
+  "Language Learning",
+  "Event Planning",
+  "Beauty & Grooming",
+  "Pet Care",
+  "Other",
 ];
 
 export default function BrowsePros() {
@@ -48,7 +67,7 @@ export default function BrowsePros() {
     setFiltered(result);
   }, [category, search, pros]);
 
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
 
   const initials = (name: string) =>
     name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
