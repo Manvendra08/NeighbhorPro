@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neighbr — Skills in Your Society</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ivory: #FAF8F3;
+    --warm-white: #FFFEF9;
+    --ink: #1C1A17;
+    --ink-2: #3D3A35;
+    --ink-3: #6B6760;
+    --ink-4: #A09C96;
+    --teal: #0D6B6B;
+    --teal-light: #E4F4F4;
+    --teal-mid: #1E8E8E;
+    --coral: #D45C3B;
+    --coral-light: #FCEEE9;
+    --gold: #C4882A;
+    --gold-light: #FDF4E3;
+    --sage: #5B7A5B;
+    --sage-light: #EBF2EB;
+    --border: #E8E4DC;
+    --border-dark: #D4CFCA;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 18px;
+    --shadow: 0 2px 12px rgba(28,26,23,0.08);
+    --shadow-lg: 0 8px 32px rgba(28,26,23,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--ivory);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 15px;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    background: var(--warm-white);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; height: 60px;
+  }
+  .nav-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; font-weight: 600;
+    color: var(--teal);
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+  }
+  .nav-logo span { font-size: 10px; background: var(--teal); color: #fff; padding: 2px 7px; border-radius: 20px; font-family: 'DM Sans', sans-serif; font-weight: 500; vertical-align: middle; letter-spacing: 0.5px; }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .nav-society { font-size: 13px; color: var(--ink-3); border: 1px solid var(--border-dark); padding: 5px 12px; border-radius: 20px; cursor: pointer; }
+  .nav-society svg { display: inline; vertical-align: middle; margin-right: 4px; }
+  .nav-btn { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; border: none; border-radius: 8px; padding: 8px 16px; transition: all 0.15s; }
+  .nav-btn.ghost { background: transparent; color: var(--ink-2); }
+  .nav-btn.ghost:hover { background: var(--border); }
+  .nav-btn.primary { background: var(--teal); color: white; }
+  .nav-btn.primary:hover { background: var(--teal-mid); }
+  .nav-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--teal-light); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: var(--teal); cursor: pointer; }
+
+  /* ─── PAGES ─── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ─── HOME ─── */
+  .hero {
+    background: linear-gradient(135deg, #0D5F5F 0%, #0a4a4a 100%);
+    padding: 48px 24px 56px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+  }
+  .hero-tag { display: inline-block; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.2); padding: 4px 14px; border-radius: 20px; margin-bottom: 16px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .hero h1 { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 500; color: white; line-height: 1.2; max-width: 520px; margin: 0 auto 12px; }
+  .hero p { color: rgba(255,255,255,0.7); font-size: 16px; max-width: 400px; margin: 0 auto 28px; line-height: 1.6; }
+  .search-bar {
+    max-width: 520px; margin: 0 auto;
+    background: white; border-radius: 14px;
+    display: flex; align-items: center; gap: 0;
+    padding: 6px 6px 6px 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+  }
+  .search-bar input {
+    flex: 1; border: none; outline: none;
+    font-family: 'DM Sans', sans-serif; font-size: 15px;
+    color: var(--ink); background: transparent;
+  }
+  .search-bar input::placeholder { color: var(--ink-4); }
+  .search-bar button {
+    background: var(--teal); color: white; border: none;
+    border-radius: 10px; padding: 10px 20px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+    cursor: pointer; white-space: nowrap;
+  }
+  .search-bar button:hover { background: var(--teal-mid); }
+
+  /* Categories */
+  .categories {
+    display: flex; gap: 10px; padding: 20px 24px;
+    overflow-x: auto; background: var(--warm-white);
+    border-bottom: 1px solid var(--border);
+  }
+  .categories::-webkit-scrollbar { display: none; }
+  .cat-pill {
+    display: flex; align-items: center; gap: 7px;
+    padding: 8px 16px; border-radius: 30px; border: 1px solid var(--border-dark);
+    font-size: 13px; font-weight: 500; white-space: nowrap;
+    cursor: pointer; transition: all 0.15s; background: white;
+    color: var(--ink-2);
+  }
+  .cat-pill:hover, .cat-pill.active { background: var(--teal); color: white; border-color: var(--teal); }
+  .cat-pill.active svg path { stroke: white; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex; gap: 0; background: var(--warm-white);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-item {
+    flex: 1; padding: 12px 16px; text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-num { font-size: 20px; font-weight: 600; color: var(--teal); }
+  .stat-lbl { font-size: 11px; color: var(--ink-4); margin-top: 2px; }
+
+  /* Main content */
+  .content { max-width: 900px; margin: 0 auto; padding: 28px 24px; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .section-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 500; }
+  .see-all { font-size: 13px; color: var(--teal); cursor: pointer; font-weight: 500; }
+
+  /* Provider cards */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 36px; }
+  .provider-card {
+    background: white; border-radius: var(--radius-lg); border: 1px solid var(--border);
+    padding: 20px; cursor: pointer; transition: all 0.2s;
+    position: relative;
+  }
+  .provider-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); border-color: var(--teal); }
+  .card-badge {
+    position: absolute; top: 16px; right: 16px;
+    font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+  }
+  .card-badge.free { background: var(--sage-light); color: var(--sage); }
+  .card-badge.paid { background: var(--gold-light); color: var(--gold); }
+  .card-badge.premium { background: var(--teal-light); color: var(--teal); }
+  .card-avatar {
+    width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 600; margin-bottom: 12px;
+  }
+  .card-name { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+  .card-role { font-size: 13px; color: var(--ink-3); margin-bottom: 8px; }
+  .card-skill { font-size: 13px; font-weight: 500; color: var(--teal); margin-bottom: 10px; }
+  .card-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--ink-4); }
+  .card-meta .stars { color: #F59E0B; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .tag { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: var(--ivory); color: var(--ink-3); border: 1px solid var(--border); }
+  .card-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+  .card-bottom { display: flex; justify-content: space-between; align-items: center; }
+  .card-price { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .card-price span { font-size: 12px; font-weight: 400; color: var(--ink-4); }
+  .card-book { font-size: 12px; font-weight: 500; color: white; background: var(--teal); border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+
+  /* ─── PROFILE PAGE ─── */
+  .profile-back { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-3); cursor: pointer; padding: 20px 24px 0; max-width: 900px; margin: 0 auto; }
+  .profile-back:hover { color: var(--teal); }
+  .profile-hero {
+    background: white; border-bottom: 1px solid var(--border);
+    padding: 28px 24px;
+  }
+  .profile-hero-inner { max-width: 900px; margin: 0 auto; display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .profile-avatar-lg {
+    width: 88px; height: 88px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; font-weight: 600; flex-shrink: 0;
+  }
+  .profile-info { flex: 1; min-width: 200px; }
+  .profile-name { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 500; margin-bottom: 4px; }
+  .profile-sub { font-size: 14px; color: var(--ink-3); margin-bottom: 8px; }
+  .profile-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .profile-chip { font-size: 12px; padding: 4px 12px; border-radius: 20px; }
+  .chip-teal { background: var(--teal-light); color: var(--teal); }
+  .chip-gold { background: var(--gold-light); color: var(--gold); }
+  .chip-sage { background: var(--sage-light); color: var(--sage); }
+  .profile-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .btn-primary { background: var(--teal); color: white; border: none; border-radius: 10px; padding: 11px 22px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-primary:hover { background: var(--teal-mid); }
+  .btn-secondary { background: white; color: var(--teal); border: 1.5px solid var(--teal); border-radius: 10px; padding: 10px 20px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; }
+
+  .profile-body { max-width: 900px; margin: 0 auto; padding: 28px 24px; display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
+  @media (max-width: 700px) { .profile-body { grid-template-columns: 1fr; } }
+  .profile-main {}
+  .profile-aside {}
+  .profile-section { background: white; border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
+  .profile-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .profile-section p { font-size: 14px; color: var(--ink-2); line-height: 1.7; }
+
+  .review-item { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .review-item:last-child { border-bottom: none; }
+  .reviewer-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .reviewer-av { width: 32px; height: 32px; border-radius: 50%; background: var(--ivory); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+  .reviewer-name { font-size: 13px; font-weight: 500; }
+  .reviewer-date { font-size: 12px; color: var(--ink-4); margin-left: auto; }
+  .review-text { font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+
+  /* Booking card */
+  .booking-card { background: white; border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 22px; position: sticky; top: 80px; }
+  .booking-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .booking-price-row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 16px; margin-top: 4px; }
+  .booking-price { font-size: 26px; font-weight: 600; color: var(--ink); }
+  .booking-price-unit { font-size: 14px; color: var(--ink-4); }
+  .booking-free-label { font-size: 13px; color: var(--sage); font-weight: 500; background: var(--sage-light); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-bottom: 16px; }
+  .booking-separator { font-size: 12px; color: var(--ink-4); margin: 12px 0; display: flex; align-items: center; gap: 8px; }
+  .booking-separator::before, .booking-separator::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .booking-type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 16px; }
+  .toggle-opt {
+    padding: 10px; border-radius: 10px; border: 1.5px solid var(--border);
+    cursor: pointer; text-align: center; transition: all 0.15s;
+  }
+  .toggle-opt.selected { border-color: var(--teal); background: var(--teal-light); }
+  .toggle-opt .opt-label { font-size: 13px; font-weight: 500; }
+  .toggle-opt .opt-price { font-size: 12px; color: var(--ink-4); }
+  .toggle-opt.selected .opt-label { color: var(--teal); }
+  .booking-info-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; }
+  .booking-info-row .label { color: var(--ink-4); }
+  .booking-info-row .value { font-weight: 500; }
+  .booking-btn { width: 100%; padding: 13px; background: var(--teal); color: white; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 16px; }
+  .booking-btn:hover { background: var(--teal-mid); }
+  .booking-guarantee { font-size: 12px; color: var(--ink-4); text-align: center; margin-top: 10px; }
+
+  /* ─── MODAL ─── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(28,26,23,0.55); z-index: 200;
+    align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: var(--radius-lg);
+    padding: 28px; max-width: 480px; width: 100%;
+    max-height: 85vh; overflow-y: auto;
+    position: relative;
+  }
+  .modal-close { position: absolute; top: 16px; right: 16px; width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--ivory); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--ink-3); }
+  .modal-close:hover { background: var(--border); }
+  .modal h2 { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 500; margin-bottom: 6px; }
+  .modal-sub { font-size: 13px; color: var(--ink-3); margin-bottom: 22px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 13px; font-weight: 500; color: var(--ink-2); margin-bottom: 6px; display: block; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; padding: 10px 14px; border: 1.5px solid var(--border-dark);
+    border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 14px;
+    color: var(--ink); background: white; outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--teal); }
+  .form-textarea { resize: vertical; min-height: 90px; }
+  .slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .slot-btn { padding: 8px; border: 1.5px solid var(--border-dark); border-radius: 8px; background: white; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--ink-2); }
+  .slot-btn:hover { border-color: var(--teal); color: var(--teal); }
+  .slot-btn.selected { background: var(--teal); color: white; border-color: var(--teal); }
+  .modal-footer { display: flex; gap: 10px; margin-top: 22px; }
+  .modal-footer .btn-primary { flex: 1; padding: 12px; font-size: 15px; }
+  .modal-footer .btn-secondary { padding: 12px 18px; }
+
+  /* success state */
+  .success-state { text-align: center; padding: 20px 0; }
+  .success-icon { width: 64px; height: 64px; background: var(--sage-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; }
+  .success-title { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 8px; }
+  .success-msg { font-size: 14px; color: var(--ink-3); line-height: 1.6; }
+
+  /* ─── DASHBOARD ─── */
+  .dash-header { background: white; border-bottom: 1px solid var(--border); padding: 20px 24px; }
+  .dash-header-inner { max-width: 900px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .dash-greeting { font-family: 'Playfair Display', serif; font-size: 22px; }
+  .dash-greeting small { font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink-3); display: block; font-weight: 400; }
+  .dash-body { max-width: 900px; margin: 0 auto; padding: 24px; }
+  .dash-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .dash-tab { padding: 10px 18px; font-size: 14px; font-weight: 500; cursor: pointer; border-bottom: 2.5px solid transparent; color: var(--ink-3); }
+  .dash-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .metric-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .metric-label { font-size: 12px; color: var(--ink-4); margin-bottom: 6px; }
+  .metric-value { font-size: 26px; font-weight: 600; color: var(--ink); }
+  .metric-change { font-size: 12px; margin-top: 4px; }
+  .metric-change.up { color: var(--sage); }
+  .metric-change.pending { color: var(--gold); }
+
+  .request-list { background: white; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  .request-item { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  .request-item:last-child { border-bottom: none; }
+  .request-item:hover { background: var(--ivory); }
+  .request-av { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+  .request-info { flex: 1; min-width: 0; }
+  .request-name { font-size: 14px; font-weight: 500; }
+  .request-desc { font-size: 13px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .request-meta { text-align: right; flex-shrink: 0; }
+  .request-time { font-size: 12px; color: var(--ink-4); margin-bottom: 4px; }
+  .status-badge { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 20px; }
+  .status-new { background: var(--teal-light); color: var(--teal); }
+  .status-done { background: var(--sage-light); color: var(--sage); }
+  .status-pending { background: var(--gold-light); color: var(--gold); }
+
+  /* ─── POST SKILL ─── */
+  .post-wrap { max-width: 600px; margin: 0 auto; padding: 28px 24px; }
+  .post-wrap h2 { font-family: 'Playfair Display', serif; font-size: 26px; margin-bottom: 6px; }
+  .post-wrap .sub { font-size: 14px; color: var(--ink-3); margin-bottom: 28px; }
+  .post-card { background: white; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; }
+  .plan-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  .plan-opt { border: 1.5px solid var(--border-dark); border-radius: 10px; padding: 14px; cursor: pointer; transition: all 0.15s; }
+  .plan-opt:hover { border-color: var(--teal-mid); }
+  .plan-opt.selected { border-color: var(--teal); background: var(--teal-light); }
+  .plan-opt h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .plan-opt.selected h4 { color: var(--teal); }
+  .plan-opt p { font-size: 12px; color: var(--ink-4); line-height: 1.5; }
+
+  /* Bottom nav mobile hint */
+  .bottom-bar { display: none; }
+  @media (max-width: 640px) {
+    .nav-right .nav-btn.ghost { display: none; }
+    .hero h1 { font-size: 28px; }
+    .cards-grid { grid-template-columns: 1fr; }
+    .profile-body { padding: 16px; }
+  }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--ink); color: white; padding: 12px 18px; border-radius: 10px; font-size: 14px; z-index: 999; transform: translateY(100px); transition: transform 0.3s; pointer-events: none; }
+  .toast.show { transform: translateY(0); }
+
+  /* Smooth page transitions */
+  .page { animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo" onclick="showPage('home')">
+    Neighbr <span>BETA</span>
+  </div>
+  <div class="nav-right">
+    <div class="nav-society" onclick="showToast('Society selector coming soon')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+      Prestige Lakeside
+    </div>
+    <button class="nav-btn ghost" onclick="showPage('dashboard')">Dashboard</button>
+    <button class="nav-btn ghost" onclick="showPage('post')">Offer Skill</button>
+    <div class="nav-avatar" onclick="showPage('dashboard')">RS</div>
+  </div>
+</nav>
+
+<!-- ═══════════ HOME PAGE ═══════════ -->
+<div id="page-home" class="page active">
+
+  <div class="hero">
+    <div class="hero-tag">🏘 Prestige Lakeside · 248 Members</div>
+    <h1>Skills. Trust. Community.</h1>
+    <p>Connect with expert neighbours for free advice or paid consultations — all within your gated community.</p>
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search skills — tax, yoga, legal, plumbing..." oninput="filterCards()"/>
+      <button onclick="filterCards()">Search</button>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-item"><div class="stat-num">74</div><div class="stat-lbl">Experts</div></div>
+    <div class="stat-item"><div class="stat-num">23</div><div class="stat-lbl">Free Services</div></div>
+    <div class="stat-item"><div class="stat-num">312</div><div class="stat-lbl">Sessions Done</div></div>
+    <div class="stat-item"><div class="stat-num">4.8★</div><div class="stat-lbl">Avg Rating</div></div>
+  </div>
+
+  <div class="categories">
+    <div class="cat-pill active" onclick="filterCat(this,'all')">All Skills</div>
+    <div class="cat-pill" onclick="filterCat(this,'legal')">⚖ Legal</div>
+    <div class="cat-pill" onclick="filterCat(this,'finance')">₹ Finance & Tax</div>
+    <div class="cat-pill" onclick="filterCat(this,'health')">🩺 Health & Wellness</div>
+    <div class="cat-pill" onclick="filterCat(this,'tech')">💻 Tech & IT</div>
+    <div class="cat-pill" onclick="filterCat(this,'education')">📚 Education</div>
+    <div class="cat-pill" onclick="filterCat(this,'home')">🔧 Home Services</div>
+    <div class="cat-pill" onclick="filterCat(this,'fitness')">🏃 Fitness</div>
+  </div>
+
+  <div class="content">
+    <div class="section-header">
+      <div class="section-title">Featured Experts</div>
+      <div class="see-all">See all →</div>
+    </div>
+    <div class="cards-grid" id="cardsGrid"></div>
+
+    <div class="section-header">
+      <div class="section-title">Free Right Now</div>
+      <div class="see-all">See all →</div>
+    </div>
+    <div class="cards-grid" id="freeGrid"></div>
+  </div>
+</div>
+
+<!-- ═══════════ PROFILE PAGE ═══════════ -->
+<div id="page-profile" class="page">
+  <div class="profile-back" onclick="showPage('home')">
+    ← Back to Discovery
+  </div>
+  <div class="profile-hero">
+    <div class="profile-hero-inner">
+      <div class="profile-avatar-lg" id="profileAvatarLg"></div>
+      <div class="profile-info">
+        <div id="profileName" class="profile-name"></div>
+        <div id="profileSub" class="profile-sub"></div>
+        <div id="profileRating" style="font-size:13px;color:#6B6760;margin-bottom:8px;"></div>
+        <div id="profileChips" class="profile-chips"></div>
+        <div class="profile-actions">
+          <button class="btn-primary" onclick="openBookingModal()">Book Consultation</button>
+          <button class="btn-secondary" onclick="showToast('Message sent! They will reply soon.')">Send Message</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="profile-body">
+    <div class="profile-main">
+      <div class="profile-section">
+        <h3>About</h3>
+        <p id="profileAbout"></p>
+      </div>
+      <div class="profile-section">
+        <h3>Expertise</h3>
+        <div id="profileExpertise" class="card-tags" style="margin:0"></div>
+      </div>
+      <div class="profile-section">
+        <h3>Reviews <span style="font-size:13px;font-weight:400;color:var(--ink-4)" id="reviewCount"></span></h3>
+        <div id="profileReviews"></div>
+      </div>
+    </div>
+    <div class="profile-aside">
+      <div class="booking-card">
+        <h3 id="bcTitle"></h3>
+        <div id="bcPricing"></div>
+        <div class="booking-type-toggle" id="bcToggle"></div>
+        <div class="booking-info-row">
+          <span class="label">Flat / Block</span>
+          <span class="value" id="bcFlat"></span>
+        </div>
+        <div class="booking-info-row">
+          <span class="label">Available</span>
+          <span class="value" id="bcAvail"></span>
+        </div>
+        <div class="booking-info-row">
+          <span class="label">Sessions done</span>
+          <span class="value" id="bcSessions"></span>
+        </div>
+        <button class="booking-btn" onclick="openBookingModal()">Request Consultation</button>
+        <div class="booking-guarantee">✓ No-show? Full refund guaranteed</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ BOOKING MODAL ═══════════ -->
+<div class="modal-overlay" id="bookingModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modalContent">
+      <h2>Book a Consultation</h2>
+      <div class="modal-sub" id="modalSubtitle"></div>
+      <div class="form-group">
+        <label class="form-label">Your name</label>
+        <input class="form-input" type="text" placeholder="Ravi Sharma" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Flat / Block number</label>
+        <input class="form-input" type="text" placeholder="B-402" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">What do you need help with?</label>
+        <textarea class="form-textarea" placeholder="Brief description of your issue or question..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Preferred slot</label>
+        <div class="slot-grid" id="slotGrid"></div>
+      </div>
+      <div class="form-group" id="modeGroup">
+        <label class="form-label">Mode of consultation</label>
+        <select class="form-select">
+          <option>In-person (Society premises)</option>
+          <option>Video call (Google Meet)</option>
+          <option>Phone call</option>
+          <option>WhatsApp chat</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="confirmBooking()">Confirm Request →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ DASHBOARD ═══════════ -->
+<div id="page-dashboard" class="page">
+  <div class="dash-header">
+    <div class="dash-header-inner">
+      <div class="dash-greeting">
+        Good morning, Rahul! 👋
+        <small>Prestige Lakeside · B-402</small>
+      </div>
+      <button class="btn-primary" onclick="showPage('post')">+ Offer a Skill</button>
+    </div>
+  </div>
+  <div class="dash-body">
+    <div class="dash-tabs">
+      <div class="dash-tab active" onclick="switchDashTab(this,'provider')">My Offerings</div>
+      <div class="dash-tab" onclick="switchDashTab(this,'seeker')">My Requests</div>
+      <div class="dash-tab" onclick="switchDashTab(this,'earnings')">Earnings</div>
+    </div>
+
+    <!-- Provider tab -->
+    <div id="dash-provider">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Total Consultations</div>
+          <div class="metric-value">28</div>
+          <div class="metric-change up">↑ 4 this month</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Pending Requests</div>
+          <div class="metric-value">3</div>
+          <div class="metric-change pending">Action needed</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Avg Rating</div>
+          <div class="metric-value">4.9★</div>
+          <div class="metric-change up">18 reviews</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">This Month Earned</div>
+          <div class="metric-value">₹4,200</div>
+          <div class="metric-change up">↑ ₹800 vs last</div>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;font-size:14px;font-weight:500;">Recent requests</div>
+      <div class="request-list">
+        <div class="request-item">
+          <div class="request-av" style="background:#E4F4F4;color:#0D6B6B">PS</div>
+          <div class="request-info">
+            <div class="request-name">Priya Subramaniam · A-201</div>
+            <div class="request-desc">Need CA advice for ITR filing — salaried + rental income</div>
+          </div>
+          <div class="request-meta">
+            <div class="request-time">2 hrs ago</div>
+            <div class="status-badge status-new">New</div>
+          </div>
+        </div>
+        <div class="request-item">
+          <div class="request-av" style="background:#FDF4E3;color:#C4882A">AK</div>
+          <div class="request-info">
+            <div class="request-name">Amit Kumar · C-118</div>
+            <div class="request-desc">Seeking help with Section 80C investment planning</div>
+          </div>
+          <div class="request-meta">
+            <div class="request-time">Yesterday</div>
+            <div class="status-badge status-pending">Scheduled</div>
+          </div>
+        </div>
+        <div class="request-item">
+          <div class="request-av" style="background:#EBF2EB;color:#5B7A5B">SM</div>
+          <div class="request-info">
+            <div class="request-name">Sneha Mehta · D-305</div>
+            <div class="request-desc">Mutual fund portfolio review for long-term goals</div>
+          </div>
+          <div class="request-meta">
+            <div class="request-time">2 days ago</div>
+            <div class="status-badge status-done">Done</div>
+          </div>
+        </div>
+        <div class="request-item">
+          <div class="request-av" style="background:#FCEEE9;color:#D45C3B">RN</div>
+          <div class="request-info">
+            <div class="request-name">Rajesh Nair · B-211</div>
+            <div class="request-desc">Capital gains tax query — sold flat last year</div>
+          </div>
+          <div class="request-meta">
+            <div class="request-time">3 days ago</div>
+            <div class="status-badge status-done">Done</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Seeker tab -->
+    <div id="dash-seeker" style="display:none">
+      <div style="margin-bottom:14px;font-size:14px;font-weight:500;">My consultation requests</div>
+      <div class="request-list">
+        <div class="request-item">
+          <div class="request-av" style="background:#E4F4F4;color:#0D6B6B">MR</div>
+          <div class="request-info">
+            <div class="request-name">Dr. Meera Rao · Yoga & Wellness</div>
+            <div class="request-desc">Back pain consultation — Free session</div>
+          </div>
+          <div class="request-meta">
+            <div class="request-time">Today 5pm</div>
+            <div class="status-badge status-pending">Upcoming</div>
+          </div>
+        </div>
+        <div class="request-item">
+          <div class="request-av" style="background:#FDF4E3;color:#C4882A">VK</div>
+          <div class="request-info">
+            <div class="request-name">Vikram Krishnan · Legal</div>
+            <div class="request-desc">Society bylaws dispute review</div>
+          </div>
+          <div class="request-meta">
+            <div class="request-time">Last week</div>
+            <div class="status-badge status-done">Done ★ Rate</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Earnings tab -->
+    <div id="dash-earnings" style="display:none">
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-label">Total Earned (Lifetime)</div><div class="metric-value">₹18,400</div></div>
+        <div class="metric-card"><div class="metric-label">Platform Fee (10%)</div><div class="metric-value">₹1,840</div><div class="metric-change" style="color:var(--ink-4)">Deducted</div></div>
+        <div class="metric-card"><div class="metric-label">Pending Payout</div><div class="metric-value">₹4,200</div><div class="metric-change pending">Processes in 3 days</div></div>
+        <div class="metric-card"><div class="metric-label">Free Sessions Given</div><div class="metric-value">12</div><div class="metric-change up">Community karma</div></div>
+      </div>
+      <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px">
+        <div style="font-size:15px;font-weight:600;margin-bottom:14px">Payout History</div>
+        <table style="width:100%;font-size:13px;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:8px 0;color:var(--ink-4);font-weight:500">Date</th>
+            <th style="text-align:left;padding:8px 0;color:var(--ink-4);font-weight:500">Client</th>
+            <th style="text-align:right;padding:8px 0;color:var(--ink-4);font-weight:500">Amount</th>
+            <th style="text-align:right;padding:8px 0;color:var(--ink-4);font-weight:500">Status</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:10px 0">Mar 10</td><td>Priya S.</td><td style="text-align:right">₹500</td><td style="text-align:right"><span class="status-badge status-pending">Processing</span></td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:10px 0">Mar 6</td><td>Amit K.</td><td style="text-align:right">₹800</td><td style="text-align:right"><span class="status-badge status-done">Paid</span></td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:10px 0">Feb 28</td><td>Sneha M.</td><td style="text-align:right">₹1,200</td><td style="text-align:right"><span class="status-badge status-done">Paid</span></td></tr>
+            <tr><td style="padding:10px 0">Feb 20</td><td>Rajesh N.</td><td style="text-align:right">₹1,500</td><td style="text-align:right"><span class="status-badge status-done">Paid</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ POST SKILL PAGE ═══════════ -->
+<div id="page-post" class="page">
+  <div class="post-wrap">
+    <div class="profile-back" style="padding:0 0 20px;font-size:14px;color:var(--ink-3);cursor:pointer" onclick="showPage('home')">← Back</div>
+    <h2>Offer Your Skill</h2>
+    <p class="sub">Share your expertise with your neighbours. Start free, earn later.</p>
+    <div class="post-card">
+      <div class="form-group">
+        <label class="form-label">Skill / Service title</label>
+        <input class="form-input" type="text" placeholder="e.g. Income Tax Filing & Planning" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select">
+          <option>Finance & Tax</option>
+          <option>Legal</option>
+          <option>Health & Wellness</option>
+          <option>Tech & IT</option>
+          <option>Education & Tutoring</option>
+          <option>Home Services</option>
+          <option>Fitness & Yoga</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Brief description</label>
+        <textarea class="form-textarea" placeholder="Describe what you offer, your experience, and who this is for..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Years of experience</label>
+        <input class="form-input" type="number" placeholder="8" min="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Choose your listing plan</label>
+        <div class="plan-selector">
+          <div class="plan-opt selected" onclick="selectPlan(this)">
+            <h4>🤝 Free Only</h4>
+            <p>Offer free sessions. Build reputation & reviews first.</p>
+          </div>
+          <div class="plan-opt" onclick="selectPlan(this)">
+            <h4>💼 Free + Paid</h4>
+            <p>Offer 1 free intro, then charge for follow-ups.</p>
+          </div>
+        </div>
+      </div>
+      <div class="form-group" id="paidAmtGroup" style="display:none">
+        <label class="form-label">Your rate (₹ per session)</label>
+        <input class="form-input" type="number" placeholder="500" />
+        <div style="font-size:12px;color:var(--ink-4);margin-top:5px">Platform takes 10% commission. You keep 90%.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Available days</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <div class="slot-btn selected" onclick="toggleDay(this)">Mon</div>
+          <div class="slot-btn selected" onclick="toggleDay(this)">Tue</div>
+          <div class="slot-btn" onclick="toggleDay(this)">Wed</div>
+          <div class="slot-btn selected" onclick="toggleDay(this)">Thu</div>
+          <div class="slot-btn" onclick="toggleDay(this)">Fri</div>
+          <div class="slot-btn" onclick="toggleDay(this)">Sat</div>
+          <div class="slot-btn" onclick="toggleDay(this)">Sun</div>
+        </div>
+      </div>
+      <button class="btn-primary" style="width:100%;padding:13px;font-size:15px;margin-top:8px" onclick="submitSkill()">Publish Skill Listing →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── DATA ───
+const providers = [
+  {
+    id: 1, name: 'Rahul Sharma', initials: 'RS', role: 'Chartered Accountant · 12 yrs',
+    skill: 'Income Tax & Financial Planning', cat: 'finance',
+    avatarBg: '#E4F4F4', avatarColor: '#0D6B6B',
+    rating: 4.9, reviews: 18, sessions: 28, flat: 'B-402',
+    badge: 'premium', badgeLabel: 'Top Expert',
+    tags: ['ITR Filing', 'GST', 'Investments', 'NRI Tax'],
+    free: false, price: 500, freeCount: 0,
+    about: 'CA with 12+ years of experience in personal taxation, GST compliance, and financial planning. Former Big4 consultant. Helped 300+ families with their taxes.',
+    avail: 'Mon–Fri evenings',
+    expertise: ['Income Tax', 'GST', 'Capital Gains', 'HRA Exemptions', 'Mutual Funds', 'NRI Taxation'],
+    reviewList: [
+      { name: 'Priya S.', initials: 'PS', date: '2 days ago', text: 'Rahul sorted my ITR with rental income in one session. Saved me ₹12,000 I would have over-paid. Highly recommend.' },
+      { name: 'Amit K.', initials: 'AK', date: '1 week ago', text: 'Clear explanations, no jargon. Helped me plan 80C investments optimally. Will consult every year now.' },
+      { name: 'Deepika R.', initials: 'DR', date: '2 weeks ago', text: 'Excellent! Resolved my capital gains question in 20 minutes.' }
+    ]
+  },
+  {
+    id: 2, name: 'Dr. Meera Rao', initials: 'MR', role: 'Physiotherapist · 8 yrs',
+    skill: 'Physiotherapy & Pain Management', cat: 'health',
+    avatarBg: '#FCEEE9', avatarColor: '#D45C3B',
+    rating: 5.0, reviews: 12, sessions: 19, flat: 'A-104',
+    badge: 'free', badgeLabel: 'Free Now',
+    tags: ['Back Pain', 'Knee Rehab', 'Posture', 'Sports Injury'],
+    free: true, price: 300, freeCount: 1,
+    about: 'Physiotherapist specializing in musculoskeletal disorders and sports rehabilitation. Currently building my practice and offering free initial consultations for residents.',
+    avail: 'Weekends + Wed evenings',
+    expertise: ['Back Pain', 'Knee Rehabilitation', 'Posture Correction', 'Sports Injury', 'Neck Pain', 'Post-Surgery Recovery'],
+    reviewList: [
+      { name: 'Sunita M.', initials: 'SM', date: '3 days ago', text: 'My back pain of 3 years is finally manageable after just 2 sessions with Meera. Absolute gem of a neighbour!' },
+      { name: 'Karan T.', initials: 'KT', date: '5 days ago', text: 'Very professional. Gave me a complete home exercise plan. Free consultation was very thorough.' }
+    ]
+  },
+  {
+    id: 3, name: 'Vikram Krishnan', initials: 'VK', role: 'Advocate · High Court · 15 yrs',
+    skill: 'Legal Advice & Documentation', cat: 'legal',
+    avatarBg: '#FDF4E3', avatarColor: '#C4882A',
+    rating: 4.8, reviews: 9, sessions: 14, flat: 'C-210',
+    badge: 'paid', badgeLabel: 'Paid',
+    tags: ['Property Law', 'Contracts', 'Consumer Cases', 'Society Disputes'],
+    free: false, price: 800, freeCount: 0,
+    about: 'High Court advocate with 15 years of practice in civil, property, and consumer law. Helping neighbours navigate legal issues without the stress of formal proceedings.',
+    avail: 'Tue & Thu evenings',
+    expertise: ['Property Law', 'Contract Drafting', 'Society Disputes', 'Consumer Forum', 'Will & Estate', 'Rental Agreements'],
+    reviewList: [
+      { name: 'Rohini P.', initials: 'RP', date: '1 week ago', text: 'Vikram reviewed our society bylaws dispute and gave very practical advice. Saved us from a costly court case.' }
+    ]
+  },
+  {
+    id: 4, name: 'Ananya Iyer', initials: 'AI', role: 'Software Engineer · 10 yrs',
+    skill: 'Tech Help & Home Automation', cat: 'tech',
+    avatarBg: '#E4F4F4', avatarColor: '#0D6B6B',
+    rating: 4.7, reviews: 7, sessions: 11, flat: 'D-306',
+    badge: 'free', badgeLabel: 'Free Now',
+    tags: ['Smart Home', 'WiFi Setup', 'Cybersecurity', 'Android/iOS'],
+    free: true, price: 400, freeCount: 1,
+    about: 'Senior engineer at a leading tech company. Happy to help residents with WiFi issues, smart home setup, phone troubleshooting, and basic cybersecurity.',
+    avail: 'Weekends',
+    expertise: ['Smart Home Setup', 'WiFi Troubleshooting', 'Password Security', 'Alexa/Google Home', 'Laptop Issues', 'Online Scam Protection'],
+    reviewList: [
+      { name: 'Venkat S.', initials: 'VS', date: '4 days ago', text: 'Set up my entire home network and smart lights in one afternoon. Amazing!' }
+    ]
+  },
+  {
+    id: 5, name: 'Pooja Nair', initials: 'PN', role: 'Nutritionist & Wellness Coach',
+    skill: 'Diet Planning & Nutrition', cat: 'fitness',
+    avatarBg: '#EBF2EB', avatarColor: '#5B7A5B',
+    rating: 4.9, reviews: 14, sessions: 22, flat: 'A-302',
+    badge: 'free', badgeLabel: 'Free Now',
+    tags: ['Weight Management', 'Diabetes Diet', 'Kids Nutrition', 'PCOS'],
+    free: true, price: 350, freeCount: 1,
+    about: 'Certified nutritionist helping residents build sustainable healthy eating habits. Special focus on Indian food culture and managing lifestyle diseases through diet.',
+    avail: 'Mon, Wed, Fri evenings',
+    expertise: ['Weight Loss', 'Diabetes Management', 'PCOS Diet', "Children's Nutrition", 'Sports Nutrition', 'Thyroid Diet'],
+    reviewList: [
+      { name: 'Kavita R.', initials: 'KR', date: '2 days ago', text: 'Lost 6kg in 2 months with Pooja\'s meal plan. No fad diets — practical Indian food plans.' },
+      { name: 'Srinivas K.', initials: 'SK', date: '1 week ago', text: 'Helped manage my diabetes with diet alone. HbA1c improved significantly!' }
+    ]
+  },
+  {
+    id: 6, name: 'Suresh Patel', initials: 'SP', role: 'Math & Science Tutor · 20 yrs',
+    skill: 'Academic Tutoring (Class 8–12)', cat: 'education',
+    avatarBg: '#FDF4E3', avatarColor: '#C4882A',
+    rating: 4.8, reviews: 21, sessions: 45, flat: 'B-105',
+    badge: 'paid', badgeLabel: 'Paid',
+    tags: ['Maths', 'Physics', 'JEE Prep', 'CBSE'],
+    free: false, price: 400, freeCount: 0,
+    about: 'Retired school principal with 20 years of teaching experience. Specializes in Maths and Physics for Class 8–12, CBSE board and JEE foundation.',
+    avail: 'Daily 4pm–7pm',
+    expertise: ['Class 10 Maths', 'Class 12 Physics', 'JEE Maths Foundation', 'CBSE Board Prep', 'Statistics', 'Calculus'],
+    reviewList: [
+      { name: 'Nisha G.', initials: 'NG', date: '3 days ago', text: 'My daughter went from 55% to 88% in Maths in one term. Mr. Patel is patient and explains brilliantly.' },
+      { name: 'Arun J.', initials: 'AJ', date: '2 weeks ago', text: 'Best teacher in the building. My son loves his Physics classes.' }
+    ]
+  }
+];
+
+let currentProvider = null;
+let selectedSlot = null;
+
+// ─── RENDER CARDS ───
+function renderCards() {
+  const grid = document.getElementById('cardsGrid');
+  const freeGrid = document.getElementById('freeGrid');
+  const featured = providers.slice(0, 4);
+  const free = providers.filter(p => p.free);
+  grid.innerHTML = featured.map(cardHTML).join('');
+  freeGrid.innerHTML = free.map(cardHTML).join('');
+}
+
+function cardHTML(p) {
+  return `
+    <div class="provider-card" onclick="showProfile(${p.id})">
+      <div class="card-badge ${p.badge}">${p.badgeLabel}</div>
+      <div class="card-avatar" style="background:${p.avatarBg};color:${p.avatarColor}">${p.initials}</div>
+      <div class="card-name">${p.name}</div>
+      <div class="card-role">${p.role}</div>
+      <div class="card-skill">${p.skill}</div>
+      <div class="card-tags">${p.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+      <hr class="card-divider">
+      <div class="card-bottom">
+        <div>
+          <div class="card-meta"><span class="stars">★</span> ${p.rating} · ${p.reviews} reviews</div>
+          <div class="card-price" style="margin-top:4px">${p.free ? '<span style="color:var(--sage);font-weight:600">Free session</span>' : '₹' + p.price + ' <span>/ session</span>'}</div>
+        </div>
+        <button class="card-book" onclick="event.stopPropagation();openBookingModalWith(${p.id})">Book</button>
+      </div>
+    </div>`;
+}
+
+// ─── FILTER ───
+function filterCards() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = providers.filter(p =>
+    p.name.toLowerCase().includes(q) ||
+    p.skill.toLowerCase().includes(q) ||
+    p.tags.some(t => t.toLowerCase().includes(q))
+  );
+  document.getElementById('cardsGrid').innerHTML = filtered.map(cardHTML).join('') || '<p style="color:var(--ink-4);padding:20px 0">No results found.</p>';
+  document.getElementById('freeGrid').innerHTML = filtered.filter(p=>p.free).map(cardHTML).join('') || '';
+}
+
+function filterCat(el, cat) {
+  document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  const list = cat === 'all' ? providers : providers.filter(p => p.cat === cat);
+  document.getElementById('cardsGrid').innerHTML = list.map(cardHTML).join('') || `<p style="color:var(--ink-4);padding:20px 0">No ${cat} experts listed yet.</p>`;
+  document.getElementById('freeGrid').innerHTML = list.filter(p=>p.free).map(cardHTML).join('') || '';
+}
+
+// ─── PROFILE ───
+function showProfile(id) {
+  const p = providers.find(x => x.id === id);
+  if (!p) return;
+  currentProvider = p;
+
+  document.getElementById('profileAvatarLg').style.background = p.avatarBg;
+  document.getElementById('profileAvatarLg').style.color = p.avatarColor;
+  document.getElementById('profileAvatarLg').textContent = p.initials;
+  document.getElementById('profileAvatarLg').style.fontSize = '30px';
+  document.getElementById('profileName').textContent = p.name;
+  document.getElementById('profileSub').textContent = p.role + ' · ' + p.flat;
+  document.getElementById('profileRating').innerHTML = `<span style="color:#F59E0B">★</span> ${p.rating} &nbsp; · &nbsp; ${p.reviews} reviews &nbsp; · &nbsp; ${p.sessions} sessions`;
+  document.getElementById('profileChips').innerHTML = `
+    <span class="profile-chip chip-teal">${p.skill}</span>
+    <span class="profile-chip ${p.free ? 'chip-sage' : 'chip-gold'}">${p.free ? 'Free intro available' : '₹' + p.price + ' / session'}</span>
+  `;
+  document.getElementById('profileAbout').textContent = p.about;
+  document.getElementById('profileExpertise').innerHTML = p.expertise.map(e=>`<span class="tag">${e}</span>`).join('');
+  document.getElementById('reviewCount').textContent = `(${p.reviewList.length})`;
+  document.getElementById('profileReviews').innerHTML = p.reviewList.map(r => `
+    <div class="review-item">
+      <div class="reviewer-row">
+        <div class="reviewer-av">${r.initials}</div>
+        <div class="reviewer-name">${r.name}</div>
+        <div style="color:#F59E0B;font-size:13px;margin-left:4px">★★★★★</div>
+        <div class="reviewer-date">${r.date}</div>
+      </div>
+      <div class="review-text">${r.text}</div>
+    </div>`).join('');
+
+  // Booking card
+  document.getElementById('bcTitle').textContent = p.skill;
+  document.getElementById('bcFlat').textContent = p.flat + ' · ' + (p.avail.split('·')[0] || '');
+  document.getElementById('bcAvail').textContent = p.avail;
+  document.getElementById('bcSessions').textContent = p.sessions + ' completed';
+  document.getElementById('bcPricing').innerHTML = p.free
+    ? `<div class="booking-free-label">✓ First session free</div>`
+    : `<div class="booking-price-row"><span class="booking-price">₹${p.price}</span><span class="booking-price-unit">/ session</span></div>`;
+  document.getElementById('bcToggle').innerHTML = p.free
+    ? `<div class="toggle-opt selected"><div class="opt-label">Free Session</div><div class="opt-price">Intro · 30 min</div></div>
+       <div class="toggle-opt" onclick="toggleConsultType(this)"><div class="opt-label">Paid Session</div><div class="opt-price">₹${p.price} · 60 min</div></div>`
+    : `<div class="toggle-opt selected"><div class="opt-label">60 min</div><div class="opt-price">₹${p.price}</div></div>
+       <div class="toggle-opt" onclick="toggleConsultType(this)"><div class="opt-label">30 min</div><div class="opt-price">₹${Math.round(p.price*0.6)}</div></div>`;
+
+  showPage('profile');
+}
+
+function toggleConsultType(el) {
+  el.parentElement.querySelectorAll('.toggle-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+// ─── BOOKING MODAL ───
+const timeSlots = ['Mon 6pm','Mon 8pm','Tue 6pm','Tue 8pm','Wed 7pm','Thu 6pm','Thu 8pm','Sat 10am','Sat 4pm','Sun 10am','Sun 4pm'];
+
+function openBookingModal() {
+  if (!currentProvider) return;
+  openBookingModalWith(currentProvider.id);
+}
+
+function openBookingModalWith(id) {
+  const p = providers.find(x => x.id === id);
+  if (!p) return;
+  currentProvider = p;
+  document.getElementById('modalContent').innerHTML = buildModalContent(p);
+  document.getElementById('bookingModal').classList.add('open');
+}
+
+function buildModalContent(p) {
+  const slots = timeSlots.slice(0,9).map((s,i) =>
+    `<button class="slot-btn${i===0?' selected':''}" onclick="selectSlot(this)">${s}</button>`).join('');
+  return `
+    <h2>Book with ${p.name}</h2>
+    <div class="modal-sub">${p.skill} · ${p.flat} · ${p.free ? 'First session free' : '₹' + p.price + ' / session'}</div>
+    <div class="form-group">
+      <label class="form-label">Your name</label>
+      <input class="form-input" type="text" placeholder="Your name" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Flat / Block</label>
+      <input class="form-input" type="text" placeholder="e.g. B-402" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">What do you need help with?</label>
+      <textarea class="form-textarea" placeholder="Brief description..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Preferred slot</label>
+      <div class="slot-grid">${slots}</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mode</label>
+      <select class="form-select">
+        <option>In-person (Society premises)</option>
+        <option>Video call</option>
+        <option>Phone call</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmBooking()">Confirm →</button>
+    </div>`;
+}
+
+function selectSlot(el) {
+  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function closeModal() { document.getElementById('bookingModal').classList.remove('open'); }
+
+function confirmBooking() {
+  const name = currentProvider ? currentProvider.name : 'the expert';
+  document.getElementById('modalContent').innerHTML = `
+    <div class="success-state">
+      <div class="success-icon">✓</div>
+      <div class="success-title">Request Sent!</div>
+      <div class="success-msg">Your consultation request has been sent to <strong>${name}</strong>.<br><br>
+        They'll confirm via WhatsApp within a few hours. You'll get a notification once confirmed.
+      </div>
+      <button class="btn-primary" style="margin-top:20px;padding:12px 28px" onclick="closeModal()">Done</button>
+    </div>`;
+}
+
+// ─── DASHBOARD TABS ───
+function switchDashTab(el, tab) {
+  document.querySelectorAll('.dash-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  ['provider','seeker','earnings'].forEach(t => {
+    const el = document.getElementById('dash-'+t);
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+}
+
+// ─── POST SKILL ───
+function selectPlan(el) {
+  document.querySelectorAll('.plan-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const isPaid = el.querySelector('h4').textContent.includes('Free + Paid');
+  document.getElementById('paidAmtGroup').style.display = isPaid ? '' : 'none';
+}
+
+function toggleDay(el) { el.classList.toggle('selected'); }
+
+function submitSkill() {
+  showPage('home');
+  setTimeout(() => showToast('🎉 Skill published! It\'s now visible to your neighbours.'), 300);
+}
+
+// ─── NAV ───
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  if (page) { page.classList.add('active'); window.scrollTo(0,0); }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ─── INIT ───
+renderCards();
+</script>
+</body>
+</html>
