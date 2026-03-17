@@ -233,12 +233,74 @@
     .footer-social a { color: rgba(255,255,255,.4); font-size: 18px; transition: color .2s; }
     .footer-social a:hover { color: #fff; }
 
+    /* ── LAUNCH BADGE ── */
+    .launch-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, #D45C3B, #C4882A); color: #fff;
+      padding: 10px 24px; border-radius: var(--radius-full);
+      font-size: 14px; font-weight: 700; margin-bottom: 24px;
+      box-shadow: 0 4px 16px rgba(212,92,59,.3);
+    }
+
+    /* ── WAITLIST POPUP ── */
+    .popup-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center; z-index: 9999;
+      animation: fadeIn .3s ease;
+    }
+    .popup-overlay.hidden { display: none; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .popup-card {
+      width: 90%; max-width: 440px; border-radius: 20px; overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,.25); animation: popIn .35s ease;
+    }
+    @keyframes popIn { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .popup-top {
+      background: linear-gradient(135deg, #D45C3B, #C4882A); color: #fff;
+      padding: 36px 32px 28px; text-align: center; position: relative;
+    }
+    .popup-close {
+      position: absolute; top: 14px; right: 18px; background: none; border: none;
+      color: rgba(255,255,255,.7); font-size: 22px; cursor: pointer; line-height: 1;
+    }
+    .popup-close:hover { color: #fff; }
+    .popup-gift {
+      width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.2);
+      display: flex; align-items: center; justify-content: center; font-size: 28px;
+      margin: 0 auto 16px;
+    }
+    .popup-top h2 { font-family: var(--heading); font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+    .popup-top p { font-size: 14px; color: rgba(255,255,255,.85); }
+    .popup-body {
+      background: var(--surface); padding: 28px 32px 32px; text-align: center;
+    }
+    .popup-body h3 { font-family: var(--heading); font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .popup-body .popup-desc { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
+    .popup-perks {
+      display: flex; gap: 24px; justify-content: center; margin-bottom: 24px;
+    }
+    .popup-perks span {
+      display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-2);
+    }
+    .popup-perks .check { color: var(--accent); font-weight: 700; }
+    .popup-cta {
+      display: block; width: 100%; padding: 16px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #D45C3B, #C4882A); color: #fff;
+      font-size: 16px; font-weight: 700; cursor: pointer; font-family: var(--body);
+      transition: opacity .2s; text-decoration: none; text-align: center;
+    }
+    .popup-cta:hover { opacity: .9; text-decoration: none; }
+    .popup-dismiss {
+      display: block; margin-top: 14px; font-size: 13px; color: var(--muted);
+      background: none; border: none; cursor: pointer; font-family: var(--body);
+    }
+    .popup-dismiss:hover { color: var(--text); }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 900px) {
       .hero .container { flex-direction: column; text-align: center; }
       .hero-sub { margin-left: auto; margin-right: auto; }
       .hero-actions { justify-content: center; }
-      .hero-stats { justify-content: center; }
       .hero-visual { display: none; }
       .how-grid, .features-grid, .test-grid { grid-template-columns: 1fr; }
       .cat-grid { grid-template-columns: repeat(2, 1fr); }
@@ -281,22 +343,18 @@
 <section class="hero">
   <div class="container">
     <div class="hero-text">
+      <div class="launch-badge">🚀 Launching May 2026</div>
       <div class="hero-eyebrow">
         <span class="pulse"></span>
-        Now live in Pimpri-Chinchwad & Pune
+        Pimpri-Chinchwad & Pune
       </div>
       <h1>Your Community,<br/>Your <span class="highlight">Experts.</span></h1>
       <p class="hero-sub">
         Connect with verified professionals — CAs, fitness trainers, tutors, therapists & more — living right in your gated society. Trusted. Transparent. Hyperlocal.
       </p>
       <div class="hero-actions">
-        <a href="/register" class="btn btn-primary btn-lg">Join Vicinify — It's Free</a>
+        <a href="/register" class="btn btn-primary btn-lg" data-cta>Join Waitlist — It's Free</a>
         <a href="#how" class="btn btn-outline btn-lg">See How It Works</a>
-      </div>
-      <div class="hero-stats">
-        <div><div class="hero-stat-val">50+</div><div class="hero-stat-label">Professionals</div></div>
-        <div><div class="hero-stat-val">15+</div><div class="hero-stat-label">Societies</div></div>
-        <div><div class="hero-stat-val">20+</div><div class="hero-stat-label">Service Categories</div></div>
       </div>
     </div>
     <div class="hero-visual">
@@ -508,9 +566,9 @@
   <div class="container">
     <div class="cta-card">
       <h2>Ready to Vicinify Your Community?</h2>
-      <p>Join hundreds of residents already connecting with trusted local professionals. Free to sign up. Free to browse. Start today.</p>
+      <p>Be the first to know when we launch in your society. Join the waitlist — it's completely free.</p>
       <div class="cta-actions">
-        <a href="/register" class="btn btn-primary btn-lg">Create Free Account</a>
+        <a href="/register" class="btn btn-primary btn-lg" data-cta>Join Waitlist</a>
         <a href="#how" class="btn btn-outline btn-lg">Learn More</a>
       </div>
     </div>
@@ -565,11 +623,53 @@
   </div>
 </footer>
 
+<!-- ═══════════ WAITLIST POPUP ═══════════ -->
+<div class="popup-overlay hidden" id="waitlistPopup">
+  <div class="popup-card">
+    <div class="popup-top">
+      <button class="popup-close" id="popupClose">&times;</button>
+      <div class="popup-gift">🎁</div>
+      <h2>Wait! Don't Miss Out</h2>
+      <p>Join 500+ neighbors getting early access</p>
+    </div>
+    <div class="popup-body">
+      <h3>Grab exclusive early launch offers</h3>
+      <p class="popup-desc">Be the first to know when Vicinify launches in your neighborhood</p>
+      <div class="popup-perks">
+        <span><span class="check">✓</span> Early access</span>
+        <span><span class="check">✓</span> Exclusive discount</span>
+      </div>
+      <a href="/register" class="popup-cta" data-cta>🚀 Join the Waitlist →</a>
+      <button class="popup-dismiss" id="popupDismiss">No thanks, I'll pass on the discount</button>
+    </div>
+  </div>
+</div>
+
 <script>
-  // Navbar scroll effect
+  // Navbar scroll
   window.addEventListener('scroll', () => {
     document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
   });
+
+  // Waitlist popup — 5 min idle, unless user clicked a CTA or dismissed
+  (function() {
+    if (sessionStorage.getItem('popupDismissed')) return;
+    let clicked = false;
+    document.querySelectorAll('[data-cta]').forEach(el => {
+      el.addEventListener('click', () => { clicked = true; });
+    });
+    const timer = setTimeout(() => {
+      if (clicked || sessionStorage.getItem('popupDismissed')) return;
+      document.getElementById('waitlistPopup').classList.remove('hidden');
+    }, 5 * 60 * 1000);
+    function dismiss() {
+      document.getElementById('waitlistPopup').classList.add('hidden');
+      sessionStorage.setItem('popupDismissed', '1');
+      clearTimeout(timer);
+    }
+    document.getElementById('popupClose').addEventListener('click', dismiss);
+    document.getElementById('popupDismiss').addEventListener('click', dismiss);
+  })();
 </script>
 </body>
 </html>

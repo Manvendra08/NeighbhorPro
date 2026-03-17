@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
-import { LoginPage, RegisterPage } from "./components/auth/AuthPages";
+import { LoginPage, RegisterPage, ForgotPasswordPage } from "./components/auth/AuthPages";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import Layout from "./components/layout/Layout";
 
@@ -9,8 +9,9 @@ import BrowsePros from "./pages/BrowsePros";
 import ProDetail from "./pages/ProDetail";
 import BookingFlow from "./pages/BookingFlow";
 import MyBookings from "./pages/MyBookings";
-import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
+import Support from "./pages/Support";
+import MyAccount from "./pages/MyAccount";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -29,6 +30,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
@@ -36,8 +38,10 @@ export default function App() {
             <Route path="/pro/:id" element={<ProDetail />} />
             <Route path="/book/:id" element={<BookingFlow />} />
             <Route path="/bookings" element={<MyBookings />} />
-            <Route path="/profile" element={<Profile />} />
+            <Route path="/profile" element={<Navigate to="/account" replace />} />
+            <Route path="/account" element={<MyAccount />} />
             <Route path="/messages" element={<Messages />} />
+            <Route path="/support" element={<Support />} />
 
             {/* Admin routes */}
             <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />

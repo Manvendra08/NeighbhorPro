@@ -2,6 +2,8 @@ import { useState, FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 
+export { ForgotPasswordPage } from "./ForgotPasswordPage";
+
 /* Styles are now in index.css */
 
 const GoogleIcon = () => (
@@ -82,6 +84,9 @@ export function LoginPage() {
             </button>
           </form>
 
+          <p className="auth-footer">
+            <Link to="/forgot-password" style={{ fontSize: 13, color: 'var(--muted)' }}>Forgot password?</Link>
+          </p>
           <p className="auth-footer">
             Don't have an account? <Link to="/register">Create one</Link>
           </p>
