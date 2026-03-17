@@ -69,5 +69,15 @@ service cloud.firestore {
         allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
       }
     }
+    // Support Tickets Collection
+    match /supportTickets/{ticketId} {
+      allow read, update: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && ticketId == "support_" + request.auth.uid;
+      
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
+        allow update, delete: if isAdmin();
+      }
+    }
   }
 }
