@@ -1,14 +1,15 @@
 import { useState, FormEvent } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, doc, setDoc, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { useEffect } from "react";
 
 interface SupportMessage {
   id: string;
   text: string;
-  sender: "user" | "admin";
-  createdAt: unknown;
+  senderRole: "user" | "admin";
+  senderName?: string;
+  timestamp: any;
 }
 
 export default function Support() {
@@ -19,36 +20,50 @@ export default function Support() {
   const [sending, setSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
-  const threadId = user ? `support_${user.uid}` : "";
+  const [ticketId, setTicketId] = useState<string | null>(null);
 
   // Listen for support chat messages
   useEffect(() => {
-    if (!threadId) return;
+    if (!user) return;
+    const tid = `support_${user.uid}`;
+    setTicketId(tid);
+
     const q = query(
-      collection(db, "supportMessages"),
-      where("threadId", "==", threadId),
-      orderBy("createdAt", "asc")
+      collection(db, `supportTickets/${tid}/messages`),
+      orderBy("timestamp", "asc")
     );
     const unsub = onSnapshot(q, (snap) => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as SupportMessage)));
     });
     return unsub;
-  }, [threadId]);
+  }, [user]);
 
   const sendChat = async (e: FormEvent) => {
     e.preventDefault();
-    if (!chatMsg.trim() || !user) return;
+    if (!chatMsg.trim() || !user || !ticketId) return;
     setSending(true);
-    await addDoc(collection(db, "supportMessages"), {
-      threadId,
+
+    const ticketRef = doc(db, "supportTickets", ticketId);
+    
+    // Update or create the parent ticket
+    await setDoc(ticketRef, {
+      subject: "Support Chat",
       userId: user.uid,
       userName: userProfile?.displayName || "User",
       userEmail: userProfile?.email || "",
-      text: chatMsg.trim(),
-      sender: "user",
-      read: false,
+      status: "open",
+      priority: "normal",
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+
+    await addDoc(collection(db, `supportTickets/${ticketId}/messages`), {
+      text: chatMsg.trim(),
+      senderRole: "user",
+      senderName: userProfile?.displayName || "User",
+      timestamp: serverTimestamp(),
     });
+
     setChatMsg("");
     setSending(false);
   };
@@ -125,11 +140,11 @@ export default function Support() {
             )}
             {messages.map(m => (
               <div key={m.id} style={{
-                alignSelf: m.sender === "user" ? "flex-end" : "flex-start",
-                background: m.sender === "user" ? "var(--accent)" : "var(--surface)",
-                color: m.sender === "user" ? "#fff" : "var(--text)",
+                alignSelf: m.senderRole === "user" ? "flex-end" : "flex-start",
+                background: m.senderRole === "user" ? "var(--accent)" : "var(--surface)",
+                color: m.senderRole === "user" ? "#fff" : "var(--text)",
                 padding: "10px 16px", borderRadius: 14, maxWidth: "75%", fontSize: 14,
-                border: m.sender === "admin" ? "1px solid var(--border)" : "none"
+                border: m.senderRole === "admin" ? "1px solid var(--border)" : "none"
               }}>
                 {m.text}
               </div>
