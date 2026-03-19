@@ -3,9 +3,9 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 const firebaseConfig = {
   apiKey: "AIzaSyDLa5-OsjK3iSTfHur4kKfRPJl9_fu8Pk0",
-  authDomain: "pro-neighbor.firebaseapp.com",
-  projectId: "pro-neighbor",
-  storageBucket: "pro-neighbor.firebasestorage.app",
+  authDomain: "neighbhorpro.firebaseapp.com",
+  projectId: "neighbhorpro",
+  storageBucket: "neighbhorpro.firebasestorage.app",
   messagingSenderId: "1078165325381",
   appId: "1:1078165325381:web:8cb8cc849068001ba0c52c",
   measurementId: "G-2YPP5GTF0B",
