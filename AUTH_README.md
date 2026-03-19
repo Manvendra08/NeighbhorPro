@@ -1,4 +1,4 @@
-# NeighbhorPro — Auth Setup
+# ProNeighbor — Auth Setup
 
 ## Install dependencies
 ```bash

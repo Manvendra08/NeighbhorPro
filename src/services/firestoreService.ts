@@ -41,7 +41,7 @@ export async function uploadProfilePhoto(uid: string, file: File) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", uploadPreset);
-  formData.append("folder", "neighborpro/profiles");
+  formData.append("folder", "pro-neighbor/profiles");
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
     method: "POST",

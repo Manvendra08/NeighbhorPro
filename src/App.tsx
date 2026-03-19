@@ -4,6 +4,7 @@ import { LoginPage, RegisterPage, ForgotPasswordPage } from "./components/auth/A
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import Layout from "./components/layout/Layout";
 
+import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import BrowsePros from "./pages/BrowsePros";
 import ProDetail from "./pages/ProDetail";
@@ -28,10 +29,15 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* ── Public landing page — no auth required ── */}
+          <Route path="/" element={<LandingPage />} />
+
+          {/* ── Auth pages ── */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
+          {/* ── Protected app shell ── */}
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/browse" element={<BrowsePros />} />
@@ -55,7 +61,8 @@ export default function App() {
             <Route path="/admin/reviews" element={<ProtectedRoute adminOnly><AdminReviews /></ProtectedRoute>} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          {/* ── Fallback: unknown routes → landing ── */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

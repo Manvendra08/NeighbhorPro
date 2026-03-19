@@ -58,7 +58,7 @@ export function LoginPage() {
       <div className="auth-form-panel">
         <div className="auth-card">
           <h1 className="auth-title">Welcome back</h1>
-          <p className="auth-sub">Sign in to your NeighbhorPro account</p>
+          <p className="auth-sub">Sign in to your ProNeighbor account</p>
 
           {error && <div className="error-box">{error}</div>}
 
@@ -193,22 +193,41 @@ export function RegisterPage() {
 function BrandPanel({ register }: { register?: boolean }) {
   return (
     <div className="auth-brand" style={{
-      backgroundImage: "linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6)), url('/images/auth_bg.png')",
+      backgroundImage: "linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.8)), url('/images/auth_bg.png')",
       backgroundSize: "cover",
       backgroundPosition: "center",
       color: "white"
     }}>
-      <div className="brand-logo" style={{ display: "flex", alignItems: "center", gap: "12px", color: "white" }}>
+      <div className="brand-logo" style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        gap: "12px", 
+        color: "white",
+        textShadow: "0 2px 8px rgba(0,0,0,0.3)"
+      }}>
         <img src="/images/logo.png" alt="Logo" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
-        NeighborPro
+        ProNeighbor
       </div>
-      <h2 className="brand-headline" style={{ color: "white" }}>
+      <h2 className="brand-headline" style={{ 
+        color: "white",
+        textShadow: "0 2px 12px rgba(0,0,0,0.5)"
+      }}>
         {register ? "Find trusted pros,\nnear you." : "Your community,\nyour experts."}
       </h2>
-      <p className="brand-sub">
-        Connect with verified local professionals — plumbers, tutors, electricians, and more — within your neighbourhood.
+      <p className="brand-sub" style={{ 
+        color: "rgba(255, 255, 255, 0.95)",
+        textShadow: "0 1px 6px rgba(0,0,0,0.3)"
+      }}>
+        Connect with verified local professionals — CA, Tutor, Health experts, and more — within your neighbourhood.
       </p>
-      <div className="brand-pill">Live in Pimpri Chinchwad & beyond</div>
+      <div className="brand-pill" style={{
+        background: "rgba(255, 255, 255, 0.12)",
+        color: "white",
+        borderColor: "rgba(255, 255, 255, 0.25)",
+        textShadow: "0 1px 4px rgba(0,0,0,0.2)"
+      }}>
+        Launch in May 2026 for Park Street Residents
+      </div>
     </div>
   );
 }

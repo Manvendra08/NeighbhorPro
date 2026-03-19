@@ -23,8 +23,8 @@ type Settings = {
 
 const DEFAULTS: Settings = {
   commissionRate: 10, maintenanceMode: false, allowNewRegistrations: true,
-  allowBookings: true, allowBrowse: true, supportEmail: "support@neighborpro.in",
-  platformName: "NeighborPro", maxSocietiesPerCity: 50, freeTrialDays: 30,
+  allowBookings: true, allowBrowse: true, supportEmail: "support@pro-neighbor.in",
+  platformName: "ProNeighbor", maxSocietiesPerCity: 50, freeTrialDays: 30,
   minBookingAmount: 0, maintenanceMessage: "We'll be back shortly. Scheduled maintenance.",
   featureReviews: true, featureMessaging: true, featurePremiumSocieties: true,
 };
@@ -133,8 +133,8 @@ export default function AdminSettings() {
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 20 }}>⚙️ Core Configuration</h3>
             {[
-              { label: "Platform Name", k: "platformName" as const, type: "text", placeholder: "NeighborPro" },
-              { label: "Support Email", k: "supportEmail" as const, type: "email", placeholder: "support@neighborpro.in" },
+              { label: "Platform Name", k: "platformName" as const, type: "text", placeholder: "ProNeighbor" },
+              { label: "Support Email", k: "supportEmail" as const, type: "email", placeholder: "support@pro-neighbor.in" },
             ].map(f => (
               <div className="form-group" key={f.k}>
                 <label className="form-label">{f.label}</label>
