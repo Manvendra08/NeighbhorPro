@@ -40,6 +40,7 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [showMaintModal, setShowMaintModal] = useState(false);
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
@@ -95,7 +96,11 @@ export default function AdminSettings() {
         <div style={{ fontWeight: 500, fontSize: 14 }}>{label}</div>
         {desc && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{desc}</div>}
       </div>
-      <button onClick={() => set(k, !settings[k] as Settings[typeof k])}
+      <button 
+        onClick={() => {
+          if (k === "maintenanceMode") setShowMaintModal(true);
+          else set(k, !settings[k] as Settings[typeof k]);
+        }}
         style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: settings[k] ? "var(--accent)" : "rgba(136,146,164,0.3)", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
         <span style={{ position: "absolute", top: 3, left: settings[k] ? 23 : 3, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left 0.2s", display: "block" }} />
       </button>
@@ -151,7 +156,7 @@ export default function AdminSettings() {
               <span className="form-hint">Current: {settings.commissionRate}% of every completed booking</span>
             </div>
 
-            <div className="grid grid-2" style={{ gap: 14 }}>
+            <div className="grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               {[
                 { label: "Free Trial Days", k: "freeTrialDays" as const, min: 0, max: 90 },
                 { label: "Min Booking ₹", k: "minBookingAmount" as const, min: 0, max: 5000 },
@@ -187,23 +192,28 @@ export default function AdminSettings() {
             <Toggle label="Reviews & Ratings" desc="Allow users to leave reviews" k="featureReviews" />
             <Toggle label="Premium Societies" desc="Society subscription upgrades" k="featurePremiumSocieties" />
           </div>
-
-          <div className="card" style={{ background: "rgba(13,107,107,0.04)" }}>
-            <h3 className="card-title" style={{ marginBottom: 16 }}>📊 Platform Summary</h3>
-            {[
-              { label: "Commission Rate", val: `${settings.commissionRate}%` },
-              { label: "Free Trial", val: `${settings.freeTrialDays} days` },
-              { label: "Min Booking", val: settings.minBookingAmount === 0 ? "Free allowed" : `₹${settings.minBookingAmount}` },
-              { label: "Status", val: settings.maintenanceMode ? "🔴 Maintenance" : "🟢 Live" },
-            ].map(r => (
-              <div key={r.label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
-                <span style={{ color: "var(--muted)" }}>{r.label}</span>
-                <span style={{ fontWeight: 600 }}>{r.val}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
+
+      {showMaintModal && (
+        <div className="modal-overlay" onClick={() => setShowMaintModal(false)}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: "var(--error)" }}>⚠ Maintenance Mode</h3>
+              <button className="modal-close" onClick={() => setShowMaintModal(false)}>✕</button>
+            </div>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>
+              {settings.maintenanceMode ? "Re-enable platform access for all users?" : "Lock the platform for all non-admin users? Existing sessions will be interrupted."}
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowMaintModal(false)}>Cancel</button>
+              <button className="btn btn-danger btn-sm" onClick={() => { set("maintenanceMode", !settings.maintenanceMode); setShowMaintModal(false); }}>
+                {settings.maintenanceMode ? "Go Live" : "Enable Maintenance"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import {
 } from "../services/firestoreService";
 
 export default function MyBookings() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [tab, setTab] = useState<"client" | "pro">("client");
   const [clientBookings, setClientBookings] = useState<Record<string, unknown>[]>([]);
   const [proBookings, setProBookings] = useState<Record<string, unknown>[]>([]);
@@ -88,9 +88,11 @@ export default function MyBookings() {
         <button className={`tab${tab === "client" ? " active" : ""}`} onClick={() => setTab("client")}>
           As Client
         </button>
-        <button className={`tab${tab === "pro" ? " active" : ""}`} onClick={() => setTab("pro")}>
-          As Professional
-        </button>
+        {userProfile?.isServiceProvider && (
+          <button className={`tab${tab === "pro" ? " active" : ""}`} onClick={() => setTab("pro")}>
+            As Professional
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -106,6 +108,11 @@ export default function MyBookings() {
               ? "Browse professionals and book a consultation"
               : "When clients book your services, they'll appear here"}
           </div>
+          {tab === "client" && (
+            <a href="/browse" className="btn btn-primary" style={{ marginTop: 16 }}>
+              Book Now
+            </a>
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

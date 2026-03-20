@@ -31,11 +31,18 @@ export default function MyAccount() {
             <h3 className="card-title">Transaction History</h3>
           </div>
           <div className="empty-state">
-            <div className="empty-state-icon">💳</div>
+            <div className="empty-state-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--muted)" }}>
+                <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+              </svg>
+            </div>
             <div className="empty-state-title">No transactions yet</div>
             <div className="empty-state-desc">
-              Your booking and payment history will appear here once you start using Vicinify services.
+              Your booking and payment history will appear here once you start using ProNeighbor services.
             </div>
+            <a href="/browse" className="btn btn-primary" style={{ marginTop: 16 }}>
+              Browse Professionals
+            </a>
           </div>
         </div>
       )}

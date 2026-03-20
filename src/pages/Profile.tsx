@@ -251,7 +251,7 @@ export default function Profile() {
       </div>
 
       {/* Profile avatar */}
-      <div className="card" style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 20 }}>
+      <div className="card" style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 20 }}>
         <div style={{ position: "relative" }}>
           <div className="avatar avatar-xl avatar-upload" style={{ position: "relative", overflow: "hidden" }}>
             {user?.photoURL ? (
@@ -277,15 +277,18 @@ export default function Profile() {
 
       <form onSubmit={handleSave}>
         {/* Service Provider Toggle */}
-        <div className="card" style={{ marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <h3 className="card-title">Enable Service Provider Mode</h3>
-            <p className="text-muted text-sm">Turn this on to list your skills and offer services to the community.</p>
+        <div className="card" style={{ marginTop: 32, marginBottom: 32, display: "flex", alignItems: "center", justifyContent: "space-between", border: isServiceProvider ? "1px solid var(--success)" : "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ fontSize: 24, color: isServiceProvider ? "var(--success)" : "var(--muted)" }}>💼</div>
+            <div>
+              <h3 className="card-title">Enable Service Provider Mode</h3>
+              <p className="text-muted text-sm">Turn this on to list your skills and offer services to the community.</p>
+            </div>
           </div>
           <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: 48, height: 26 }}>
             <input type="checkbox" checked={isServiceProvider} onChange={(e) => setIsServiceProvider(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-            <span className="slider" style={{ position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isServiceProvider ? "var(--accent2)" : "var(--surface-2)", transition: ".4s", borderRadius: 26, border: "1px solid var(--border)" }}>
-              <span style={{ position: "absolute", height: 20, width: 20, left: 2, bottom: 2, backgroundColor: isServiceProvider ? "#000" : "var(--muted)", transition: ".4s", borderRadius: "50%", transform: isServiceProvider ? "translateX(22px)" : "none" }}></span>
+            <span className="slider" style={{ position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isServiceProvider ? "#4ADE80" : "var(--surface-3)", transition: ".4s", borderRadius: 26, border: "1px solid var(--border)" }}>
+              <span style={{ position: "absolute", height: 20, width: 20, left: 2, bottom: 2, backgroundColor: "white", transition: ".4s", borderRadius: "50%", transform: isServiceProvider ? "translateX(22px)" : "none", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}></span>
             </span>
           </label>
         </div>
@@ -320,8 +323,9 @@ export default function Profile() {
               className="form-input"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              placeholder="Tell your neighbors about your professional background…"
+              placeholder="Tell your neighbors about your professional background in 1-2 sentences."
               id="profile-bio-input"
+              rows={3}
             />
           </div>
 

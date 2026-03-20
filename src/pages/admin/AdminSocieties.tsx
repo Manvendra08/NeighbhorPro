@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getAllSocieties, createSociety, updateSociety, deleteSociety } from "../../services/firestoreService";
 import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
+import { Link } from "react-router-dom";
 
 export default function AdminSocieties() {
   const { userProfile } = useAuth();
@@ -9,12 +10,14 @@ export default function AdminSocieties() {
   const adminName = userProfile?.displayName || "Admin";
 
   const [societies, setSocieties] = useState<Record<string, unknown>[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<Record<string, unknown> | null>(null);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
@@ -93,6 +96,21 @@ export default function AdminSocieties() {
         </div>
       )}
 
+      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+        <input
+          className="form-input"
+          placeholder="Search societies..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ maxWidth: 320 }}
+        />
+        <select className="form-input" style={{ maxWidth: 160 }}>
+          <option value="all">All Subscriptions</option>
+          <option value="free">Free</option>
+          <option value="premium">Premium</option>
+        </select>
+      </div>
+
       {loading ? (
         <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
       ) : societies.length === 0 ? (
@@ -102,27 +120,57 @@ export default function AdminSocieties() {
           <div className="empty-state-desc">Add your first community to get started</div>
         </div>
       ) : (
-        <div className="grid grid-3">
-          {societies.map(s => (
-            <div className="card" key={s.id as string}>
+        <div className="grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 24 }}>
+          {societies.filter(s => (s.name as string).toLowerCase().includes(search.toLowerCase())).map(s => (
+            <div className="card" key={s.id as string} style={{ position: "relative" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                <div>
-                  <h3 style={{ marginBottom: 4 }}>{s.name as string}</h3>
+                <Link to={`/admin/societies/${s.id}`} style={{ textDecoration: "none", color: "inherit", flex: 1 }}>
+                  <h3 style={{ marginBottom: 4, cursor: "pointer" }}>{s.name as string}</h3>
                   <p className="text-muted text-sm">{(s.address as string) || (s.city as string) || "—"}</p>
+                </Link>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className={`badge ${(s.subscription as string) === "premium" ? "badge-accent" : "badge-muted"}`}>
+                    {(s.subscription as string) || "free"}
+                  </span>
+                  <div style={{ position: "relative" }}>
+                    <button
+                      className="btn btn-ghost btn-sm btn-icon"
+                      onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === s.id ? null : s.id as string); }}
+                      style={{ fontSize: 18, width: 32, height: 32 }}
+                    >
+                      ⋮
+                    </button>
+                    {activeMenu === s.id && (
+                      <div
+                        className="card"
+                        style={{
+                          position: "absolute", top: "100%", right: 0, zIndex: 10,
+                          padding: 4, width: 140, boxShadow: "var(--shadow-lg)",
+                        }}
+                      >
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ width: "100%", justifyContent: "flex-start", color: "var(--error)" }}
+                          onClick={() => { setDeleteConfirm(s); setActiveMenu(null); }}
+                        >
+                          🗑 Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <span className={`badge ${(s.subscription as string) === "premium" ? "badge-accent" : "badge-muted"}`}>
-                  {(s.subscription as string) || "free"}
-                </span>
               </div>
-              <div className="text-muted text-sm" style={{ marginBottom: 12 }}>
+              <div className="text-muted text-sm" style={{ marginBottom: 16 }}>
                 Members: {(s.memberCount as number) || 0}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-ghost btn-sm"
-                  onClick={() => handleTogglePremium(s.id as string, (s.subscription as string) || "free", s.name as string)}>
-                  {(s.subscription as string) === "premium" ? "Downgrade" : "Upgrade to Premium"}
+              <div>
+                <button
+                  className={`btn btn-sm ${ (s.subscription as string) === "premium" ? "btn-secondary" : "btn-primary" }`}
+                  style={{ width: "100%" }}
+                  onClick={() => handleTogglePremium(s.id as string, (s.subscription as string) || "free", s.name as string)}
+                >
+                  {(s.subscription as string) === "premium" ? "Downgrade to Free" : "Upgrade to Premium"}
                 </button>
-                <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(s)}>Delete</button>
               </div>
             </div>
           ))}

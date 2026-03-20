@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAllServices } from "../../services/firestoreService";
+import { getAllServices, getAllUsers } from "../../services/firestoreService";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
@@ -14,16 +14,23 @@ export default function AdminServices() {
   const adminName = userProfile?.displayName || "Admin";
 
   const [services, setServices] = useState<ServiceRow[]>([]);
+  const [users, setUsers] = useState<Record<string, any>[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedSvc, setSelectedSvc] = useState<ServiceRow | null>(null);
   const [toast, setToast] = useState("");
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
 
   const load = async () => {
     setLoading(true);
-    try { setServices(await getAllServices()); } catch { /* ignore */ }
+    try { 
+      const [svcData, userData] = await Promise.all([getAllServices(), getAllUsers()]);
+      setServices(svcData);
+      setUsers(userData);
+    } catch { /* ignore */ }
     setLoading(false);
   };
 
@@ -39,6 +46,15 @@ export default function AdminServices() {
       id
     );
     showToast(`Service ${status}`);
+    load();
+  };
+
+  const bulkStatus = async (status: string) => {
+    if (selectedIds.length === 0) return;
+    await Promise.all(selectedIds.map(id => updateDoc(doc(db, "services", id), { status })));
+    await logAudit(`service.bulk_${status}`, adminId, adminName, `Bulk ${status} for ${selectedIds.length} services`, selectedIds.join(", "));
+    showToast(`Bulk updated to ${status}`);
+    setSelectedIds([]);
     load();
   };
 
@@ -97,6 +113,15 @@ export default function AdminServices() {
             </button>
           ))}
         </div>
+        
+        {selectedIds.length > 0 && (
+          <div style={{ display: "flex", gap: 8, padding: "4px 12px", background: "var(--accent-dim)", borderRadius: "var(--radius-sm)", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, marginRight: 8 }}>{selectedIds.length} Selected</span>
+            <button className="btn btn-success btn-sm" onClick={() => bulkStatus("approved")}>Approve All</button>
+            <button className="btn btn-danger btn-sm" onClick={() => bulkStatus("rejected")}>Reject All</button>
+          </div>
+        )}
+
         <input className="form-input" placeholder="Search title, category…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 240, padding: "8px 12px", marginLeft: "auto" }} />
       </div>
 
@@ -108,30 +133,101 @@ export default function AdminServices() {
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>Service</th><th>Category</th><th>Provider</th><th>Rate</th><th>Status</th><th>Actions</th></tr>
+              <tr>
+                <th style={{ width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.length === filtered.length && filtered.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedIds(filtered.map(s => s.id as string));
+                      else setSelectedIds([]);
+                    }}
+                  />
+                </th>
+                <th>Service</th><th>Category</th><th>Provider</th><th>Rate</th><th>Status</th><th>Actions</th>
+              </tr>
             </thead>
             <tbody>
-              {filtered.map(s => (
-                <tr key={s.id as string}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{s.title as string || "Untitled"}</div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.description as string || "—"}</div>
-                  </td>
-                  <td><span className="badge badge-muted">{s.category as string || "—"}</span></td>
-                  <td style={{ fontSize: 13 }}>{s.userId as string ? (s.userId as string).slice(0, 10) + "…" : "—"}</td>
-                  <td style={{ fontWeight: 600 }}>{s.isFree ? "Free" : s.hourlyRate ? `₹${s.hourlyRate}/hr` : "Quote"}</td>
-                  <td><span className={`badge ${statusBadge((s.status as string) || "pending")}`}>{(s.status as string) || "pending"}</span></td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {s.status !== "approved" && <button className="btn btn-success btn-sm" onClick={() => setStatus(s, "approved")}>Approve</button>}
-                      {s.status !== "featured" && <button className="btn btn-secondary btn-sm" style={{ color: "var(--warning)" }} onClick={() => setStatus(s, "featured")}>⭐ Feature</button>}
-                      {s.status !== "rejected" && <button className="btn btn-danger btn-sm" onClick={() => setStatus(s, "rejected")}>Reject</button>}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map(s => {
+                const provider = users.find(u => u.uid === s.userId);
+                return (
+                  <tr key={s.id as string} onClick={() => setSelectedSvc(s)} style={{ cursor: "pointer", verticalAlign: "middle" }}>
+                    <td onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(s.id as string)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedIds([...selectedIds, s.id as string]);
+                          else setSelectedIds(selectedIds.filter(id => id !== s.id));
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{s.title as string || "Untitled"}</div>
+                      {s.description && s.description !== s.title && (
+                        <div style={{ fontSize: 12, color: "var(--muted)", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.description as string}</div>
+                      )}
+                    </td>
+                    <td><span className="badge badge-muted">{s.category as string || "—"}</span></td>
+                    <td style={{ fontSize: 13 }}>
+                      {provider ? (
+                        <a href={`/admin/users/${provider.uid}`} onClick={e => e.stopPropagation()} style={{ color: "var(--accent)", fontWeight: 500 }}>
+                          {provider.displayName || provider.email}
+                        </a>
+                      ) : (
+                        <span className="text-muted">Missing Provider</span>
+                      )}
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{s.isFree ? "Free" : s.price ? `₹${s.price}` : "Quote"}</td>
+                    <td><span className={`badge ${statusBadge((s.status as string) || "pending")}`}>{(s.status as string) || "pending"}</span></td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
+                        {s.status !== "approved" && <button className="btn btn-success btn-sm" onClick={() => setStatus(s, "approved")}>Approve</button>}
+                        {s.status !== "featured" && <button className="btn btn-ghost btn-sm" title="Mark Featured" onClick={() => setStatus(s, "featured")} style={{ fontSize: 18 }}>⭐</button>}
+                        {s.status !== "rejected" && <button className="btn btn-danger btn-sm" onClick={() => setStatus(s, "rejected")}>Reject</button>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {selectedSvc && (
+        <div className="modal-overlay" onClick={() => setSelectedSvc(null)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Service Details</h3>
+              <button className="modal-close" onClick={() => setSelectedSvc(null)}>✕</button>
+            </div>
+            <div style={{ paddingBottom: 20 }}>
+              <div style={{ marginBottom: 16 }}>
+                <span className={`badge ${statusBadge((selectedSvc.status as string) || "pending")}`} style={{ marginBottom: 8 }}>{(selectedSvc.status as string) || "pending"}</span>
+                <h2 style={{ fontSize: 24, marginBottom: 4 }}>{selectedSvc.title as string}</h2>
+                <div className="text-muted">{selectedSvc.category as string}</div>
+              </div>
+              <div style={{ background: "var(--bg-app)", padding: 16, borderRadius: 12, marginBottom: 20, fontSize: 14 }}>
+                {selectedSvc.description as string || "No description provided."}
+              </div>
+              <div className="grid grid-2" style={{ gap: 20 }}>
+                <div>
+                  <div className="text-muted text-xs" style={{ textTransform: "uppercase", marginBottom: 4 }}>Pricing</div>
+                  <div style={{ fontWeight: 700, fontSize: 18 }}>{selectedSvc.isFree ? "Free" : selectedSvc.price ? `₹${selectedSvc.price}` : "Upon Quote"}</div>
+                </div>
+                <div>
+                  <div className="text-muted text-xs" style={{ textTransform: "uppercase", marginBottom: 4 }}>Duration</div>
+                  <div style={{ fontWeight: 700, fontSize: 18 }}>{selectedSvc.duration as string || "—"}</div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              {selectedSvc.status !== "approved" && <button className="btn btn-success btn-sm" onClick={() => { setStatus(selectedSvc, "approved"); setSelectedSvc(null); }}>Approve</button>}
+              {selectedSvc.status !== "rejected" && <button className="btn btn-danger btn-sm" onClick={() => { setStatus(selectedSvc, "rejected"); setSelectedSvc(null); }}>Reject</button>}
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedSvc(null)}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

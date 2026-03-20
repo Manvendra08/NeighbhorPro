@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { createBooking, getUserProfile } from "../services/firestoreService";
-import { useEffect } from "react";
+import { payForBooking, earnCoins } from "../services/coinService";
 
 export default function BookingFlow() {
   const { id: proId } = useParams<{ id: string }>();
@@ -27,26 +27,62 @@ export default function BookingFlow() {
     "06:00 PM", "07:00 PM",
   ];
 
+  const isFree   = !!(pro?.isFreeConsultation as boolean);
+  const feeCoins = isFree ? 0 : ((pro?.hourlyRate as number) || 0);
+  const balance  = userProfile?.coinBalance ?? 0;
+  const hasEnough = isFree || balance >= feeCoins;
+
   const handleSubmit = async () => {
-    if (!date || !timeSlot) {
-      setError("Please select a date and time slot.");
+    if (!date || !timeSlot) { setError("Please select a date and time slot."); return; }
+    if (!hasEnough) {
+      setError(`Insufficient balance. You need ${feeCoins} NC but have ${balance} NC. Top up your wallet.`);
       return;
     }
     setLoading(true);
     setError("");
     try {
-      await createBooking({
-        clientId: user!.uid,
-        clientName: userProfile?.displayName || user!.displayName || user!.email,
-        proId: proId!,
-        proName: (pro?.displayName as string) || "",
-        serviceName: `Consultation with ${(pro?.displayName as string) || "Professional"}`,
+      const serviceName = `Consultation with ${(pro?.displayName as string) || "Professional"}`;
+
+      // 1. Create booking doc
+      const bookingId = await createBooking({
+        clientId:    user!.uid,
+        clientName:  userProfile?.displayName || user!.displayName || user!.email,
+        proId:       proId!,
+        proName:     (pro?.displayName as string) || "",
+        serviceName,
         date,
         timeSlot,
         notes,
-        isPaid: !(pro?.isFreeConsultation as boolean),
-        amount: (pro?.isFreeConsultation as boolean) ? 0 : (pro?.hourlyRate as number) || 0,
+        isPaid:      !isFree,
+        amount:      feeCoins,
+        coinsPaid:   false,
       });
+
+      // 2. Debit client coins → credit pro coins (atomic)
+      if (!isFree && feeCoins > 0) {
+        const result = await payForBooking(
+          user!.uid,
+          proId!,
+          bookingId,
+          feeCoins,
+          serviceName
+        );
+        if (!result.success) {
+          setError(
+            result.reason === "INSUFFICIENT_BALANCE"
+              ? "Insufficient NC balance. Please top up your wallet."
+              : "Payment failed. Please try again."
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 3. Earn coins for the pro if free consultation
+      if (isFree) {
+        await earnCoins(proId!, "earn_free_consult", bookingId);
+      }
+
       setStep(3); // success
     } catch {
       setError("Failed to create booking. Please try again.");
@@ -70,34 +106,27 @@ export default function BookingFlow() {
 
       <h1 className="page-title" style={{ marginBottom: 24 }}>Book Consultation</h1>
 
-      {/* Progress indicator */}
+      {/* Progress */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32 }}>
         {[1, 2, 3].map((s) => (
           <div key={s} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-            <div
-              style={{
-                width: 32, height: 32, borderRadius: "50%",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14, fontWeight: 700,
-                background: step >= s ? "var(--accent)" : "var(--surface-2)",
-                color: step >= s ? "#fff" : "var(--muted)",
-                transition: "all 0.2s",
-              }}
-            >
+            <div style={{
+              width: 32, height: 32, borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 14, fontWeight: 700, transition: "all 0.2s",
+              background: step >= s ? "var(--accent)" : "var(--surface-2)",
+              color: step >= s ? "#fff" : "var(--muted)",
+            }}>
               {step > s ? "✓" : s}
             </div>
             {s < 3 && (
-              <div style={{
-                flex: 1, height: 2,
-                background: step > s ? "var(--accent)" : "var(--border)",
-                transition: "all 0.2s",
-              }} />
+              <div style={{ flex: 1, height: 2, transition: "all 0.2s", background: step > s ? "var(--accent)" : "var(--border)" }} />
             )}
           </div>
         ))}
       </div>
 
-      {/* Step 1: Select date & time */}
+      {/* Step 1 */}
       {step === 1 && (
         <div className="card">
           <h3 className="card-title" style={{ marginBottom: 4 }}>Select Date & Time</h3>
@@ -107,26 +136,17 @@ export default function BookingFlow() {
 
           <div className="form-group">
             <label className="form-label">Date</label>
-            <input
-              type="date"
-              className="form-input"
-              value={date}
+            <input type="date" className="form-input" value={date}
               onChange={(e) => setDate(e.target.value)}
-              min={new Date().toISOString().split("T")[0]}
-              id="booking-date-input"
-            />
+              min={new Date().toISOString().split("T")[0]} />
           </div>
 
           <div className="form-group">
             <label className="form-label">Time Slot</label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
               {timeSlots.map((t) => (
-                <button
-                  key={t}
-                  className={`chip${timeSlot === t ? " active" : ""}`}
-                  onClick={() => setTimeSlot(t)}
-                  style={{ justifyContent: "center" }}
-                >
+                <button key={t} className={`chip${timeSlot === t ? " active" : ""}`}
+                  onClick={() => setTimeSlot(t)} style={{ justifyContent: "center" }}>
                   {t}
                 </button>
               ))}
@@ -135,100 +155,114 @@ export default function BookingFlow() {
 
           <div className="form-group">
             <label className="form-label">Notes (optional)</label>
-            <textarea
-              className="form-input"
-              placeholder="Describe what you need help with…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              id="booking-notes-input"
-            />
+            <textarea className="form-input" placeholder="Describe what you need help with…"
+              value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
           {error && <div className="error-box">{error}</div>}
 
-          <button
-            className="btn btn-primary btn-lg"
-            style={{ width: "100%", marginTop: 8 }}
+          <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: 8 }}
             onClick={() => {
-              if (!date || !timeSlot) {
-                setError("Please select a date and time slot.");
-                return;
-              }
-              setError("");
-              setStep(2);
-            }}
-          >
+              if (!date || !timeSlot) { setError("Please select a date and time slot."); return; }
+              setError(""); setStep(2);
+            }}>
             Continue
           </button>
         </div>
       )}
 
-      {/* Step 2: Confirm */}
+      {/* Step 2 — Confirm with NC payment */}
       {step === 2 && (
         <div className="card">
-          <h3 className="card-title" style={{ marginBottom: 16 }}>Confirm Booking</h3>
+          <h3 className="card-title" style={{ marginBottom: 16 }}>Confirm & Pay</h3>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-              <span className="text-muted">Professional</span>
-              <span style={{ fontWeight: 600 }}>{(pro.displayName as string) || "Professional"}</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 20 }}>
+            {[
+              ["Professional", (pro.displayName as string) || "Professional"],
+              ["Date", date],
+              ["Time", timeSlot],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid var(--border)" }}>
+                <span className="text-muted">{label}</span>
+                <span style={{ fontWeight: 600 }}>{value}</span>
+              </div>
+            ))}
+
+            {/* NC payment row */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
+              <span className="text-muted">Payment</span>
+              {isFree ? (
+                <span style={{ fontWeight: 700, color: "#16a34a" }}>Free 🎁</span>
+              ) : (
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1B6B8A" }}>
+                    🪙 {feeCoins.toLocaleString("en-IN")} NC
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>= ₹{feeCoins} · debited from your wallet</div>
+                </div>
+              )}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-              <span className="text-muted">Date</span>
-              <span style={{ fontWeight: 600 }}>{date}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-              <span className="text-muted">Time</span>
-              <span style={{ fontWeight: 600 }}>{timeSlot}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-              <span className="text-muted">Price</span>
-              <span style={{ fontWeight: 700, color: (pro.isFreeConsultation as boolean) ? "var(--accent2)" : "var(--text)" }}>
-                {(pro.isFreeConsultation as boolean) ? "Free" : `₹${(pro.hourlyRate as number) || 0}`}
-              </span>
-            </div>
-            {notes && (
-              <div style={{ padding: "10px 0" }}>
-                <span className="text-muted" style={{ display: "block", marginBottom: 4 }}>Notes</span>
-                <span style={{ fontSize: 14, color: "var(--text-2)" }}>{notes}</span>
+
+            {/* Balance check */}
+            {!isFree && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "11px 0" }}>
+                <span className="text-muted">Your balance</span>
+                <span style={{ fontWeight: 600, color: hasEnough ? "var(--text)" : "#dc2626" }}>
+                  {balance.toLocaleString("en-IN")} NC {!hasEnough && "⚠️ insufficient"}
+                </span>
               </div>
             )}
           </div>
 
+          {!hasEnough && (
+            <div style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: "0.88rem", color: "#dc2626" }}>
+              You need {feeCoins} NC but have {balance} NC.{" "}
+              <button onClick={() => navigate("/wallet")} style={{ background: "none", border: "none", color: "#dc2626", textDecoration: "underline", cursor: "pointer", fontSize: "inherit" }}>
+                Top up wallet →
+              </button>
+            </div>
+          )}
+
           {error && <div className="error-box">{error}</div>}
 
+          {notes && (
+            <div style={{ padding: "10px 0 16px" }}>
+              <span className="text-muted" style={{ display: "block", marginBottom: 4, fontSize: 13 }}>Notes</span>
+              <span style={{ fontSize: 14, color: "var(--text-2)" }}>{notes}</span>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}>
-              Back
-            </button>
-            <button
-              className="btn btn-primary"
-              style={{ flex: 2 }}
-              onClick={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? "Booking…" : "Confirm Booking"}
+            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}>Back</button>
+            <button className="btn btn-primary" style={{ flex: 2 }}
+              onClick={handleSubmit} disabled={loading || !hasEnough}>
+              {loading ? "Processing…" : isFree ? "Confirm Booking" : `Pay ${feeCoins} NC & Confirm`}
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Success */}
+      {/* Step 3 — Success */}
       {step === 3 && (
         <div className="card" style={{ textAlign: "center", padding: 48 }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
           <h2 style={{ marginBottom: 8 }}>Booking Confirmed!</h2>
-          <p className="text-muted" style={{ marginBottom: 24 }}>
-            Your consultation with {(pro.displayName as string)} is scheduled for {date} at {timeSlot}.
-            You'll receive a notification when they confirm.
+          <p className="text-muted" style={{ marginBottom: 16 }}>
+            Consultation with {pro.displayName as string} on {date} at {timeSlot}.
           </p>
+          {!isFree && (
+            <div style={{ display: "inline-block", background: "rgba(27,107,138,0.1)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#1B6B8A", fontWeight: 600, fontSize: "0.9rem" }}>
+              🪙 {feeCoins} NC deducted · Remaining: {(balance - feeCoins).toLocaleString("en-IN")} NC
+            </div>
+          )}
+          {isFree && (
+            <div style={{ display: "inline-block", background: "rgba(22,163,74,0.1)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#16a34a", fontWeight: 600, fontSize: "0.9rem" }}>
+              🏆 Pro earns +50 NC for this free consultation
+            </div>
+          )}
           <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-            <button className="btn btn-secondary" onClick={() => navigate("/bookings")}>
-              View Bookings
-            </button>
-            <button className="btn btn-primary" onClick={() => navigate("/dashboard")}>
-              Go to Dashboard
-            </button>
+            <button className="btn btn-secondary" onClick={() => navigate("/bookings")}>View Bookings</button>
+            <button className="btn btn-primary" onClick={() => navigate("/dashboard")}>Dashboard</button>
           </div>
         </div>
       )}

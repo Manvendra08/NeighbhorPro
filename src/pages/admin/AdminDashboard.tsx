@@ -35,11 +35,18 @@ export default function AdminDashboard() {
     load();
   }, []);
 
+  const ICON = {
+    users: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    bookings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>,
+    revenue: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+    commission: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
+  };
+
   const cards = [
-    { label: "Total Users", value: stats.users, icon: "👥", color: "var(--accent-dim)", iconColor: "var(--accent)" },
-    { label: "Total Bookings", value: stats.bookings, icon: "📅", color: "var(--accent2-dim)", iconColor: "var(--accent2)" },
-    { label: "Revenue (₹)", value: `₹${stats.revenue.toLocaleString()}`, icon: "💰", color: "rgba(255,179,71,0.1)", iconColor: "var(--warning)" },
-    { label: "Commission (₹)", value: `₹${stats.commission.toLocaleString()}`, icon: "🏦", color: "rgba(255,92,92,0.08)", iconColor: "var(--error)" },
+    { label: "Total Users", value: stats.users, icon: ICON.users, color: "var(--accent)", action: { label: "Add", to: "/admin/users" } },
+    { label: "Total Bookings", value: stats.bookings, icon: ICON.bookings, color: "var(--accent2)", action: { label: "View", to: "/admin/bookings" } },
+    { label: "Revenue (₹)", value: `₹${stats.revenue.toLocaleString()}`, icon: ICON.revenue, color: "var(--warning)", action: null },
+    { label: "Commission (₹)", value: `₹${stats.commission.toLocaleString()}`, icon: ICON.commission, color: "var(--error)", action: null },
   ];
 
   const statusColor: Record<string, string> = {
@@ -62,9 +69,18 @@ export default function AdminDashboard() {
           <div className="grid grid-4" style={{ marginBottom: 32 }}>
             {cards.map((c) => (
               <div className="stat-card" key={c.label}>
-                <div className="stat-icon" style={{ background: c.color, color: c.iconColor }}>{c.icon}</div>
-                <div className="stat-value">{c.value}</div>
-                <div className="stat-label">{c.label}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div className="stat-icon" style={{ background: c.color, color: "white" }}>{c.icon}</div>
+                  {c.action && (
+                    <a href={c.action.to} className="btn btn-ghost btn-xs" style={{ fontSize: 10, padding: "2px 8px" }}>
+                      {c.action.label}
+                    </a>
+                  )}
+                </div>
+                <div>
+                  <div className="stat-value">{c.value}</div>
+                  <div className="stat-label">{c.label}</div>
+                </div>
               </div>
             ))}
           </div>

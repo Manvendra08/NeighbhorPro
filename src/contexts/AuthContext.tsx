@@ -11,6 +11,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
+import { earnCoins } from "../services/coinService";
 
 export interface UserProfile {
   uid: string;
@@ -27,6 +28,8 @@ export interface UserProfile {
   role: "user" | "admin";
   rating: number;
   reviewCount: number;
+  coinBalance: number;        // ← NeighbourCoins balance
+  referralCode?: string;      // ← unique code for referral tracking
   createdAt: unknown;
 }
 
@@ -43,35 +46,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function generateReferralCode(uid: string): string {
+  return "PN" + uid.slice(0, 6).toUpperCase();
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (!u) {
-        setUserProfile(null);
-        setLoading(false);
-      }
+      if (!u) { setUserProfile(null); setLoading(false); }
     });
     return unsubscribe;
   }, []);
 
-  // Listen for user profile changes in Firestore
   useEffect(() => {
     if (!user) return;
     const ref = doc(db, "users", user.uid);
     const unsubscribe = onSnapshot(ref, (snap) => {
-      if (snap.exists()) {
-        setUserProfile(snap.data() as UserProfile);
-      }
+      if (snap.exists()) setUserProfile(snap.data() as UserProfile);
       setLoading(false);
-    }, () => {
-      setLoading(false);
-    });
+    }, () => setLoading(false));
     return unsubscribe;
   }, [user]);
 
@@ -94,9 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: "user",
         rating: 0,
         reviewCount: 0,
+        coinBalance: 0,              // starts at 0; signup bonus credited below
+        referralCode: generateReferralCode(u.uid),
         createdAt: serverTimestamp(),
       };
       await setDoc(ref, profile);
+      // Grant 100 NC signup bonus
+      await earnCoins(u.uid, "earn_signup_bonus", u.uid);
     }
   };
 

@@ -30,7 +30,6 @@ export default function BrowsePros() {
   const [pros, setPros] = useState<Record<string, unknown>[]>([]);
   const [filtered, setFiltered] = useState<Record<string, unknown>[]>([]);
   const [category, setCategory] = useState("All");
-  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -55,17 +54,13 @@ export default function BrowsePros() {
         (p.skills as string[])?.some((s) => s.toLowerCase().includes(category.toLowerCase()))
       );
     }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (p) =>
-          ((p.displayName as string) || "").toLowerCase().includes(q) ||
-          ((p.bio as string) || "").toLowerCase().includes(q) ||
-          (p.skills as string[])?.some((s) => s.toLowerCase().includes(q))
+    if (category !== "All") {
+      result = result.filter((p) =>
+        (p.skills as string[])?.some((s) => s.toLowerCase().includes(category.toLowerCase()))
       );
     }
     setFiltered(result);
-  }, [category, search, pros]);
+  }, [category, pros]);
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
 
@@ -81,28 +76,51 @@ export default function BrowsePros() {
         className={isGrid ? "pro-card" : "pro-card-list"}
         onClick={() => navigate(`/pro/${p.uid}`)}
       >
-        <div className="pro-card-img" style={{ position: "relative" }}>
+        <div className="pro-card-img" style={{ 
+          position: "relative", 
+          aspectRatio: "4/3", 
+          overflow: "hidden",
+          background: "var(--surface-3)"
+        }}>
           {(p.photoURL as string) ? (
-            <img src={p.photoURL as string} alt={p.displayName as string} />
+            <img 
+              src={p.photoURL as string} 
+              alt={p.displayName as string} 
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
           ) : (
-            <span>{initials((p.displayName as string) || "?")}</span>
+            <div style={{ 
+              width: "100%", 
+              height: "100%", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              fontSize: 24,
+              fontWeight: 700,
+              color: "var(--accent)"
+            }}>
+              {initials((p.displayName as string) || "?")}
+            </div>
           )}
-          <div className="provider-badge" style={{ position: "absolute", bottom: 8, right: 8, background: "var(--success)", color: "#fff", width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--surface)", fontSize: 11, fontWeight: "bold", zIndex: 1 }} title="Service Provider">✓</div>
+          <div className="provider-badge" style={{ position: "absolute", bottom: 8, right: 8, background: "var(--success)", color: "#fff", width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff", fontSize: 11, fontWeight: "bold", zIndex: 1, boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }} title="Service Provider">✓</div>
         </div>
         
         <div className="pro-card-body">
           <div className="pro-card-main-info">
             <div className="pro-card-name">{(p.displayName as string) || "Anonymous"}</div>
-            <div className="pro-card-society">
-              {(p.society as string) || "Community Member"}
-            </div>
-            <div className="pro-card-skills">
-              {((p.skills as string[]) || []).slice(0, 3).map((s: string) => (
-                <span className="skill-tag" key={s}>{s}</span>
-              ))}
-              {((p.skills as string[]) || []).length > 3 && (
-                <span className="skill-tag">+{(p.skills as string[]).length - 3}</span>
-              )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div className="pro-card-society" style={{ marginBottom: 4 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "middle" }}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                {(p.society as string) || "Community Member"}
+              </div>
+              <div className="pro-card-skills" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {((p.skills as string[]) || []).slice(0, 3).map((s: string) => (
+                  <span className="skill-tag" key={s} style={{ fontSize: 10, padding: "2px 6px" }}>{s}</span>
+                ))}
+                {((p.skills as string[]) || []).length > 3 && (
+                  <span className="skill-tag" style={{ fontSize: 10, padding: "2px 6px" }}>+{(p.skills as string[]).length - 3}</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -150,21 +168,17 @@ export default function BrowsePros() {
         </div>
       </div>
 
-      {/* Search */}
-      <div style={{ marginBottom: 20 }}>
-        <input
-          className="form-input"
-          type="text"
-          placeholder="Search by name, skill, or keyword…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 480 }}
-          id="browse-search-input"
-        />
-      </div>
 
       {/* Category filter chips */}
-      <div className="filter-chips">
+      <div className="filter-chips" style={{ 
+        display: "flex", 
+        gap: 8, 
+        overflowX: "auto", 
+        paddingBottom: 12,
+        marginBottom: 24,
+        scrollbarWidth: "none",
+        msOverflowStyle: "none"
+      }}>
         {CATEGORIES.map((c) => (
           <button
             key={c}
@@ -178,16 +192,28 @@ export default function BrowsePros() {
 
       {/* Results */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: 60 }}>
-          <div className="loader" style={{ margin: "0 auto" }} />
+        <div className={viewMode === "grid" ? "grid grid-3" : "pro-list-layout"}>
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className={viewMode === "grid" ? "pro-card" : "pro-card-list"} style={{ pointerEvents: "none" }}>
+              <div className="skeleton" style={{ aspectRatio: "4/3", borderRadius: "12px 12px 0 0" }} />
+              <div className="pro-card-body" style={{ padding: 16 }}>
+                <div className="skeleton" style={{ height: 18, width: "60%", marginBottom: 8 }} />
+                <div className="skeleton" style={{ height: 12, width: "40%", marginBottom: 12 }} />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div className="skeleton" style={{ height: 20, width: 60, borderRadius: 10 }} />
+                  <div className="skeleton" style={{ height: 20, width: 80, borderRadius: 10 }} />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🔍</div>
           <div className="empty-state-title">No professionals found</div>
           <div className="empty-state-desc">
-            {search || category !== "All"
-              ? "Try adjusting your search or filters"
+            {category !== "All"
+              ? "Try adjusting your filters"
               : "Be the first! Update your profile to list your skills."}
           </div>
         </div>

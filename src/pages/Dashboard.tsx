@@ -34,7 +34,7 @@ export default function Dashboard() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || !userProfile?.isServiceProvider) return;
+    if (!user || userProfile?.isServiceProvider !== true) return;
     const loadEarnings = async () => {
       try {
         const txns = await getTransactionsForPro(user.uid);
@@ -74,45 +74,53 @@ export default function Dashboard() {
     return { lifetime, thisMonth, lastMonth };
   }, [proTransactions]);
 
+  const ICON = {
+    bookings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>,
+    requests: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+    rating: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+    earnings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+    skills: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a2 2 0 0 1-2.83-2.83l-3.94 3.6Z"/><path d="m14.7 6.3 3.6-3.94a2 2 0 0 1 2.83 2.83l-3.77 3.77a1 1 0 0 1-1.4 0L14.7 7.7a1 1 0 0 1 0-1.4Z"/><path d="M17.2 11.7a1 1 0 0 0-1.4 0l-1.6 1.6a1 1 0 0 0 0 1.4l3.94 3.6a2 2 0 0 0 2.83-2.83l-3.77-3.77Z"/><path d="m17.2 11.7-3.77 3.77a2 2 0 0 0 2.83 2.83l3.94-3.6a1 1 0 0 0 0-1.4l-1.6-1.6a1 1 0 0 0-1.4 0Z"/><path d="M18 20h2"/><path d="M16 16v2"/><path d="M21 15v2"/><path d="M9 22H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3"/><path d="M13 22h-2"/><path d="M9 4v4"/><path d="M15 4v4"/></svg>
+  };
+  
   const stats = [
     {
       label: "Upcoming Bookings",
       value: upcomingBookings.length,
-      icon: "📅",
-      color: "var(--accent-dim)",
-      iconColor: "var(--accent)",
+      icon: ICON.bookings,
+      color: "var(--accent)",
+      action: upcomingBookings.length === 0 ? { label: "Book Now", to: "/browse" } : null,
     },
     {
       label: "Client Requests",
       value: proBookings.length,
-      icon: "📩",
-      color: "var(--accent2-dim)",
-      iconColor: "var(--accent2)",
+      icon: ICON.requests,
+      color: "var(--accent2)",
+      action: proBookings.length === 0 ? { label: "Manage", to: "/bookings" } : null,
     },
     {
       label: "Rating",
-      value: userProfile?.rating ? `${userProfile.rating} ★` : "—",
-      icon: "⭐",
-      color: "rgba(255,179,71,0.1)",
-      iconColor: "var(--warning)",
+      value: userProfile?.rating ? `${userProfile.rating} ★` : 0,
+      icon: ICON.rating,
+      color: "var(--warning)",
+      action: !userProfile?.rating ? { label: "My Profile", to: "/profile" } : null,
     },
   ];
 
   if (userProfile?.isServiceProvider) {
     stats.push({
-      label: "Lifetime Earnings (₹)",
+      label: "Lifetime Earnings",
       value: `₹${earningsSummary.lifetime.toLocaleString()}`,
-      icon: "💰",
-      color: "rgba(0,229,176,0.08)",
-      iconColor: "var(--accent2)",
+      icon: ICON.earnings,
+      color: "var(--accent2)",
+      action: earningsSummary.lifetime === 0 ? { label: "Get Paid", to: "/profile" } : null,
     });
   } else {
     stats.push({
       label: "Skills Listed",
       value: userProfile?.skills?.length || 0,
-      icon: "🛠️",
-      color: "rgba(255,92,92,0.08)",
-      iconColor: "var(--error)",
+      icon: ICON.skills,
+      color: "var(--error)",
+      action: (userProfile?.skills?.length || 0) === 0 ? { label: "Add Skills", to: "/profile" } : null,
     });
   }
 
@@ -144,14 +152,23 @@ export default function Dashboard() {
       <div className="grid grid-4" style={{ marginBottom: 32 }}>
         {stats.map((s) => (
           <div className="stat-card" key={s.label}>
-            <div
-              className="stat-icon"
-              style={{ background: s.color, color: s.iconColor }}
-            >
-              {s.icon}
+            <div className="stat-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div
+                className="stat-icon"
+                style={{ background: s.color, color: "white" }}
+              >
+                {s.icon}
+              </div>
+              {s.action && (
+                <Link to={s.action.to} className="btn btn-ghost btn-xs" style={{ fontSize: 10, padding: "2px 8px" }}>
+                  {s.action.label}
+                </Link>
+              )}
             </div>
-            <div className="stat-value">{loading ? "…" : s.value}</div>
-            <div className="stat-label">{s.label}</div>
+            <div>
+              <div className="stat-value">{loading ? "…" : s.value}</div>
+              <div className="stat-label">{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
@@ -255,7 +272,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {userProfile?.isServiceProvider && (
+      {/* Earnings Overview - Only for Pros */}
+      {userProfile?.isServiceProvider === true && (
         <div className="card" style={{ marginTop: 24 }}>
           <div className="card-header">
             <h3 className="card-title">Earnings Overview</h3>

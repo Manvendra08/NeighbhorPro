@@ -1,22 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper: Is the user logged in?
-    function isSignedIn() {
-      return request.auth != null;
-    }
 
-    // Helper: Is the user the owner of the document?
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // Helper: Is the user an admin?
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return request.auth.uid == uid; }
     function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Users Collection
+    // Users
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isOwner(userId);
@@ -24,58 +17,92 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Services Collection
+    // Services
     match /services/{serviceId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Bookings Collection
+    // Bookings
     match /bookings/{bookingId} {
-      allow read: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() &&
+        (resource.data.clientId == request.auth.uid ||
+         resource.data.proId    == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() &&
+        (resource.data.clientId == request.auth.uid ||
+         resource.data.proId    == request.auth.uid || isAdmin());
     }
 
-    // Reviews Collection
+    // Reviews
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
 
-    // Societies Collection
+    // Societies
     match /societies/{societyId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Transactions Collection
+    // Transactions (legacy)
     match /transactions/{txId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
-    // Messages Collection
+    // ── NeighbourCoins ─────────────────────────────
+
+    // Coin ledger: owner reads own; writes only via backend/functions
+    // (client-side write allowed here for MVP; lock down with Cloud Functions in prod)
+    match /coinLedger/{uid}/entries/{entryId} {
+      allow read: if isSignedIn() && isOwner(uid);
+      allow create: if isSignedIn() && isOwner(uid);  // tighten to functions-only in prod
+      allow update, delete: if false;                  // immutable ledger
+    }
+
+    // Coin purchases: owner reads own, admin reads all
+    match /coinPurchases/{purchaseId} {
+      allow read: if isSignedIn() &&
+        (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Coin payouts: owner reads own, admin manages
+    match /coinPayouts/{payoutId} {
+      allow read: if isSignedIn() &&
+        (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+        request.resource.data.uid == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ── Messages ───────────────────────────────────
     match /messages/{convId} {
       allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn();
       allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
-      
+
       match /chats/{msgId} {
-        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
-        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
+        allow read, create: if isSignedIn() &&
+          request.auth.uid in
+            get(/databases/$(database)/documents/messages/$(convId)).data.participants;
       }
     }
-    // Support Tickets Collection
+
+    // Support tickets
     match /supportTickets/{ticketId} {
-      allow read, update: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
+      allow read, update: if isSignedIn() &&
+        (ticketId == "support_" + request.auth.uid || isAdmin());
       allow create: if isSignedIn() && ticketId == "support_" + request.auth.uid;
-      
+
       match /messages/{messageId} {
-        allow read, create: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
+        allow read, create: if isSignedIn() &&
+          (ticketId == "support_" + request.auth.uid || isAdmin());
         allow update, delete: if isAdmin();
       }
     }

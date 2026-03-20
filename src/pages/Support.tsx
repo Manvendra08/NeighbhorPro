@@ -177,7 +177,7 @@ export default function Support() {
             <div style={{ color: "var(--success)", fontWeight: 600 }}>✅ Email client opened!</div>
           ) : (
             <a
-              href={`mailto:hello@vicinify.com?subject=Support Request from ${userProfile?.displayName || "User"}&body=Hi Vicinify team,%0A%0A`}
+              href={`mailto:support@pro-neighbor.in?subject=Support Request from ${userProfile?.displayName || "User"}&body=Hi ProNeighbor team,%0A%0A`}
               className="btn btn-primary"
               onClick={() => setEmailSent(true)}
             >
@@ -185,7 +185,7 @@ export default function Support() {
             </a>
           )}
           <p style={{ marginTop: 24, fontSize: 13, color: "var(--muted)" }}>
-            Or write to us at: <a href="mailto:hello@vicinify.com">hello@vicinify.com</a>
+            Or write to us at: <a href="mailto:support@pro-neighbor.in">support@pro-neighbor.in</a>
           </p>
         </div>
       )}

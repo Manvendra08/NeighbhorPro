@@ -157,16 +157,21 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      <div className="grid grid-4" style={{ marginBottom: 24 }}>
+      <div className="grid" style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: 16,
+        marginBottom: 24
+      }}>
         {[
-          { label: "Total Users", val: counts.all, icon: "👥", color: "var(--accent-dim)", ic: "var(--accent)" },
-          { label: "Active", val: counts.active, icon: "✅", color: "rgba(91,122,91,0.12)", ic: "var(--success)" },
-          { label: "Disabled", val: counts.disabled, icon: "🚫", color: "rgba(255,92,92,0.1)", ic: "var(--error)" },
-          { label: "Admins", val: counts.admins, icon: "🛡️", color: "rgba(196,136,42,0.1)", ic: "var(--warning)" },
+          { label: "Total Users", val: counts.all, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, color: "var(--accent)" },
+          { label: "Active Users", val: counts.active, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>, color: "var(--success)" },
+          { label: "Disabled", val: counts.disabled, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, color: "var(--error)" },
+          { label: "Admins", val: counts.admins, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, color: "var(--warning)" },
         ].map(c => (
-          <div className="stat-card" key={c.label} style={{ padding: "16px 20px" }}>
-            <div className="stat-icon" style={{ background: c.color, color: c.ic }}>{c.icon}</div>
-            <div className="stat-value" style={{ fontSize: 22 }}>{c.val}</div>
+          <div className="stat-card" key={c.label} style={{ padding: "20px" }}>
+            <div className="stat-icon" style={{ background: c.color, color: "white", marginBottom: 8 }}>{c.icon}</div>
+            <div className="stat-value" style={{ fontSize: 24 }}>{c.val}</div>
             <div className="stat-label">{c.label}</div>
           </div>
         ))}
@@ -200,7 +205,7 @@ export default function AdminUsers() {
                 const uid = u.uid as string;
                 const busy = actionLoading === uid;
                 return (
-                  <tr key={uid} style={{ opacity: busy ? 0.5 : 1 }}>
+                  <tr key={uid} style={{ opacity: busy ? 0.5 : 1, verticalAlign: "middle" }}>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => setSelectedUser(u)}>
                         <div className="avatar avatar-sm" style={{ background: u.disabled ? "rgba(255,92,92,0.1)" : "var(--accent-dim)", color: u.disabled ? "var(--error)" : "var(--accent)" }}>
@@ -208,7 +213,7 @@ export default function AdminUsers() {
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>{(u.displayName as string) || "—"}</div>
-                          <div style={{ fontSize: 11, color: "var(--muted)" }}>uid: {uid.slice(0, 8)}…</div>
+                          <div style={{ fontSize: 12, color: "#6B7280" }}>uid: {uid.slice(0, 8)}…</div>
                         </div>
                       </div>
                     </td>
