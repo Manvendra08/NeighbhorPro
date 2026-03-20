@@ -13,7 +13,6 @@ import {
   collection,
   doc,
   getDoc,
-  addDoc,
   updateDoc,
   serverTimestamp,
   query,
@@ -22,7 +21,6 @@ import {
   getDocs,
   runTransaction,
   where,
-  collectionGroup,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -114,14 +112,6 @@ export async function getCoinBalance(uid: string): Promise<number> {
 }
 
 /* ─── LEDGER ─── */
-async function appendLedger(entry: Omit<LedgerEntry, "id">): Promise<string> {
-  const ref = await addDoc(
-    collection(db, "coinLedger", entry.uid, "entries"),
-    { ...entry, createdAt: serverTimestamp() }
-  );
-  return ref.id;
-}
-
 export async function getLedger(uid: string, pageLimit = 30): Promise<LedgerEntry[]> {
   const q = query(
     collection(db, "coinLedger", uid, "entries"),
