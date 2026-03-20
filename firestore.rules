@@ -9,11 +9,22 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Blocker #3: Fields that must NEVER be writable by the client directly.
+    // coinBalance is managed only via runTransaction in coinService.ts.
+    // role protects privilege escalation.
+    function noSensitiveFieldChange() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(["coinBalance", "role"]);
+    }
+
     // Users
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      // Owners can update own profile but NOT coinBalance or role
+      allow update: if isSignedIn() && isOwner(userId) && noSensitiveFieldChange();
+      // Admin can update anything including role (needed for adminAdjustCoins & role management)
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -29,7 +40,9 @@ service cloud.firestore {
       allow read: if isSignedIn() &&
         (resource.data.clientId == request.auth.uid ||
          resource.data.proId    == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        // Important #7: prevent self-booking
+        && request.resource.data.clientId != request.resource.data.proId;
       allow update: if isSignedIn() &&
         (resource.data.clientId == request.auth.uid ||
          resource.data.proId    == request.auth.uid || isAdmin());
@@ -55,28 +68,24 @@ service cloud.firestore {
 
     // ── NeighbourCoins ─────────────────────────────
 
-    // Coin ledger
-    // - Owner: read/create own entries (immutable — no update/delete)
-    // - Admin: read any user's ledger for lookup & audit
+    // Coin ledger — immutable append-only entries
     match /coinLedger/{uid}/entries/{entryId} {
-      allow read:   if isSignedIn() && (isOwner(uid) || isAdmin());
-      allow create: if isSignedIn() && isOwner(uid);
+      allow read:          if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create:        if isSignedIn() && isOwner(uid);
       allow update, delete: if false;
     }
 
-    // Coin purchases
-    // KEY FIX: list queries don't have resource.data — grant list to admin separately
+    // Coin purchases — admin list for wallet dashboard
     match /coinPurchases/{purchaseId} {
-      allow list:   if isAdmin();                                          // collection-level list for admin
-      allow get:    if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
+      allow list:          if isAdmin();
+      allow get:           if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create:        if isSignedIn();
       allow update, delete: if isAdmin();
     }
 
-    // Coin payouts
-    // Same fix: list vs get split so admin can query entire collection
+    // Coin payouts — admin list + owner create
     match /coinPayouts/{payoutId} {
-      allow list:   if isAdmin();                                          // collection-level list for admin
+      allow list:   if isAdmin();
       allow get:    if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isAdmin();

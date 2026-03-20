@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed:test-users": "node scripts/seedTestUsers.cjs"
   },
   "dependencies": {
     "firebase": "^10.12.0",
@@ -18,6 +19,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "firebase-admin": "^12.0.0",
     "typescript": "^5.4.5",
     "vite": "^6.0.0"
   }

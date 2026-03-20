@@ -135,14 +135,7 @@ export default function Dashboard() {
       }}>
         <div>
           <h1 className="page-title" style={{ color: "white" }}>
-            Welcome back, {userProfile?.displayName || user?.displayName || "there"}
-            {userProfile?.society && (
-              <span style={{ color: "rgba(255, 255, 255, 0.7)", fontWeight: 400 }}>
-                {" "}
-                - {userProfile.society}
-              </span>
-            )}{" "}
-            👋
+            Welcome back, {userProfile?.displayName || user?.displayName || "there"} 👋
           </h1>
           <p className="page-subtitle" style={{ color: "rgba(255, 255, 255, 0.9)" }}>Here's what's happening in your neighborhood</p>
         </div>

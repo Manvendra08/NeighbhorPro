@@ -1,17 +1,20 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+
+// Blocker #1 fix: Firebase config read from env vars — never hardcode keys in source
+// Required vars in .env.local (see .env.example for reference)
 const firebaseConfig = {
-  apiKey: "AIzaSyDLa5-OsjK3iSTfHur4kKfRPJl9_fu8Pk0",
-  authDomain: "neighbhorpro.firebaseapp.com",
-  projectId: "neighbhorpro",
-  storageBucket: "neighbhorpro.firebasestorage.app",
-  messagingSenderId: "1078165325381",
-  appId: "1:1078165325381:web:8cb8cc849068001ba0c52c",
-  measurementId: "G-2YPP5GTF0B",
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const app           = initializeApp(firebaseConfig);
+export const auth          = getAuth(app);
+export const db            = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();

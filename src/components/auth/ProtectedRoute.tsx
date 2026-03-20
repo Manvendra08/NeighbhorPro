@@ -17,7 +17,7 @@ export function ProtectedRoute({ children, adminOnly, userOnly }: ProtectedRoute
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0a0f1e",
+        background: "#ffffff", // BUG-003 fix: was "#0a0f1e" — neutral white prevents dark flash for non-admin users
       }}>
         <div className="loader" />
       </div>

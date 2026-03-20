@@ -8,6 +8,7 @@ import {
   signOut,
   updateProfile,
   sendPasswordResetEmail,
+  sendEmailVerification,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
@@ -28,8 +29,9 @@ export interface UserProfile {
   role: "user" | "admin";
   rating: number;
   reviewCount: number;
-  coinBalance: number;        // ← NeighbourCoins balance
-  referralCode?: string;      // ← unique code for referral tracking
+  coinBalance: number;
+  referralCode?: string;
+  emailVerified?: boolean;
   createdAt: unknown;
 }
 
@@ -41,6 +43,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -48,6 +51,16 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 function generateReferralCode(uid: string): string {
   return "PN" + uid.slice(0, 6).toUpperCase();
+}
+
+// Important #8: check if profile is "complete" enough to earn the profile coin
+function isProfileComplete(profile: Partial<UserProfile>): boolean {
+  return !!(
+    profile.displayName?.trim() &&
+    profile.bio?.trim() &&
+    profile.society?.trim() &&
+    (profile.skills?.length ?? 0) > 0
+  );
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -67,7 +80,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const ref = doc(db, "users", user.uid);
     const unsubscribe = onSnapshot(ref, (snap) => {
-      if (snap.exists()) setUserProfile(snap.data() as UserProfile);
+      if (snap.exists()) {
+        const data = snap.data() as UserProfile;
+        setUserProfile(data);
+
+        // Important #8: award earn_profile coin when profile becomes complete
+        if (isProfileComplete(data)) {
+          earnCoins(user.uid, "earn_profile", user.uid).catch(() => {});
+        }
+      }
       setLoading(false);
     }, () => setLoading(false));
     return unsubscribe;
@@ -92,12 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: "user",
         rating: 0,
         reviewCount: 0,
-        coinBalance: 0,              // starts at 0; signup bonus credited below
+        coinBalance: 0,
         referralCode: generateReferralCode(u.uid),
+        emailVerified: u.emailVerified,
         createdAt: serverTimestamp(),
       };
       await setDoc(ref, profile);
-      // Grant 100 NC signup bonus
       await earnCoins(u.uid, "earn_signup_bonus", u.uid);
     }
   };
@@ -110,23 +131,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { user: u } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(u, { displayName });
     await createUserProfile({ ...u, displayName });
+    // Blocker #2: send verification email on registration
+    await sendEmailVerification(u);
   };
 
   const signInWithGoogle = async () => {
     const { user: u } = await signInWithPopup(auth, googleProvider);
     await createUserProfile(u);
+    // Google accounts are pre-verified — no email verification needed
   };
 
   const resetPassword = async (email: string) => {
     await sendPasswordResetEmail(auth, email);
   };
 
-  const logout = async () => {
-    await signOut(auth);
+  // Blocker #2: allow users to re-request verification email
+  const resendVerificationEmail = async () => {
+    if (auth.currentUser && !auth.currentUser.emailVerified) {
+      await sendEmailVerification(auth.currentUser);
+    }
   };
 
+  const logout = async () => { await signOut(auth); };
+
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading, signIn, signUp, signInWithGoogle, resetPassword, logout }}>
+    <AuthContext.Provider value={{
+      user, userProfile, loading,
+      signIn, signUp, signInWithGoogle,
+      resetPassword, resendVerificationEmail, logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );

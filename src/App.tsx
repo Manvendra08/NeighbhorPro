@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { LoginPage, RegisterPage, ForgotPasswordPage } from "./components/auth/AuthPages";
+import { EmailVerifiedPage } from "./components/auth/EmailVerifiedPage";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import Layout from "./components/layout/Layout";
 
@@ -14,6 +15,8 @@ import Messages from "./pages/Messages";
 import Support from "./pages/Support";
 import MyAccount from "./pages/MyAccount";
 import Wallet from "./pages/Wallet";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -31,11 +34,16 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Public */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/email-verified" element={<EmailVerifiedPage />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
 
+          {/* Protected app shell */}
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<ProtectedRoute userOnly><Dashboard /></ProtectedRoute>} />
             <Route path="/browse"    element={<ProtectedRoute userOnly><BrowsePros /></ProtectedRoute>} />

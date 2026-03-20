@@ -1,13 +1,23 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 
 export default function TopBar() {
   const { user, userProfile, logout } = useAuth();
   const isAdmin = userProfile?.role === "admin";
   const navigate = useNavigate();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const location = useLocation();
   const dropRef = useRef<HTMLDivElement>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // BUG-004: derive search value from URL so input stays in sync on navigation
+  const searchParam = new URLSearchParams(location.search).get("q") ?? "";
+  const [searchValue, setSearchValue] = useState(searchParam);
+
+  // Keep local input in sync if URL changes externally (e.g. back/forward)
+  useEffect(() => {
+    setSearchValue(new URLSearchParams(location.search).get("q") ?? "");
+  }, [location.search]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -16,6 +26,17 @@ export default function TopBar() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const q = e.target.value;
+    setSearchValue(q);
+    // Navigate to /browse with ?q= so BrowsePros picks it up
+    if (q.trim()) {
+      navigate(`/browse?q=${encodeURIComponent(q.trim())}`);
+    } else if (location.pathname === "/browse") {
+      navigate("/browse");
+    }
+  };
 
   const initials = (userProfile?.displayName || user?.displayName || user?.email || "?")
     .split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -28,11 +49,16 @@ export default function TopBar() {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
-        <input type="text" placeholder="Search professionals, services…" id="topbar-search-input" />
+        <input
+          type="text"
+          placeholder="Search professionals, services…"
+          id="topbar-search-input"
+          value={searchValue}
+          onChange={handleSearch}
+        />
       </div>
 
       <div className="topbar-actions" ref={dropRef}>
-        {/* ── NC Balance pill (Hide for Admin) ── */}
         {!isAdmin && (
           <Link
             to="/wallet"

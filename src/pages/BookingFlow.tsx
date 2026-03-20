@@ -9,6 +9,7 @@ export default function BookingFlow() {
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
   const [pro, setPro] = useState<Record<string, unknown> | null>(null);
+  const [proNotFound, setProNotFound] = useState(false);
   const [step, setStep] = useState(1);
   const [date, setDate] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
@@ -18,110 +19,84 @@ export default function BookingFlow() {
 
   useEffect(() => {
     if (!proId) return;
-    getUserProfile(proId).then((p) => setPro(p));
+    getUserProfile(proId)
+      .then((p) => { if (p) setPro(p); else setProNotFound(true); })
+      .catch(() => setProNotFound(true));
   }, [proId]);
 
-  const timeSlots = [
-    "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
-    "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM",
-    "06:00 PM", "07:00 PM",
-  ];
+  const timeSlots = ["09:00 AM","10:00 AM","11:00 AM","12:00 PM","02:00 PM","03:00 PM","04:00 PM","05:00 PM","06:00 PM","07:00 PM"];
 
-  const isFree   = !!(pro?.isFreeConsultation as boolean);
-  const feeCoins = isFree ? 0 : ((pro?.hourlyRate as number) || 0);
-  const balance  = userProfile?.coinBalance ?? 0;
+  const isSelf    = user?.uid === proId;                        // Important #7
+  const isFree    = !!(pro?.isFreeConsultation as boolean);
+  const feeCoins  = isFree ? 0 : ((pro?.hourlyRate as number) || 0);
+  const balance   = userProfile?.coinBalance ?? 0;
   const hasEnough = isFree || balance >= feeCoins;
 
   const handleSubmit = async () => {
     if (!date || !timeSlot) { setError("Please select a date and time slot."); return; }
-    if (!hasEnough) {
-      setError(`Insufficient balance. You need ${feeCoins} NC but have ${balance} NC. Top up your wallet.`);
-      return;
-    }
-    setLoading(true);
-    setError("");
+    if (!hasEnough) { setError(`Insufficient balance. You need ${feeCoins} NC but have ${balance} NC.`); return; }
+    setLoading(true); setError("");
     try {
       const serviceName = `Consultation with ${(pro?.displayName as string) || "Professional"}`;
-
-      // 1. Create booking doc
       const bookingId = await createBooking({
-        clientId:    user!.uid,
-        clientName:  userProfile?.displayName || user!.displayName || user!.email,
-        proId:       proId!,
-        proName:     (pro?.displayName as string) || "",
-        serviceName,
-        date,
-        timeSlot,
-        notes,
-        isPaid:      !isFree,
-        amount:      feeCoins,
-        coinsPaid:   false,
+        clientId:   user!.uid,
+        clientName: userProfile?.displayName || user!.displayName || user!.email,
+        proId:      proId!,
+        proName:    (pro?.displayName as string) || "",
+        serviceName, date, timeSlot, notes,
+        isPaid: !isFree, amount: feeCoins, coinsPaid: false,
       });
-
-      // 2. Debit client coins → credit pro coins (atomic)
       if (!isFree && feeCoins > 0) {
-        const result = await payForBooking(
-          user!.uid,
-          proId!,
-          bookingId,
-          feeCoins,
-          serviceName
-        );
+        const result = await payForBooking(user!.uid, proId!, bookingId, feeCoins, serviceName);
         if (!result.success) {
-          setError(
-            result.reason === "INSUFFICIENT_BALANCE"
-              ? "Insufficient NC balance. Please top up your wallet."
-              : "Payment failed. Please try again."
-          );
-          setLoading(false);
-          return;
+          setError(result.reason === "INSUFFICIENT_BALANCE"
+            ? "Insufficient NC balance. Please top up your wallet."
+            : "Payment failed. Please try again.");
+          setLoading(false); return;
         }
       }
-
-      // 3. Earn coins for the pro if free consultation
-      if (isFree) {
-        await earnCoins(proId!, "earn_free_consult", bookingId);
-      }
-
-      setStep(3); // success
+      if (isFree) await earnCoins(proId!, "earn_free_consult", bookingId);
+      setStep(3);
     } catch {
       setError("Failed to create booking. Please try again.");
     }
     setLoading(false);
   };
 
-  if (!pro) {
-    return (
-      <div style={{ textAlign: "center", padding: 80 }}>
-        <div className="loader" style={{ margin: "0 auto" }} />
-      </div>
-    );
-  }
+  // Important #7: self-booking guard
+  if (isSelf) return (
+    <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center" }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+      <h2 style={{ marginBottom: 8 }}>Can't book yourself</h2>
+      <p className="text-muted" style={{ marginBottom: 24 }}>You can't book your own services. Share your profile link with others.</p>
+      <button className="btn btn-primary" onClick={() => navigate("/browse")}>Browse Other Pros</button>
+    </div>
+  );
+
+  if (proNotFound) return (
+    <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center" }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+      <h2 style={{ marginBottom: 8 }}>Professional not found</h2>
+      <p className="text-muted" style={{ marginBottom: 24 }}>This profile may have been removed or the link is incorrect.</p>
+      <button className="btn btn-primary" onClick={() => navigate("/browse")}>Browse Professionals</button>
+    </div>
+  );
+
+  if (!pro) return <div style={{ textAlign: "center", padding: 80 }}><div className="loader" style={{ margin: "0 auto" }} /></div>;
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
-      <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>
-        ← Back
-      </button>
-
+      <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>← Back</button>
       <h1 className="page-title" style={{ marginBottom: 24 }}>Book Consultation</h1>
 
       {/* Progress */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32 }}>
         {[1, 2, 3].map((s) => (
           <div key={s} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: "50%",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14, fontWeight: 700, transition: "all 0.2s",
-              background: step >= s ? "var(--accent)" : "var(--surface-2)",
-              color: step >= s ? "#fff" : "var(--muted)",
-            }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, transition: "all 0.2s", background: step >= s ? "var(--accent)" : "var(--surface-2)", color: step >= s ? "#fff" : "var(--muted)" }}>
               {step > s ? "✓" : s}
             </div>
-            {s < 3 && (
-              <div style={{ flex: 1, height: 2, transition: "all 0.2s", background: step > s ? "var(--accent)" : "var(--border)" }} />
-            )}
+            {s < 3 && <div style={{ flex: 1, height: 2, transition: "all 0.2s", background: step > s ? "var(--accent)" : "var(--border)" }} />}
           </div>
         ))}
       </div>
@@ -130,112 +105,65 @@ export default function BookingFlow() {
       {step === 1 && (
         <div className="card">
           <h3 className="card-title" style={{ marginBottom: 4 }}>Select Date & Time</h3>
-          <p className="text-muted text-sm" style={{ marginBottom: 20 }}>
-            Choose when you'd like to consult with {(pro.displayName as string) || "the professional"}
-          </p>
-
+          <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Choose when to consult with {(pro.displayName as string) || "the professional"}</p>
           <div className="form-group">
             <label className="form-label">Date</label>
-            <input type="date" className="form-input" value={date}
-              onChange={(e) => setDate(e.target.value)}
-              min={new Date().toISOString().split("T")[0]} />
+            <input type="date" className="form-input" value={date} onChange={(e) => setDate(e.target.value)} min={new Date().toISOString().split("T")[0]} />
           </div>
-
           <div className="form-group">
             <label className="form-label">Time Slot</label>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
               {timeSlots.map((t) => (
-                <button key={t} className={`chip${timeSlot === t ? " active" : ""}`}
-                  onClick={() => setTimeSlot(t)} style={{ justifyContent: "center" }}>
-                  {t}
-                </button>
+                <button key={t} className={`chip${timeSlot === t ? " active" : ""}`} onClick={() => setTimeSlot(t)} style={{ justifyContent: "center" }}>{t}</button>
               ))}
             </div>
           </div>
-
           <div className="form-group">
             <label className="form-label">Notes (optional)</label>
-            <textarea className="form-input" placeholder="Describe what you need help with…"
-              value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <textarea className="form-input" placeholder="Describe what you need help with…" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
-
           {error && <div className="error-box">{error}</div>}
-
-          <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: 8 }}
-            onClick={() => {
-              if (!date || !timeSlot) { setError("Please select a date and time slot."); return; }
-              setError(""); setStep(2);
-            }}>
-            Continue
-          </button>
+          <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: 8 }} onClick={() => { if (!date || !timeSlot) { setError("Please select a date and time slot."); return; } setError(""); setStep(2); }}>Continue</button>
         </div>
       )}
 
-      {/* Step 2 — Confirm with NC payment */}
+      {/* Step 2 */}
       {step === 2 && (
         <div className="card">
           <h3 className="card-title" style={{ marginBottom: 16 }}>Confirm & Pay</h3>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 20 }}>
-            {[
-              ["Professional", (pro.displayName as string) || "Professional"],
-              ["Date", date],
-              ["Time", timeSlot],
-            ].map(([label, value]) => (
+            {[["Professional", (pro.displayName as string) || "Professional"], ["Date", date], ["Time", timeSlot]].map(([label, value]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid var(--border)" }}>
-                <span className="text-muted">{label}</span>
-                <span style={{ fontWeight: 600 }}>{value}</span>
+                <span className="text-muted">{label}</span><span style={{ fontWeight: 600 }}>{value}</span>
               </div>
             ))}
-
-            {/* NC payment row */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
               <span className="text-muted">Payment</span>
-              {isFree ? (
-                <span style={{ fontWeight: 700, color: "#16a34a" }}>Free 🎁</span>
-              ) : (
+              {isFree ? <span style={{ fontWeight: 700, color: "#16a34a" }}>Free 🎁</span> : (
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1B6B8A" }}>
-                    🪙 {feeCoins.toLocaleString("en-IN")} NC
-                  </div>
+                  <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1B6B8A" }}>🪙 {feeCoins.toLocaleString("en-IN")} NC</div>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>= ₹{feeCoins} · debited from your wallet</div>
                 </div>
               )}
             </div>
-
-            {/* Balance check */}
             {!isFree && (
               <div style={{ display: "flex", justifyContent: "space-between", padding: "11px 0" }}>
                 <span className="text-muted">Your balance</span>
-                <span style={{ fontWeight: 600, color: hasEnough ? "var(--text)" : "#dc2626" }}>
-                  {balance.toLocaleString("en-IN")} NC {!hasEnough && "⚠️ insufficient"}
-                </span>
+                <span style={{ fontWeight: 600, color: hasEnough ? "var(--text)" : "#dc2626" }}>{balance.toLocaleString("en-IN")} NC {!hasEnough && "⚠️ insufficient"}</span>
               </div>
             )}
           </div>
-
           {!hasEnough && (
             <div style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: "0.88rem", color: "#dc2626" }}>
               You need {feeCoins} NC but have {balance} NC.{" "}
-              <button onClick={() => navigate("/wallet")} style={{ background: "none", border: "none", color: "#dc2626", textDecoration: "underline", cursor: "pointer", fontSize: "inherit" }}>
-                Top up wallet →
-              </button>
+              <button onClick={() => navigate("/wallet")} style={{ background: "none", border: "none", color: "#dc2626", textDecoration: "underline", cursor: "pointer", fontSize: "inherit" }}>Top up wallet →</button>
             </div>
           )}
-
           {error && <div className="error-box">{error}</div>}
-
-          {notes && (
-            <div style={{ padding: "10px 0 16px" }}>
-              <span className="text-muted" style={{ display: "block", marginBottom: 4, fontSize: 13 }}>Notes</span>
-              <span style={{ fontSize: 14, color: "var(--text-2)" }}>{notes}</span>
-            </div>
-          )}
-
+          {notes && <div style={{ padding: "10px 0 16px" }}><span className="text-muted" style={{ display: "block", marginBottom: 4, fontSize: 13 }}>Notes</span><span style={{ fontSize: 14, color: "var(--text-2)" }}>{notes}</span></div>}
           <div style={{ display: "flex", gap: 10 }}>
             <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}>Back</button>
-            <button className="btn btn-primary" style={{ flex: 2 }}
-              onClick={handleSubmit} disabled={loading || !hasEnough}>
+            <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSubmit} disabled={loading || !hasEnough}>
               {loading ? "Processing…" : isFree ? "Confirm Booking" : `Pay ${feeCoins} NC & Confirm`}
             </button>
           </div>
@@ -247,19 +175,9 @@ export default function BookingFlow() {
         <div className="card" style={{ textAlign: "center", padding: 48 }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
           <h2 style={{ marginBottom: 8 }}>Booking Confirmed!</h2>
-          <p className="text-muted" style={{ marginBottom: 16 }}>
-            Consultation with {pro.displayName as string} on {date} at {timeSlot}.
-          </p>
-          {!isFree && (
-            <div style={{ display: "inline-block", background: "rgba(27,107,138,0.1)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#1B6B8A", fontWeight: 600, fontSize: "0.9rem" }}>
-              🪙 {feeCoins} NC deducted · Remaining: {(balance - feeCoins).toLocaleString("en-IN")} NC
-            </div>
-          )}
-          {isFree && (
-            <div style={{ display: "inline-block", background: "rgba(22,163,74,0.1)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#16a34a", fontWeight: 600, fontSize: "0.9rem" }}>
-              🏆 Pro earns +50 NC for this free consultation
-            </div>
-          )}
+          <p className="text-muted" style={{ marginBottom: 16 }}>Consultation with {pro.displayName as string} on {date} at {timeSlot}.</p>
+          {!isFree && <div style={{ display: "inline-block", background: "rgba(27,107,138,0.1)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#1B6B8A", fontWeight: 600, fontSize: "0.9rem" }}>🪙 {feeCoins} NC deducted · Remaining: {(balance - feeCoins).toLocaleString("en-IN")} NC</div>}
+          {isFree && <div style={{ display: "inline-block", background: "rgba(22,163,74,0.1)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#16a34a", fontWeight: 600, fontSize: "0.9rem" }}>🏆 Pro earns +50 NC for this free consultation</div>}
           <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
             <button className="btn btn-secondary" onClick={() => navigate("/bookings")}>View Bookings</button>
             <button className="btn btn-primary" onClick={() => navigate("/dashboard")}>Dashboard</button>
