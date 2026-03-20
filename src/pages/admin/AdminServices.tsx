@@ -164,8 +164,8 @@ export default function AdminServices() {
                     </td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{s.title as string || "Untitled"}</div>
-                      {s.description && s.description !== s.title && (
-                        <div style={{ fontSize: 12, color: "var(--muted)", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.description as string}</div>
+                      {typeof s.description === "string" && s.description.trim() !== "" && s.description !== s.title && (
+                        <div style={{ fontSize: 12, color: "var(--muted)", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.description}</div>
                       )}
                     </td>
                     <td><span className="badge badge-muted">{s.category as string || "—"}</span></td>

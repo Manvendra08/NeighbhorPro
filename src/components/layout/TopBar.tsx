@@ -4,6 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 
 export default function TopBar() {
   const { user, userProfile, logout } = useAuth();
+  const isAdmin = userProfile?.role === "admin";
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -31,25 +32,27 @@ export default function TopBar() {
       </div>
 
       <div className="topbar-actions" ref={dropRef}>
-        {/* ── NC Balance pill ── */}
-        <Link
-          to="/wallet"
-          title="NeighbourCoins Wallet"
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            background: "linear-gradient(135deg,rgba(27,107,138,0.12),rgba(27,107,138,0.06))",
-            border: "1px solid rgba(27,107,138,0.2)",
-            borderRadius: 50, padding: "5px 14px",
-            color: "#1B6B8A", textDecoration: "none",
-            fontSize: "0.82rem", fontWeight: 700,
-            transition: "background 0.15s",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(27,107,138,0.18)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "linear-gradient(135deg,rgba(27,107,138,0.12),rgba(27,107,138,0.06))")}
-        >
-          <span style={{ fontSize: "0.9rem" }}>🪙</span>
-          {(userProfile?.coinBalance ?? 0).toLocaleString("en-IN")} NC
-        </Link>
+        {/* ── NC Balance pill (Hide for Admin) ── */}
+        {!isAdmin && (
+          <Link
+            to="/wallet"
+            title="NeighbourCoins Wallet"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: "linear-gradient(135deg,rgba(27,107,138,0.12),rgba(27,107,138,0.06))",
+              border: "1px solid rgba(27,107,138,0.2)",
+              borderRadius: 50, padding: "5px 14px",
+              color: "#1B6B8A", textDecoration: "none",
+              fontSize: "0.82rem", fontWeight: 700,
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(27,107,138,0.18)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "linear-gradient(135deg,rgba(27,107,138,0.12),rgba(27,107,138,0.06))")}
+          >
+            <span style={{ fontSize: "0.9rem" }}>🪙</span>
+            {(userProfile?.coinBalance ?? 0).toLocaleString("en-IN")} NC
+          </Link>
+        )}
 
         <button className="topbar-btn" aria-label="Notifications">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -73,14 +76,18 @@ export default function TopBar() {
               <div style={{ fontSize: 12, color: "var(--muted)" }}>{user?.email}</div>
             </div>
             <div className="user-dropdown-divider" />
-            <Link to="/account" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              My Profile
-            </Link>
-            <Link to="/wallet" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
-              <span style={{ fontSize: "1rem" }}>🪙</span>
-              Wallet · {(userProfile?.coinBalance ?? 0).toLocaleString("en-IN")} NC
-            </Link>
+            {!isAdmin && (
+              <>
+                <Link to="/account" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  My Profile
+                </Link>
+                <Link to="/wallet" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
+                  <span style={{ fontSize: "1rem" }}>🪙</span>
+                  Wallet · {(userProfile?.coinBalance ?? 0).toLocaleString("en-IN")} NC
+                </Link>
+              </>
+            )}
             <div className="user-dropdown-divider" />
             <button className="user-dropdown-item danger" onClick={handleLogout}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>

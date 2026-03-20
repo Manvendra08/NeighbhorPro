@@ -55,35 +55,37 @@ service cloud.firestore {
 
     // ── NeighbourCoins ─────────────────────────────
 
-    // Coin ledger: owner reads own; writes only via backend/functions
-    // (client-side write allowed here for MVP; lock down with Cloud Functions in prod)
+    // Coin ledger
+    // - Owner: read/create own entries (immutable — no update/delete)
+    // - Admin: read any user's ledger for lookup & audit
     match /coinLedger/{uid}/entries/{entryId} {
-      allow read: if isSignedIn() && isOwner(uid);
-      allow create: if isSignedIn() && isOwner(uid);  // tighten to functions-only in prod
-      allow update, delete: if false;                  // immutable ledger
+      allow read:   if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create: if isSignedIn() && isOwner(uid);
+      allow update, delete: if false;
     }
 
-    // Coin purchases: owner reads own, admin reads all
+    // Coin purchases
+    // KEY FIX: list queries don't have resource.data — grant list to admin separately
     match /coinPurchases/{purchaseId} {
-      allow read: if isSignedIn() &&
-        (resource.data.uid == request.auth.uid || isAdmin());
+      allow list:   if isAdmin();                                          // collection-level list for admin
+      allow get:    if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
 
-    // Coin payouts: owner reads own, admin manages
+    // Coin payouts
+    // Same fix: list vs get split so admin can query entire collection
     match /coinPayouts/{payoutId} {
-      allow read: if isSignedIn() &&
-        (resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() &&
-        request.resource.data.uid == request.auth.uid;
+      allow list:   if isAdmin();                                          // collection-level list for admin
+      allow get:    if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if false;
     }
 
     // ── Messages ───────────────────────────────────
     match /messages/{convId} {
-      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow read:   if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn();
       allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
 

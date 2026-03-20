@@ -4,9 +4,10 @@ import { useAuth } from "../../contexts/AuthContext";
 interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
+  userOnly?: boolean;
 }
 
-export function ProtectedRoute({ children, adminOnly }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, adminOnly, userOnly }: ProtectedRouteProps) {
   const { user, userProfile, loading } = useAuth();
 
   if (loading) {
@@ -29,6 +30,9 @@ export function ProtectedRoute({ children, adminOnly }: ProtectedRouteProps) {
 
   if (adminOnly && userProfile?.role !== "admin") {
     return <Navigate to="/dashboard" replace />;
+  }
+  if (userOnly && userProfile?.role === "admin") {
+    return <Navigate to="/admin" replace />;
   }
 
   return <>{children}</>;

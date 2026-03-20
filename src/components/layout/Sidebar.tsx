@@ -40,11 +40,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {I[icon]}
       {!collapsed && <span className="nav-link-label">{label}</span>}
       {badge && !collapsed && (
-        <span style={{
-          marginLeft: "auto", background: "linear-gradient(135deg,#1B6B8A,#0F4E68)",
-          color: "#fff", fontSize: "0.68rem", fontWeight: 700,
-          padding: "1px 7px", borderRadius: 50,
-        }}>{badge}</span>
+        <span style={{ marginLeft: "auto", background: "linear-gradient(135deg,#1B6B8A,#0F4E68)", color: "#fff", fontSize: "0.68rem", fontWeight: 700, padding: "1px 7px", borderRadius: 50 }}>{badge}</span>
       )}
     </NavLink>
   );
@@ -66,27 +62,37 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       <nav className="sidebar-nav">
-        {!collapsed && <div className="sidebar-section-label">Menu</div>}
-        {!isAdmin && <SLink to="/dashboard" icon="dashboard" label="Dashboard" />}
-        <SLink to="/browse"   icon="browse"   label="Browse Pros" />
-        <SLink to="/bookings" icon="bookings" label="My Bookings" />
-        <SLink to="/messages" icon="messages" label="Messages" />
-        <SLink to="/wallet"   icon="wallet"   label="Wallet" badge={coinBadge} />
-        <SLink to="/account"  icon="account"  label="My Account" />
-        {!isAdmin && <SLink to="/support" icon="support" label="Support" />}
+        {!collapsed && !isAdmin && <div className="sidebar-section-label">Menu</div>}
+        {!isAdmin && (
+          <>
+            <SLink to="/dashboard" icon="dashboard" label="Dashboard" />
+            <SLink to="/browse"   icon="browse"   label="Browse Pros" />
+            <SLink to="/bookings" icon="bookings" label="My Bookings" />
+            <SLink to="/messages" icon="messages" label="Messages" />
+            <SLink to="/wallet"   icon="wallet"   label="Wallet" badge={coinBadge} />
+            <SLink to="/account"  icon="account"  label="My Account" />
+            <SLink to="/support"  icon="support"  label="Support" />
+          </>
+        )}
 
         {isAdmin && (
           <>
             {!collapsed && <div className="sidebar-section-label">Overview</div>}
             <SLink to="/admin" icon="admin" label="Dashboard" />
+
             {!collapsed && <div className="sidebar-section-label">Users & Content</div>}
             <SLink to="/admin/users"     icon="users"     label="Users" />
             <SLink to="/admin/societies" icon="societies" label="Societies" />
             <SLink to="/admin/services"  icon="services"  label="Services" />
             <SLink to="/admin/reviews"   icon="reviews"   label="Reviews" />
+
             {!collapsed && <div className="sidebar-section-label">Operations</div>}
             <SLink to="/admin/broadcast" icon="broadcast" label="Broadcast" />
             <SLink to="/admin/support"   icon="support"   label="Support" />
+
+            {!collapsed && <div className="sidebar-section-label">Finance</div>}
+            <SLink to="/admin/wallet"    icon="wallet"    label="Wallet Admin" />
+
             {!collapsed && <div className="sidebar-section-label">System</div>}
             <SLink to="/admin/audit"     icon="audit"     label="Audit Log" />
             <SLink to="/admin/settings"  icon="settings"  label="Settings" />

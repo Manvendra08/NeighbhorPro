@@ -24,32 +24,30 @@ import AdminAuditLog from "./pages/admin/AdminAuditLog";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminServices from "./pages/admin/AdminServices";
 import AdminReviews from "./pages/admin/AdminReviews";
+import AdminWallet from "./pages/admin/AdminWallet";
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* ── Public ── */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-          {/* ── Protected app shell ── */}
-          <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/browse"    element={<BrowsePros />} />
-            <Route path="/pro/:id"   element={<ProDetail />} />
-            <Route path="/book/:id"  element={<BookingFlow />} />
-            <Route path="/bookings"  element={<MyBookings />} />
-            <Route path="/wallet"    element={<Wallet />} />
+          <Route element={<Layout />}>
+            <Route path="/dashboard" element={<ProtectedRoute userOnly><Dashboard /></ProtectedRoute>} />
+            <Route path="/browse"    element={<ProtectedRoute userOnly><BrowsePros /></ProtectedRoute>} />
+            <Route path="/pro/:id"   element={<ProtectedRoute userOnly><ProDetail /></ProtectedRoute>} />
+            <Route path="/book/:id"  element={<ProtectedRoute userOnly><BookingFlow /></ProtectedRoute>} />
+            <Route path="/bookings"  element={<ProtectedRoute userOnly><MyBookings /></ProtectedRoute>} />
+            <Route path="/wallet"    element={<ProtectedRoute userOnly><Wallet /></ProtectedRoute>} />
             <Route path="/profile"   element={<Navigate to="/account" replace />} />
-            <Route path="/account"   element={<MyAccount />} />
-            <Route path="/messages"  element={<Messages />} />
-            <Route path="/support"   element={<Support />} />
+            <Route path="/account"   element={<ProtectedRoute userOnly><MyAccount /></ProtectedRoute>} />
+            <Route path="/messages"  element={<ProtectedRoute userOnly><Messages /></ProtectedRoute>} />
+            <Route path="/support"   element={<ProtectedRoute userOnly><Support /></ProtectedRoute>} />
 
-            {/* Admin */}
             <Route path="/admin"                element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/users"          element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
             <Route path="/admin/societies"      element={<ProtectedRoute adminOnly><AdminSocieties /></ProtectedRoute>} />
@@ -59,6 +57,7 @@ export default function App() {
             <Route path="/admin/settings"       element={<ProtectedRoute adminOnly><AdminSettings /></ProtectedRoute>} />
             <Route path="/admin/services"       element={<ProtectedRoute adminOnly><AdminServices /></ProtectedRoute>} />
             <Route path="/admin/reviews"        element={<ProtectedRoute adminOnly><AdminReviews /></ProtectedRoute>} />
+            <Route path="/admin/wallet"         element={<ProtectedRoute adminOnly><AdminWallet /></ProtectedRoute>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
