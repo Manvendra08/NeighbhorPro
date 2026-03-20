@@ -55,7 +55,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed && (
           <div className="sidebar-logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <img src="/images/logo.png" alt="Logo" style={{ width: "24px", height: "24px", objectFit: "contain", borderRadius: "4px" }} />
-            ProNeighbour
+            ProNeighbor
           </div>
         )}
         <button className="sidebar-toggle" onClick={onToggle} aria-label="Toggle sidebar">{I.collapse}</button>

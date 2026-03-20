@@ -41,7 +41,7 @@ export default function LandingPage() {
         transition: "box-shadow 0.3s",
       }}>
         <a href="#" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <img src="/images/logo.png" alt="ProNeighbour" style={{ height: 36 }} />
+          <img src="/images/logo.png" alt="ProNeighbor" style={{ height: 36 }} />
           <span style={{ fontFamily: "'Syne', 'DM Sans', sans-serif", fontWeight: 800, fontSize: "1.1rem", color: "#0C1B2E", letterSpacing: -0.5 }}>
             Pro<span style={{ color: "#F5692C" }}>Neighbour</span>
           </span>
@@ -315,8 +315,8 @@ export default function LandingPage() {
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 40, paddingBottom: 40, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <img src="/images/logo.png" alt="ProNeighbour" style={{ height: 36 }} />
-                <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, color: "#fff" }}>ProNeighbour</span>
+                <img src="/images/logo.png" alt="ProNeighbor" style={{ height: 36 }} />
+                <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, color: "#fff" }}>ProNeighbor</span>
               </div>
               <p style={{ fontSize: "0.86rem", lineHeight: 1.7, maxWidth: 240 }}>The professional services marketplace for gated communities. Trusted experts, next door.</p>
               <p style={{ marginTop: 12, fontSize: "0.78rem" }}>📍 Park Street, Wakad, Pune · Launched March 2026</p>
@@ -338,7 +338,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24, fontSize: "0.8rem", flexWrap: "wrap", gap: 8 }}>
-            <span>© 2026 ProNeighbour. All rights reserved.</span>
+            <span>© 2026 ProNeighbor. All rights reserved.</span>
             <span>Made with ❤️ in Pune, India 🇮🇳</span>
           </div>
         </div>
