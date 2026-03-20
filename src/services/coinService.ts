@@ -1,5 +1,5 @@
 import {
-  collection, collectionGroup, doc, getDoc, addDoc, updateDoc,
+  collection, collectionGroup, doc, getDoc, updateDoc,
   serverTimestamp, query, orderBy, limit, getDocs, runTransaction, where,
 } from "firebase/firestore";
 import { db } from "../firebase";
