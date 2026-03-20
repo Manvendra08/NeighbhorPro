@@ -46,7 +46,7 @@ export function EmailVerifiedPage() {
 
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 36 }}>
-          <img src="/images/logo.png" alt="ProNeighbour" style={{ height: 36 }} />
+          <img src="/images/logo.png" alt="ProNeighbor" style={{ height: 36 }} />
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.15rem", color: "#0C1B2E", letterSpacing: -0.5 }}>
             Pro<span style={{ color: "#F5692C" }}>Neighbour</span>
           </span>
@@ -71,7 +71,7 @@ export function EmailVerifiedPage() {
             </div>
             <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: "1.5rem", fontWeight: 800, color: "#0C1B2E", marginBottom: 10 }}>Email verified!</h2>
             <p style={{ color: "#5C6E84", fontSize: "0.95rem", lineHeight: 1.65, marginBottom: 32 }}>
-              Your ProNeighbour account is now fully activated. Welcome to your community's professional network.
+              Your ProNeighbor account is now fully activated. Welcome to your community's professional network.
             </p>
             <div style={{ background: "rgba(27,107,138,0.06)", border: "1px solid rgba(27,107,138,0.15)", borderRadius: 12, padding: "14px 18px", marginBottom: 28, textAlign: "left" }}>
               <div style={{ fontSize: "0.82rem", color: "#1B6B8A", fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>You're all set to</div>
