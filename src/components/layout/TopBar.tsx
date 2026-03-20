@@ -97,22 +97,20 @@ export default function TopBar() {
             <div style={{ padding: "8px 12px", marginBottom: 4 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>
                 {userProfile?.displayName || user?.displayName || "User"}
-                {userProfile?.society && <span style={{ color: "var(--muted)", fontWeight: 400 }}> — {userProfile.society}</span>}
               </div>
               <div style={{ fontSize: 12, color: "var(--muted)" }}>{user?.email}</div>
             </div>
             <div className="user-dropdown-divider" />
+            <Link to="/account" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              My Profile
+            </Link>
+
             {!isAdmin && (
-              <>
-                <Link to="/account" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  My Profile
-                </Link>
-                <Link to="/wallet" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
-                  <span style={{ fontSize: "1rem" }}>🪙</span>
-                  Wallet · {(userProfile?.coinBalance ?? 0).toLocaleString("en-IN")} NC
-                </Link>
-              </>
+              <Link to="/wallet" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
+                <span style={{ fontSize: "1rem" }}>🪙</span>
+                Wallet · {(userProfile?.coinBalance ?? 0).toLocaleString("en-IN")} NC
+              </Link>
             )}
             <div className="user-dropdown-divider" />
             <button className="user-dropdown-item danger" onClick={handleLogout}>

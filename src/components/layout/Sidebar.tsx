@@ -96,6 +96,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             {!collapsed && <div className="sidebar-section-label">System</div>}
             <SLink to="/admin/audit"     icon="audit"     label="Audit Log" />
             <SLink to="/admin/settings"  icon="settings"  label="Settings" />
+
+            {!collapsed && <div className="sidebar-section-label">User Profile</div>}
+            <SLink to="/account"  icon="account"  label="My Account" />
           </>
         )}
       </nav>
