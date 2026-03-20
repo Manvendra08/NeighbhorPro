@@ -75,6 +75,11 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Support collectionGroup queries for Admin Dashboard
+    match /{path=**}/entries/{entryId} {
+      allow read: if isAdmin();
+    }
+
     // Coin purchases — admin list for wallet dashboard
     match /coinPurchases/{purchaseId} {
       allow list:          if isAdmin();
