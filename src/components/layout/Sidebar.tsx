@@ -53,10 +53,12 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="sidebar-header" style={{ padding: "0 16px" }}>
         {!collapsed && (
-          <div className="sidebar-logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <img src="/images/logo.png" alt="Logo" style={{ width: "24px", height: "24px", objectFit: "contain", borderRadius: "4px" }} />
-            ProNeighbor
-          </div>
+          <NavLink to="/" style={{ textDecoration: "none", color: "inherit" }}>
+            <div className="sidebar-logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <img src="/images/logo.png" alt="Logo" style={{ width: "24px", height: "24px", objectFit: "contain", borderRadius: "4px" }} />
+              ProNeighbor
+            </div>
+          </NavLink>
         )}
         <button className="sidebar-toggle" onClick={onToggle} aria-label="Toggle sidebar">{I.collapse}</button>
       </div>
@@ -105,7 +107,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {!collapsed && (
         <div className="sidebar-footer">
-          <div style={{ fontSize: 11, color: "var(--muted)" }}>© 2026 ProNeighbour</div>
+          <div style={{ fontSize: 11, color: "var(--muted)" }}>© 2026 ProNeighbor</div>
         </div>
       )}
     </aside>

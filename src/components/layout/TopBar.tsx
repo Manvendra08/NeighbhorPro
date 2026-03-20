@@ -45,13 +45,6 @@ export default function TopBar() {
 
   return (
     <header className="topbar">
-      <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", marginRight: 24, flexShrink: 0 }}>
-        <img src="/images/logo.png" alt="ProNeighbor" style={{ height: 28, width: 28, objectFit: "contain" }} />
-        <span style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0C1B2E", letterSpacing: -0.5, fontFamily: "Syne, sans-serif" }}>
-          Pro<span style={{ color: "#F5692C" }}>Neighbor</span>
-        </span>
-      </Link>
-
       <div className="topbar-search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
