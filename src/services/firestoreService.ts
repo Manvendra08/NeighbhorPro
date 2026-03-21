@@ -24,9 +24,9 @@ import { db, auth } from "../firebase";
 /* ═══════════════════════════════════════════
    USERS
 ═══════════════════════════════════════════ */
-export async function getUserProfile(uid: string) {
+export async function getUserProfile(uid: string): Promise<Record<string, any> | null> {
   const snap = await getDoc(doc(db, "users", uid));
-  return snap.exists() ? snap.data() : null;
+  return snap.exists() ? { uid: snap.id, ...snap.data() as Record<string, any> } : null;
 }
 
 export async function updateUserProfile(uid: string, data: Record<string, unknown>) {
@@ -59,19 +59,19 @@ export const BROWSE_PAGE_SIZE = 20;
  */
 export async function listProfessionals(
   cursor?: QueryDocumentSnapshot<DocumentData> | null
-): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot<DocumentData> | null }> {
+): Promise<{ data: Record<string, any>[]; nextCursor: QueryDocumentSnapshot<DocumentData> | null }> {
   let q = cursor
     ? query(collection(db, "users"), orderBy("rating", "desc"), startAfter(cursor), limit(BROWSE_PAGE_SIZE))
     : query(collection(db, "users"), orderBy("rating", "desc"), limit(BROWSE_PAGE_SIZE));
   const snap = await getDocs(q);
-  const data = snap.docs.map(d => d.data());
+  const data = snap.docs.map(d => ({ uid: d.id, ...d.data() as Record<string, any> }));
   const nextCursor = snap.docs.length === BROWSE_PAGE_SIZE ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
 }
 
-export async function getAllUsers() {
+export async function getAllUsers(): Promise<Record<string, any>[]> {
   const snap = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc")));
-  return snap.docs.map(d => d.data());
+  return snap.docs.map(d => ({ uid: d.id, ...d.data() as Record<string, any> }));
 }
 
 /* ═══════════════════════════════════════════
