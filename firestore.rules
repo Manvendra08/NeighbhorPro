@@ -70,7 +70,7 @@ service cloud.firestore {
     // Coin ledger — immutable append-only entries
     match /coinLedger/{uid}/entries/{entryId} {
       allow read:          if isSignedIn() && (isOwner(uid) || isAdmin());
-      allow create:        if isSignedIn() && isOwner(uid);
+      allow create:        if isSignedIn() && (isOwner(uid) || isAdmin());
       allow update, delete: if false;
     }
 
