@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
+import { ToastContainer } from "./Toast";
 import { useAuth } from "../../contexts/AuthContext";
 
 const MobileIcons = {
@@ -91,6 +92,7 @@ export default function Layout() {
           {MobileIcons.wallet}<span>Wallet</span>
         </NavLink>
       </nav>
+      <ToastContainer />
     </div>
   );
 }

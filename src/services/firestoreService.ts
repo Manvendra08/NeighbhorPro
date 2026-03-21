@@ -116,6 +116,18 @@ export async function getAllBookings() {
   const snap = await getDocs(query(collection(db, "bookings"), orderBy("createdAt", "desc")));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
 }
+export async function getBookingById(bookingId: string) {
+  const snap = await getDoc(doc(db, "bookings", bookingId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } as Record<string, unknown> : null;
+}
+export async function updateBookingFields(bookingId: string, data: Record<string, unknown>) {
+  await updateDoc(doc(db, "bookings", bookingId), { ...data, updatedAt: serverTimestamp() });
+}
+export async function getBookingsForProOnDate(proId: string, date: string) {
+  const q = query(collection(db, "bookings"), where("proId", "==", proId), where("date", "==", date));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+}
 
 /* ═══════════════════════════════════════════
    REVIEWS

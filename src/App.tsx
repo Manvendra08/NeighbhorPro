@@ -11,6 +11,7 @@ import BrowsePros from "./pages/BrowsePros";
 import ProDetail from "./pages/ProDetail";
 import BookingFlow from "./pages/BookingFlow";
 import MyBookings from "./pages/MyBookings";
+import BookingDetail from "./pages/BookingDetail";
 import Messages from "./pages/Messages";
 import Support from "./pages/Support";
 import MyAccount from "./pages/MyAccount";
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/pro/:id"   element={<ProtectedRoute userOnly><ProDetail /></ProtectedRoute>} />
             <Route path="/book/:id"  element={<ProtectedRoute userOnly><BookingFlow /></ProtectedRoute>} />
             <Route path="/bookings"  element={<ProtectedRoute userOnly><MyBookings /></ProtectedRoute>} />
+            <Route path="/bookings/:id" element={<ProtectedRoute userOnly><BookingDetail /></ProtectedRoute>} />
             <Route path="/wallet"    element={<ProtectedRoute userOnly><Wallet /></ProtectedRoute>} />
             <Route path="/profile"   element={<Navigate to="/account" replace />} />
             <Route path="/account"   element={<ProtectedRoute><MyAccount /></ProtectedRoute>} />

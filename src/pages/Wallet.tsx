@@ -17,7 +17,7 @@ import { formatTimestamp } from "../services/firestoreService";
 type Tab = "overview" | "buy" | "earn" | "payout" | "history";
 
 const STATUS_UI: Partial<Record<PaymentStatus, { text: string; color: string }>> = {
-  awaiting_payment: { text: "⏳ Complete payment in the Razorpay popup…", color: "#1B6B8A"  },
+  awaiting_payment: { text: "⏳ Complete payment in the Razorpay popup…",      color: "#1B6B8A"  },
   crediting:        { text: "⏳ Crediting coins to your wallet…",          color: "#1B6B8A"  },
   success:          { text: "✅ Payment successful! Coins added.",          color: "#16a34a"  },
   failed:           { text: "❌ Payment failed. Try again.",                color: "#dc2626"  },

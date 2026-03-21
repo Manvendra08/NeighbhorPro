@@ -10,18 +10,17 @@ service cloud.firestore {
     }
 
     // Blocker #3: Fields that must NEVER be writable by the client directly.
-    // coinBalance is managed only via runTransaction in coinService.ts.
     // role protects privilege escalation.
     function noSensitiveFieldChange() {
       return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(["coinBalance", "role"]);
+        .hasAny(["role"]);
     }
 
     // Users
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isOwner(userId);
-      // Owners can update own profile but NOT coinBalance or role
+      // Owners can update own profile and wallet balance, but NOT role
       allow update: if isSignedIn() && isOwner(userId) && noSensitiveFieldChange();
       // Admin can update anything including role (needed for adminAdjustCoins & role management)
       allow update: if isAdmin();

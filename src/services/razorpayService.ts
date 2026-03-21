@@ -1,22 +1,20 @@
 /**
- * razorpayService.ts — Spark Plan (no Cloud Functions)
+ * razorpayService.ts - Spark Plan compatible flow
  *
  * Flow:
  *   1. Load checkout.js from Razorpay CDN
- *   2. Open modal directly with Key ID (public key — safe in browser)
- *   3. On payment success → credit coins client-side via topUpCoins()
+ *   2. Open modal directly with Key ID (public key - safe in browser)
+ *   3. On payment success -> credit coins client-side via topUpCoins()
  *
- * ⚠️  No server-side HMAC verification on Spark plan.
- *     Upgrade path: when on Blaze, add Cloud Function webhook and
- *     verify razorpay_signature before crediting coins.
+ * No server-side verification in this mode.
+ * Use only for pilot / Spark-plan testing.
  *
  * Setup:
- *   Add to .env.local → VITE_RAZORPAY_KEY_ID=rzp_test_XXXXXXXXXXXX
+ *   Add to .env.local -> VITE_RAZORPAY_KEY_ID=rzp_test_XXXXXXXXXXXX
  */
 
 import { topUpCoins, COIN_PACKS } from "./coinService";
 
-/* ── Types ── */
 declare global {
   interface Window {
     Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
@@ -52,19 +50,22 @@ export type PaymentStatus =
   | "failed"
   | "dismissed";
 
-/* ── Load checkout.js once ── */
 function loadSDK(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (window.Razorpay) { resolve(); return; }
-    const s = document.createElement("script");
-    s.src = "https://checkout.razorpay.com/v1/checkout.js";
-    s.onload  = () => resolve();
-    s.onerror = () => reject(new Error("Could not load Razorpay SDK. Check your internet connection."));
-    document.body.appendChild(s);
+    if (window.Razorpay) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve();
+    script.onerror = () =>
+      reject(new Error("Could not load Razorpay SDK. Check your internet connection."));
+    document.body.appendChild(script);
   });
 }
 
-/* ── Main export ── */
 export async function initiateTopUp(params: {
   uid: string;
   packLabel: string;
@@ -97,16 +98,15 @@ export async function initiateTopUp(params: {
     await new Promise<void>((resolve) => {
       const rzp = new window.Razorpay({
         key:         keyId,
-        amount:      pack.priceRs * 100,   // paise
+        amount:      pack.priceRs * 100,
         currency:    "INR",
         name:        "ProNeighbour",
-        description: `${pack.label} Coin Pack — ${pack.coins + pack.bonus} NC`,
+        description: `${pack.label} Coin Pack - ${pack.coins + pack.bonus} NC`,
         image:       "/images/logo.png",
         prefill:     { name: userName, email: userEmail },
         theme:       { color: "#1B6B8A" },
 
         handler: async (response) => {
-          // Payment confirmed by Razorpay — credit coins
           onStatusChange("crediting");
           try {
             await topUpCoins(
@@ -114,7 +114,7 @@ export async function initiateTopUp(params: {
               pack.priceRs,
               pack.coins + pack.bonus,
               pack.label,
-              response.razorpay_payment_id   // stored as proof
+              response.razorpay_payment_id
             );
             onSuccess(response.razorpay_payment_id);
             onStatusChange("success");

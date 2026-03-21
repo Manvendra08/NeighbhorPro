@@ -1,64 +1,99 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { createBooking, getUserProfile } from "../services/firestoreService";
+import { createBooking, getUserProfile, getServicesByUser, getBookingsForProOnDate, updateBookingFields } from "../services/firestoreService";
 import { payForBooking, earnCoins } from "../services/coinService";
+import { useToast } from "../components/layout/Toast";
 
 export default function BookingFlow() {
   const { id: proId } = useParams<{ id: string }>();
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  
   const [pro, setPro] = useState<Record<string, unknown> | null>(null);
   const [proNotFound, setProNotFound] = useState(false);
+  const [services, setServices] = useState<Record<string, unknown>[]>([]);
+  const [takenSlots, setTakenSlots] = useState<string[]>([]);
+  const [selectedService, setSelectedService] = useState<Record<string, unknown> | null>(null);
+  
   const [step, setStep] = useState(1);
   const [date, setDate] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!proId) return;
-    getUserProfile(proId)
-      .then((p) => { if (p) setPro(p); else setProNotFound(true); })
+    Promise.all([
+      getUserProfile(proId),
+      getServicesByUser(proId)
+    ])
+      .then(([p, s]) => { 
+        if (p) {
+          setPro(p);
+          setServices(s);
+          if (s.length === 0) {
+            setSelectedService({
+              id: "generic",
+              title: `Consultation with ${p.displayName || "Professional"}`,
+              price: p.isFreeConsultation ? 0 : (p.hourlyRate || 0),
+              duration: "60 minutes"
+            });
+          }
+        } else setProNotFound(true); 
+      })
       .catch(() => setProNotFound(true));
   }, [proId]);
 
+  useEffect(() => {
+    if (!proId || !date) return;
+    getBookingsForProOnDate(proId, date).then((bookings) => {
+      setTakenSlots(bookings.map((b) => b.timeSlot as string));
+    });
+  }, [proId, date]);
+
   const timeSlots = ["09:00 AM","10:00 AM","11:00 AM","12:00 PM","02:00 PM","03:00 PM","04:00 PM","05:00 PM","06:00 PM","07:00 PM"];
 
-  const isSelf    = user?.uid === proId;                        // Important #7
-  const isFree    = !!(pro?.isFreeConsultation as boolean);
-  const feeCoins  = isFree ? 0 : ((pro?.hourlyRate as number) || 0);
+  const isSelf    = user?.uid === proId;
+  const isFree    = selectedService ? (selectedService.price as number) === 0 : !!(pro?.isFreeConsultation as boolean);
+  const feeCoins  = selectedService ? (selectedService.price as number) : (isFree ? 0 : ((pro?.hourlyRate as number) || 0));
+  const serviceName = selectedService ? (selectedService.title as string) : `Consultation with ${(pro?.displayName as string) || "Professional"}`;
   const balance   = userProfile?.coinBalance ?? 0;
   const hasEnough = isFree || balance >= feeCoins;
 
   const handleSubmit = async () => {
-    if (!date || !timeSlot) { setError("Please select a date and time slot."); return; }
-    if (!hasEnough) { setError(`Insufficient balance. You need ${feeCoins} NC but have ${balance} NC.`); return; }
-    setLoading(true); setError("");
+    if (!date || !timeSlot || !selectedService) { toast.error("Please select a service, date, and time slot."); return; }
+    if (!hasEnough) { toast.error(`Insufficient balance. You need ${feeCoins} NC but have ${balance} NC.`); return; }
+    setLoading(true);
     try {
-      const serviceName = `Consultation with ${(pro?.displayName as string) || "Professional"}`;
       const bookingId = await createBooking({
         clientId:   user!.uid,
         clientName: userProfile?.displayName || user!.displayName || user!.email,
         proId:      proId!,
         proName:    (pro?.displayName as string) || "",
+        serviceId:  selectedService.id,
         serviceName, date, timeSlot, notes,
-        isPaid: !isFree, amount: feeCoins, coinsPaid: false,
+        isPaid: !isFree, amount: feeCoins, coinsPaid: false, paidInCoins: 0,
       });
+
       if (!isFree && feeCoins > 0) {
         const result = await payForBooking(user!.uid, proId!, bookingId, feeCoins, serviceName);
         if (!result.success) {
-          setError(result.reason === "INSUFFICIENT_BALANCE"
+          toast.error(result.reason === "INSUFFICIENT_BALANCE"
             ? "Insufficient NC balance. Please top up your wallet."
             : "Payment failed. Please try again.");
           setLoading(false); return;
         }
+        // IMPORTANT: Mark booking as paid since coins were deducted
+        await updateBookingFields(bookingId, { coinsPaid: true, paidInCoins: feeCoins });
       }
+
       if (isFree) await earnCoins(proId!, "earn_free_consult", bookingId);
+      toast.success("Booking confirmed!");
       setStep(3);
     } catch {
-      setError("Failed to create booking. Please try again.");
+      toast.error("Failed to create booking. Please try again.");
     }
     setLoading(false);
   };
@@ -104,26 +139,68 @@ export default function BookingFlow() {
       {/* Step 1 */}
       {step === 1 && (
         <div className="card">
-          <h3 className="card-title" style={{ marginBottom: 4 }}>Select Date & Time</h3>
-          <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Choose when to consult with {(pro.displayName as string) || "the professional"}</p>
+          <h3 className="card-title" style={{ marginBottom: 4 }}>Select Service & Time</h3>
+          <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Book time with {(pro.displayName as string) || "the professional"}</p>
+          
+          {services.length > 0 && (
+            <div className="form-group" style={{ marginBottom: 24 }}>
+              <label className="form-label">Service</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {services.map(svc => (
+                  <div 
+                    key={svc.id as string} 
+                    onClick={() => setSelectedService(svc)}
+                    style={{ 
+                      padding: "12px 16px", 
+                      border: "2px solid",
+                      borderColor: selectedService?.id === svc.id ? "var(--accent)" : "var(--border)",
+                      background: selectedService?.id === svc.id ? "rgba(245, 105, 44, 0.05)" : "var(--surface-2)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center"
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: selectedService?.id === svc.id ? 700 : 600 }}>{svc.title as string}</div>
+                      {(svc.duration as string) && <div className="text-muted text-sm" style={{ marginTop: 2 }}>{svc.duration as string}</div>}
+                    </div>
+                    <div style={{ fontWeight: 700, color: (svc.price as number) === 0 ? "var(--accent2)" : "var(--text)" }}>
+                      {(svc.price as number) === 0 ? "Free" : `${svc.price as number} NC`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label">Date</label>
-            <input type="date" className="form-input" value={date} onChange={(e) => setDate(e.target.value)} min={new Date().toISOString().split("T")[0]} />
+            <input type="date" className="form-input" value={date} onChange={(e) => { setDate(e.target.value); setTimeSlot(""); }} min={new Date().toISOString().split("T")[0]} />
           </div>
           <div className="form-group">
             <label className="form-label">Time Slot</label>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
-              {timeSlots.map((t) => (
-                <button key={t} className={`chip${timeSlot === t ? " active" : ""}`} onClick={() => setTimeSlot(t)} style={{ justifyContent: "center" }}>{t}</button>
-              ))}
+              {timeSlots.map((t) => {
+                const isTaken = takenSlots.includes(t);
+                return (
+                  <button 
+                    key={t} 
+                    disabled={isTaken}
+                    className={`chip${timeSlot === t ? " active" : ""}`} 
+                    onClick={() => setTimeSlot(t)} 
+                    style={{ justifyContent: "center", position: "relative", opacity: isTaken ? 0.5 : 1, cursor: isTaken ? "not-allowed" : "pointer" }}
+                  >
+                    {t}
+                    {isTaken && <span style={{ position: "absolute", fontSize: 10, color: "var(--error)", background: "var(--surface)", padding: "2px 4px", borderRadius: 4, right: 4, top: -6 }}>Booked</span>}
+                  </button>
+                )
+              })}
             </div>
           </div>
           <div className="form-group">
             <label className="form-label">Notes (optional)</label>
             <textarea className="form-input" placeholder="Describe what you need help with…" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
-          {error && <div className="error-box">{error}</div>}
-          <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: 8 }} onClick={() => { if (!date || !timeSlot) { setError("Please select a date and time slot."); return; } setError(""); setStep(2); }}>Continue</button>
+          <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: 8 }} onClick={() => { if (!date || !timeSlot || !selectedService) { toast.error("Please select a service, date, and time slot."); return; } setStep(2); }}>Continue</button>
         </div>
       )}
 
@@ -153,13 +230,12 @@ export default function BookingFlow() {
               </div>
             )}
           </div>
-          {!hasEnough && (
+            {!hasEnough && (
             <div style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: "0.88rem", color: "#dc2626" }}>
               You need {feeCoins} NC but have {balance} NC.{" "}
               <button onClick={() => navigate("/wallet")} style={{ background: "none", border: "none", color: "#dc2626", textDecoration: "underline", cursor: "pointer", fontSize: "inherit" }}>Top up wallet →</button>
             </div>
           )}
-          {error && <div className="error-box">{error}</div>}
           {notes && <div style={{ padding: "10px 0 16px" }}><span className="text-muted" style={{ display: "block", marginBottom: 4, fontSize: 13 }}>Notes</span><span style={{ fontSize: 14, color: "var(--text-2)" }}>{notes}</span></div>}
           <div style={{ display: "flex", gap: 10 }}>
             <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}>Back</button>

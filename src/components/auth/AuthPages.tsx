@@ -198,16 +198,17 @@ function BrandPanel({ register }: { register?: boolean }) {
       backgroundPosition: "center",
       color: "white"
     }}>
-      <div className="brand-logo" style={{ 
+      <Link to="/" className="brand-logo" style={{ 
         display: "flex", 
         alignItems: "center", 
         gap: "12px", 
         color: "white",
-        textShadow: "0 2px 8px rgba(0,0,0,0.3)"
+        textShadow: "0 2px 8px rgba(0,0,0,0.3)",
+        textDecoration: "none"
       }}>
         <img src="/images/logo.png" alt="Logo" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
         ProNeighbor
-      </div>
+      </Link>
       <h2 className="brand-headline" style={{ 
         color: "white",
         textShadow: "0 2px 12px rgba(0,0,0,0.5)"

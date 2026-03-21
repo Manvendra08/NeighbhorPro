@@ -7,15 +7,17 @@ import {
   formatTimestamp,
 } from "../services/firestoreService";
 import { refundBooking, earnCoins } from "../services/coinService";
+import { useToast } from "../components/layout/Toast";
+import { Link } from "react-router-dom";
 
 export default function MyBookings() {
   const { user, userProfile } = useAuth();
+  const { toast } = useToast();
   const [tab, setTab] = useState<"client" | "pro">("client");
   const [clientBookings, setClientBookings] = useState<Record<string, unknown>[]>([]);
   const [proBookings, setProBookings] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [error, setError] = useState("");
   const [reviewBookingId, setReviewBookingId] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
@@ -24,7 +26,6 @@ export default function MyBookings() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    setError("");
     try {
       const [c, p] = await Promise.all([
         getBookingsForUser(user.uid),
@@ -33,7 +34,7 @@ export default function MyBookings() {
       setClientBookings(c);
       setProBookings(p);
     } catch (err) {
-      setError("Failed to load bookings. Please refresh the page.");
+      toast.error("Failed to load bookings. Please refresh the page.");
       console.error("Bookings load error:", err);
     }
     setLoading(false);
@@ -45,7 +46,6 @@ export default function MyBookings() {
   const handleCancel = async (booking: Record<string, unknown>) => {
     const id = booking.id as string;
     setActionLoading(id);
-    setError("");
     try {
       await updateBookingStatus(id, "cancelled");
       // Refund if coins were debited for this booking
@@ -57,9 +57,10 @@ export default function MyBookings() {
           (booking.serviceName as string) || "Booking"
         );
       }
+      toast.success("Booking cancelled successfully.");
       load();
     } catch (err) {
-      setError("Failed to cancel booking. Please try again.");
+      toast.error("Failed to cancel booking. Please try again.");
       console.error("Cancel error:", err);
     }
     setActionLoading(null);
@@ -67,13 +68,13 @@ export default function MyBookings() {
 
   const handleStatusChange = async (bookingId: string, status: string) => {
     setActionLoading(bookingId);
-    setError("");
     try {
       await updateBookingStatus(bookingId, status);
       // Important #9: award earn_review coin when pro marks complete
+      toast.success(`Booking ${status} successfully.`);
       load();
     } catch (err) {
-      setError("Failed to update booking status. Please try again.");
+      toast.error("Failed to update booking status. Please try again.");
       console.error("Status change error:", err);
     }
     setActionLoading(null);
@@ -82,7 +83,6 @@ export default function MyBookings() {
   const handleReviewSubmit = async () => {
     if (!reviewBookingId) return;
     setReviewSubmitting(true);
-    setError("");
     try {
       const booking = clientBookings.find((b) => b.id === reviewBookingId);
       if (booking) {
@@ -102,9 +102,10 @@ export default function MyBookings() {
       setReviewBookingId(null);
       setReviewRating(5);
       setReviewComment("");
+      toast.success("Review submitted successfully!");
       load();
     } catch (err) {
-      setError("Failed to submit review. Please try again.");
+      toast.error("Failed to submit review. Please try again.");
       console.error("Review error:", err);
     }
     setReviewSubmitting(false);
@@ -133,13 +134,6 @@ export default function MyBookings() {
         )}
       </div>
 
-      {/* Important #9: surface errors instead of swallowing them */}
-      {error && (
-        <div className="error-box" style={{ marginBottom: 16 }}>
-          {error} <button onClick={load} style={{ marginLeft: 8, background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer" }}>Retry</button>
-        </div>
-      )}
-
       {loading ? (
         <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
       ) : bookings.length === 0 ? (
@@ -158,7 +152,9 @@ export default function MyBookings() {
               <div className="card" key={id} style={{ opacity: busy ? 0.65 : 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                   <div>
-                    <h4 style={{ marginBottom: 4 }}>{(b.serviceName as string) || "Consultation"}</h4>
+                    <Link to={`/bookings/${id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                      <h4 style={{ marginBottom: 4, cursor: "pointer", textDecoration: "underline" }}>{(b.serviceName as string) || "Consultation"}</h4>
+                    </Link>
                     <p className="text-muted text-sm">{tab === "client" ? `with ${(b.proName as string) || "Professional"}` : `from ${(b.clientName as string) || "Client"}`}</p>
                     <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
                       <span className="text-sm">📅 {(b.date as string) || formatTimestamp(b.createdAt)}</span>
