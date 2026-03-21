@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { listProfessionals, BROWSE_PAGE_SIZE } from "../services/firestoreService";
+import { useAuth } from "../contexts/AuthContext";
 import { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 
 const CATEGORIES = [
@@ -11,6 +12,7 @@ const CATEGORIES = [
 ];
 
 export default function BrowsePros() {
+  const { user } = useAuth();
   const [allPros, setAllPros] = useState<Record<string, unknown>[]>([]);
   const [filtered, setFiltered] = useState<Record<string, unknown>[]>([]);
   const [category, setCategory] = useState("All");
@@ -30,7 +32,12 @@ export default function BrowsePros() {
       const { data, nextCursor } = await listProfessionals(reset ? null : cursorRef.current);
       cursorRef.current = nextCursor;
       setHasMore(nextCursor !== null);
-      const withSkills = data.filter(u => u.isServiceProvider && (u.skills as string[])?.length > 0);
+      // Only show service providers with at least one skill, exclude self
+      const withSkills = data.filter(u =>
+        u.isServiceProvider &&
+        (u.skills as string[])?.length > 0 &&
+        u.uid !== user?.uid
+      );
       setAllPros(prev => reset ? withSkills : [...prev, ...withSkills]);
     } catch (err) {
       console.error("Browse load error:", err);
@@ -67,35 +74,56 @@ export default function BrowsePros() {
   const initials = (name: string) => name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   const renderProCard = (p: Record<string, unknown>) => {
+    const uid = p.uid as string;
     const isGrid = viewMode === "grid";
     return (
-      <div key={p.uid as string} className={isGrid ? "pro-card" : "pro-card-list"} onClick={() => navigate(`/pro/${p.uid}`)}>
-        <div className="pro-card-img" style={{ position: "relative", aspectRatio: "4/3", overflow: "hidden", background: "var(--surface-3)" }}>
-          {(p.photoURL as string)
-            ? <img src={p.photoURL as string} alt={p.displayName as string} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>{initials((p.displayName as string) || "?")}</div>}
-          <div style={{ position: "absolute", bottom: 8, right: 8, background: "var(--success)", color: "#fff", width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff", fontSize: 11, fontWeight: "bold", zIndex: 1 }} title="Verified Pro">✓</div>
-        </div>
-        <div className="pro-card-body">
-          <div className="pro-card-main-info">
-            <div className="pro-card-name">{(p.displayName as string) || "Anonymous"}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div className="pro-card-society" style={{ marginBottom: 4 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "middle" }}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                {(p.society as string) || "Community Member"}
-              </div>
-              <div className="pro-card-skills" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {((p.skills as string[]) || []).slice(0, 3).map((s: string) => <span className="skill-tag" key={s} style={{ fontSize: 10, padding: "2px 6px" }}>{s}</span>)}
-                {((p.skills as string[]) || []).length > 3 && <span className="skill-tag" style={{ fontSize: 10, padding: "2px 6px" }}>+{(p.skills as string[]).length - 3}</span>}
+      <div key={uid} className={isGrid ? "pro-card" : "pro-card-list"}>
+        {/* Clickable area → ProDetail */}
+        <div onClick={() => navigate(`/pro/${uid}`)} style={{ cursor: "pointer" }}>
+          <div className="pro-card-img" style={{ position: "relative", aspectRatio: "4/3", overflow: "hidden", background: "var(--surface-3)" }}>
+            {(p.photoURL as string)
+              ? <img src={p.photoURL as string} alt={p.displayName as string} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>{initials((p.displayName as string) || "?")}</div>}
+            <div style={{ position: "absolute", bottom: 8, right: 8, background: "var(--success)", color: "#fff", width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff", fontSize: 11, fontWeight: "bold", zIndex: 1 }}>✓</div>
+          </div>
+          <div className="pro-card-body">
+            <div className="pro-card-main-info">
+              <div className="pro-card-name">{(p.displayName as string) || "Anonymous"}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <div className="pro-card-society" style={{ marginBottom: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "middle" }}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  {(p.society as string) || "Community Member"}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {((p.skills as string[]) || []).slice(0, 3).map((s: string) => <span className="skill-tag" key={s} style={{ fontSize: 10, padding: "2px 6px" }}>{s}</span>)}
+                  {((p.skills as string[]) || []).length > 3 && <span className="skill-tag" style={{ fontSize: 10, padding: "2px 6px" }}>+{(p.skills as string[]).length - 3}</span>}
+                </div>
               </div>
             </div>
+            <div className="pro-card-footer">
+              {(p.priceAfterQuote as boolean)
+                ? <span className="badge badge-accent">Quote-based</span>
+                : <span className="pro-card-rate">{(p.hourlyRate as number) === 0 ? "Free" : `₹${p.hourlyRate as number}/hr`}</span>}
+              <div className="pro-card-rating">★ {(p.rating as number) || 0}<span className="text-muted text-xs"> ({(p.reviewCount as number) || 0})</span></div>
+            </div>
           </div>
-          <div className="pro-card-footer">
-            {(p.priceAfterQuote as boolean)
-              ? <span className="badge badge-accent">Quote-based</span>
-              : <span className="pro-card-rate">{(p.hourlyRate as number) === 0 ? "Free" : `₹${p.hourlyRate as number}/hr`}</span>}
-            <div className="pro-card-rating">★ {(p.rating as number) || 0}<span className="text-muted text-xs"> ({(p.reviewCount as number) || 0})</span></div>
-          </div>
+        </div>
+
+        {/* Book button — outside clickable area to avoid nav conflict */}
+        <div style={{ padding: "0 14px 14px", display: "flex", gap: 8 }}>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ flex: 1 }}
+            onClick={e => { e.stopPropagation(); navigate(`/book/${uid}`); }}
+          >
+            Book
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={e => { e.stopPropagation(); navigate(`/pro/${uid}`); }}
+          >
+            View Profile
+          </button>
         </div>
       </div>
     );
@@ -127,17 +155,18 @@ export default function BrowsePros() {
           <p className="page-subtitle">Find trusted experts in your community</p>
         </div>
         <div className="view-toggle-group">
-          <button className={`view-toggle-btn ${viewMode === "grid" ? "active" : ""}`} onClick={() => setViewMode("grid")} title="Grid View">
+          <button className={`view-toggle-btn ${viewMode === "grid" ? "active" : ""}`} onClick={() => setViewMode("grid")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Grid
           </button>
-          <button className={`view-toggle-btn ${viewMode === "list" ? "active" : ""}`} onClick={() => setViewMode("list")} title="List View">
+          <button className={`view-toggle-btn ${viewMode === "list" ? "active" : ""}`} onClick={() => setViewMode("list")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>List
           </button>
         </div>
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <input className="form-input" type="text" placeholder="Search by name, skill, society…" value={search} onChange={e => handleInlineSearch(e.target.value)} style={{ maxWidth: 480 }} id="browse-search-input" />
+        <input className="form-input" type="text" placeholder="Search by name, skill, society…"
+          value={search} onChange={e => handleInlineSearch(e.target.value)} style={{ maxWidth: 480 }} />
       </div>
 
       <div className="filter-chips" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12, marginBottom: 24, scrollbarWidth: "none" }}>
@@ -159,19 +188,15 @@ export default function BrowsePros() {
           <div className={viewMode === "grid" ? "grid grid-3" : "pro-list-layout"}>
             {filtered.map(p => renderProCard(p))}
           </div>
-
-          {/* Load more — only show when not filtering (filters work on loaded data) */}
           {!search && category === "All" && (
             <div style={{ textAlign: "center", marginTop: 32 }}>
-              {loadingMore ? (
-                <div className="loader" style={{ margin: "0 auto" }} />
-              ) : hasMore ? (
-                <button className="btn btn-secondary" onClick={() => loadPage(false)}>
-                  Load More Professionals
-                </button>
-              ) : allPros.length >= BROWSE_PAGE_SIZE ? (
-                <p className="text-muted text-sm">All {allPros.length} professionals loaded</p>
-              ) : null}
+              {loadingMore
+                ? <div className="loader" style={{ margin: "0 auto" }} />
+                : hasMore
+                  ? <button className="btn btn-secondary" onClick={() => loadPage(false)}>Load More</button>
+                  : allPros.length >= BROWSE_PAGE_SIZE
+                    ? <p className="text-muted text-sm">All {allPros.length} professionals loaded</p>
+                    : null}
             </div>
           )}
         </>

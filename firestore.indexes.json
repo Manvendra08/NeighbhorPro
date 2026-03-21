@@ -33,20 +33,6 @@
       ]
     },
     {
-      "collectionGroup": "coinPayouts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "coinPurchases",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "transactions",
       "queryScope": "COLLECTION",
       "fields": [
@@ -68,13 +54,6 @@
       "fields": [
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "refId", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "entries",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "type", "order": "ASCENDING" }
       ]
     }
   ],
