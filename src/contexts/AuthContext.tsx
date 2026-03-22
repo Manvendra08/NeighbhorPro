@@ -24,6 +24,12 @@ export interface UserProfile {
   hourlyRate: number;
   isFreeConsultation: boolean;
   society: string;
+  locality: string;
+  tower: string;
+  flatNumber: string;
+  residencyProofUrl?: string;
+  residentVerificationStatus: "none" | "pending" | "verified";
+  verificationMethod: "manual" | "auto" | null;
   isServiceProvider?: boolean;
   priceAfterQuote?: boolean;
   role: "user" | "admin";
@@ -108,6 +114,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hourlyRate: 0,
         isFreeConsultation: true,
         society: "",
+        locality: "",
+        tower: "",
+        flatNumber: "",
+        residentVerificationStatus: "none",
+        verificationMethod: null,
         isServiceProvider: false,
         priceAfterQuote: false,
         role: "user",

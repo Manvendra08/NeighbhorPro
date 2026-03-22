@@ -50,6 +50,38 @@ export async function uploadProfilePhoto(uid: string, file: File) {
   return photoURL;
 }
 
+export async function uploadResidencyProof(uid: string, file: File) {
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  if (!cloudName || !uploadPreset) throw new Error("Cloudinary configuration is missing.");
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  formData.append("folder", "neighborpro/residency-proofs");
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
+  if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
+  const data = await response.json();
+  const residencyProofUrl = data.secure_url;
+  await updateDoc(doc(db, "users", uid), {
+    residencyProofUrl,
+    residentVerificationStatus: "pending",
+    updatedAt: serverTimestamp(),
+  });
+  return residencyProofUrl;
+}
+
+export async function updateResidentVerification(
+  uid: string,
+  status: "none" | "pending" | "verified",
+  method: "manual" | "auto" | null
+) {
+  await updateDoc(doc(db, "users", uid), {
+    residentVerificationStatus: status,
+    verificationMethod: method,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export const BROWSE_PAGE_SIZE = 20;
 
 /**
@@ -58,13 +90,21 @@ export const BROWSE_PAGE_SIZE = 20;
  * createdAt is guaranteed on every user doc so no results are silently dropped.
  */
 export async function listProfessionals(
-  cursor?: QueryDocumentSnapshot<DocumentData> | null
+  cursor?: QueryDocumentSnapshot<DocumentData> | null,
+  filters?: { locality?: string; tower?: string }
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot<DocumentData> | null }> {
   const q = cursor
     ? query(collection(db, "users"), orderBy("createdAt", "desc"), startAfter(cursor), limit(BROWSE_PAGE_SIZE))
     : query(collection(db, "users"), orderBy("createdAt", "desc"), limit(BROWSE_PAGE_SIZE));
   const snap = await getDocs(q);
-  const data = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  let data: Record<string, unknown>[] = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  // Client-side locality/tower filtering (Firestore composite index not needed)
+  if (filters?.locality) {
+    data = data.filter(u => ((u.locality as string) || "").toLowerCase() === filters.locality!.toLowerCase());
+  }
+  if (filters?.tower) {
+    data = data.filter(u => ((u.tower as string) || "").toLowerCase() === filters.tower!.toLowerCase());
+  }
   const nextCursor = snap.docs.length === BROWSE_PAGE_SIZE ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
 }

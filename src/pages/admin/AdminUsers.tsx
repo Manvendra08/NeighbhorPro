@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { getAllUsers, updateUserProfile } from "../../services/firestoreService";
+import { getAllUsers, updateUserProfile, updateResidentVerification } from "../../services/firestoreService";
 import { deleteDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
 
 type UserRow = Record<string, unknown>;
-type FilterTab = "all" | "active" | "disabled" | "admins" | "pros";
+type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verification";
 
 export default function AdminUsers() {
   const { userProfile } = useAuth();
@@ -42,6 +42,7 @@ export default function AdminUsers() {
     disabled: users.filter(u => !!u.disabled).length,
     admins: users.filter(u => u.role === "admin").length,
     pros: users.filter(u => !!u.isServiceProvider).length,
+    verification: users.filter(u => u.residentVerificationStatus === "pending").length,
   };
 
   const filtered = users.filter(u => {
@@ -53,7 +54,8 @@ export default function AdminUsers() {
     const matchTab =
       tab === "all" ? true : tab === "active" ? !u.disabled :
       tab === "disabled" ? !!u.disabled : tab === "admins" ? u.role === "admin" :
-      tab === "pros" ? !!u.isServiceProvider : true;
+      tab === "pros" ? !!u.isServiceProvider :
+      tab === "verification" ? u.residentVerificationStatus === "pending" : true;
     return matchSearch && matchTab;
   });
 
@@ -104,6 +106,26 @@ export default function AdminUsers() {
     );
   };
 
+  const handleVerifyResident = (u: UserRow, action: "verified" | "none") => {
+    const name = (u.displayName as string) || (u.email as string) || u.uid as string;
+    const doVerify = async () => {
+      setActionLoading(u.uid as string);
+      try {
+        await updateResidentVerification(u.uid as string, action, action === "verified" ? "manual" : null);
+        await logAudit(
+          action === "verified" ? "user.verify_resident" : "user.reject_resident",
+          adminId, adminName,
+          `${action === "verified" ? "Verified" : "Rejected"} resident verification for: ${name}`,
+          u.uid as string
+        );
+        showToast(action === "verified" ? "Resident verified" : "Verification rejected");
+        await load();
+      } catch { showToast("Action failed", "error"); }
+      setActionLoading(null);
+    };
+    doVerify();
+  };
+
   const handleDelete = async (u: UserRow) => {
     setActionLoading(u.uid as string);
     try {
@@ -123,7 +145,7 @@ export default function AdminUsers() {
   const tabs: { key: FilterTab; label: string }[] = [
     { key: "all", label: "All" }, { key: "active", label: "Active" },
     { key: "disabled", label: "Disabled" }, { key: "admins", label: "Admins" },
-    { key: "pros", label: "Service Pros" },
+    { key: "pros", label: "Service Pros" }, { key: "verification", label: "📋 Verification" },
   ];
 
   const initials = (u: UserRow) => ((u.displayName as string) || (u.email as string) || "?").slice(0, 2).toUpperCase();
@@ -198,7 +220,7 @@ export default function AdminUsers() {
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>User</th><th>Email</th><th>Society</th><th>Role</th><th>Pro</th><th>Rating</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>User</th><th>Email</th><th>Locality</th><th>Role</th><th>Pro</th><th>Resident</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.map(u => {
@@ -218,14 +240,25 @@ export default function AdminUsers() {
                       </div>
                     </td>
                     <td className="text-muted">{u.email as string}</td>
-                    <td>{(u.society as string) || <span className="text-muted">—</span>}</td>
+                    <td>{(u.locality as string) || (u.society as string) || <span className="text-muted">—</span>}{(u.tower as string) ? `, ${u.tower}` : ""}</td>
                     <td>
                       <span className={`badge ${u.role === "admin" ? "badge-warning" : "badge-muted"}`}>
                         {u.role === "admin" ? "🛡 Admin" : "User"}
                       </span>
                     </td>
                     <td>{u.isServiceProvider ? <span className="badge badge-accent">✓ Pro</span> : <span className="text-muted" style={{ fontSize: 12 }}>—</span>}</td>
-                    <td style={{ color: "var(--warning)" }}>★ {(u.rating as number) || 0}</td>
+                    <td>
+                      {u.residentVerificationStatus === "verified" ? (
+                        <span className="badge badge-success">✓ Verified</span>
+                      ) : u.residentVerificationStatus === "pending" ? (
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button className="btn btn-success btn-sm" style={{ fontSize: 10, padding: "2px 8px" }} onClick={() => handleVerifyResident(u, "verified")} disabled={busy}>Verify</button>
+                          <button className="btn btn-danger btn-sm" style={{ fontSize: 10, padding: "2px 8px" }} onClick={() => handleVerifyResident(u, "none")} disabled={busy}>Reject</button>
+                        </div>
+                      ) : (
+                        <span className="text-muted" style={{ fontSize: 12 }}>—</span>
+                      )}
+                    </td>
                     <td><span className={`badge ${u.disabled ? "badge-error" : "badge-success"}`}>{u.disabled ? "Disabled" : "Active"}</span></td>
                     <td>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -261,7 +294,9 @@ export default function AdminUsers() {
                   {!!selectedUser.isServiceProvider && <span className="badge badge-accent">Service Pro</span>}
                 </div>
                 {[
-                  { label: "Society", val: (selectedUser.society as string) || "—" },
+                  { label: "Locality", val: (selectedUser.locality as string) || (selectedUser.society as string) || "—" },
+                  { label: "Tower/Flat", val: [(selectedUser.tower as string), (selectedUser.flatNumber as string)].filter(Boolean).join(", ") || "—" },
+                  { label: "Verification", val: (selectedUser.residentVerificationStatus as string) || "none" },
                   { label: "Rating", val: `★ ${(selectedUser.rating as number) || 0} (${(selectedUser.reviewCount as number) || 0} reviews)` },
                   { label: "Hourly Rate", val: (selectedUser.hourlyRate as number) ? `₹${selectedUser.hourlyRate}` : "Free consultation" },
                   { label: "Skills", val: ((selectedUser.skills as string[]) || []).join(", ") || "—" },

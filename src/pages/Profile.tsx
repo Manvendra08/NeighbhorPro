@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { updateUserProfile, createService, getServicesByUser, deleteService, uploadProfilePhoto, getAllSocieties } from "../services/firestoreService";
+import { updateUserProfile, createService, getServicesByUser, deleteService, uploadProfilePhoto, getAllSocieties, uploadResidencyProof } from "../services/firestoreService";
 
 // ── White-collar skills for gated-society professionals — Park Street, Wakad, Pune
 // Grouped by domain for the suggestion pills (shown 8 at a time, filtered by what's not already added)
@@ -113,10 +113,14 @@ export default function Profile() {
   const [priceAfterQuote, setPriceAfterQuote] = useState(false);
   const [society, setSociety] = useState("");
   const [societies, setSocieties] = useState<Record<string, unknown>[]>([]);
-  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string }>({});
+  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string; locality?: string }>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [locality, setLocality] = useState("");
+  const [tower, setTower] = useState("");
+  const [flatNumber, setFlatNumber] = useState("");
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   // Services
   const [services, setServices] = useState<Record<string, unknown>[]>([]);
@@ -137,6 +141,9 @@ export default function Profile() {
       setIsServiceProvider(userProfile.isServiceProvider || false);
       setPriceAfterQuote(userProfile.priceAfterQuote || false);
       setSociety(userProfile.society || "");
+      setLocality(userProfile.locality || "");
+      setTower(userProfile.tower || "");
+      setFlatNumber(userProfile.flatNumber || "");
     }
   }, [userProfile]);
 
@@ -195,6 +202,9 @@ export default function Profile() {
         isServiceProvider,
         priceAfterQuote,
         society,
+        locality,
+        tower,
+        flatNumber,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -351,6 +361,86 @@ export default function Profile() {
                 {errors.society}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Residence Information */}
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h3 className="card-title" style={{ marginBottom: 16 }}>📍 Residence Information</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+              <label className="form-label">
+                Locality <span style={{ color: "var(--error)" }}>*</span>
+              </label>
+              <input
+                className="form-input"
+                value={locality}
+                onChange={(e) => setLocality(e.target.value)}
+                placeholder="e.g., Gates Community, Wakad"
+                id="profile-locality-input"
+              />
+              {errors.locality && (
+                <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>
+                  {errors.locality}
+                </div>
+              )}
+            </div>
+            <div className="form-group">
+              <label className="form-label">Tower / Wing</label>
+              <input
+                className="form-input"
+                value={tower}
+                onChange={(e) => setTower(e.target.value)}
+                placeholder="e.g., Tower A"
+                id="profile-tower-input"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Flat Number</label>
+              <input
+                className="form-input"
+                value={flatNumber}
+                onChange={(e) => setFlatNumber(e.target.value)}
+                placeholder="e.g., 402"
+                id="profile-flat-input"
+              />
+            </div>
+          </div>
+
+          {/* Residency Proof Upload */}
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: 16, paddingTop: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div>
+                <label className="form-label" style={{ marginBottom: 4 }}>Residency Proof (optional)</label>
+                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Upload maintenance bill, rental agreement, etc.</p>
+              </div>
+              {userProfile?.residentVerificationStatus === "verified" && (
+                <span className="badge badge-success" style={{ fontSize: 11 }}>✓ Verified Resident</span>
+              )}
+              {userProfile?.residentVerificationStatus === "pending" && (
+                <span className="badge badge-warning" style={{ fontSize: 11 }}>⏳ Pending Review</span>
+              )}
+            </div>
+            {userProfile?.residencyProofUrl && (
+              <div style={{ marginBottom: 8, fontSize: 12 }}>
+                <a href={userProfile.residencyProofUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>📎 View uploaded proof</a>
+              </div>
+            )}
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: uploadingProof ? "default" : "pointer", padding: "8px 16px", border: "1px dashed var(--border)", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--muted)" }}>
+              📄 {uploadingProof ? "Uploading…" : "Upload proof document"}
+              <input
+                type="file"
+                accept="image/*,.pdf,.doc,.docx"
+                style={{ display: "none" }}
+                disabled={uploadingProof}
+                onChange={async (e) => {
+                  if (!e.target.files?.[0] || !user) return;
+                  setUploadingProof(true);
+                  try { await uploadResidencyProof(user.uid, e.target.files[0]); } catch { /* ignore */ }
+                  setUploadingProof(false);
+                }}
+              />
+            </label>
           </div>
         </div>
 

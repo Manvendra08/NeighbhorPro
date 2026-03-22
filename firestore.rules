@@ -121,5 +121,17 @@ service cloud.firestore {
         allow update, delete: if isAdmin();
       }
     }
+
+    // Announcements
+    match /announcements/{annId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Audit Log
+    match /auditLog/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+    }
   }
 }

@@ -1,0 +1,63 @@
+/* ═══════════════════════════════════════════
+   PWA / MOBILE ENHANCEMENTS
+   Appended to index.css
+═══════════════════════════════════════════ */
+
+/* Safe area insets for iPhone notch/home bar */
+.app-main {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-nav {
+  padding-bottom: calc(6px + env(safe-area-inset-bottom));
+  height: calc(60px + env(safe-area-inset-bottom));
+}
+.topbar {
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--topbar-h) + env(safe-area-inset-top));
+}
+
+/* Minimum 44px touch targets (Apple HIG requirement) */
+.btn, .chip, .tab, .nav-link, .mobile-nav-item {
+  min-height: 44px;
+}
+.btn-sm {
+  min-height: 36px; /* exception for compact UI */
+}
+
+/* Remove 300ms tap delay on mobile */
+* { touch-action: manipulation; }
+
+/* Prevent text selection on interactive elements */
+.btn, .chip, .tab, .nav-link, .mobile-nav-item, .pro-card {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Smooth momentum scrolling on iOS */
+.chat-messages-body,
+.sidebar-nav,
+.filter-chips {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Standalone PWA — hide browser chrome artefacts */
+@media (display-mode: standalone) {
+  /* Extra top padding for status bar */
+  .topbar {
+    padding-top: max(env(safe-area-inset-top), 12px);
+  }
+  /* Prevent content going under home indicator */
+  .app-content {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Larger tap area for card click on mobile */
+@media (max-width: 768px) {
+  .pro-card, .pro-card-list { cursor: pointer; }
+  .app-content { padding: 16px 14px; }
+  .page-title { font-size: 20px; }
+  .card { padding: 16px; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .chat-layout { height: calc(100vh - 60px - env(safe-area-inset-bottom)); }
+}
