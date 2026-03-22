@@ -91,7 +91,7 @@ export default function MyBookings() {
       const booking = clientBookings.find(b => b.id === reviewBid);
       if (booking) {
         const { addReview } = await import("../services/firestoreService");
-        await addReview({ bookingId: reviewBid, reviewerId: user!.uid, reviewerName: user!.displayName || user!.email, proId: booking.proId, rating: reviewRating, comment: reviewComment });
+        await addReview(reviewBid, booking.proId as string, reviewRating, reviewComment);
         await updateBookingStatus(reviewBid, "reviewed");
         await earnCoins(user!.uid, "earn_review", reviewBid);
       }
