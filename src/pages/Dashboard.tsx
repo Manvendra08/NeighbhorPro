@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -7,11 +7,16 @@ import {
   getTransactionsForPro,
   formatTimestamp,
   formatTimestampTime,
+  subscribeToFeed,
+  createFeedPost,
+  deleteFeedPost,
+  getRecommendedPros,
+  getLastBookedPro,
+  getUserProfile,
 } from "../services/firestoreService";
 import { Timestamp } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
 
-// ─── icons ─────────────────────────────────────────────────────────────────
 const ICON = {
   bookings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>,
   requests: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
@@ -19,6 +24,129 @@ const ICON = {
   earnings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
   skills:   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>,
 };
+
+// ─── Local Feed Widget ──────────────────────────────────────────────────────
+function LocalFeedWidget({ uid, displayName, locality }: { uid: string; displayName: string; locality?: string }) {
+  const [posts, setPosts] = useState<Record<string, unknown>[]>([]);
+  const [text, setText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const unsub = subscribeToFeed(locality, setPosts);
+    return unsub;
+  }, [locality]);
+
+  const handlePost = async () => {
+    if (!text.trim() || posting) return;
+    setPosting(true);
+    try {
+      await createFeedPost({ authorId: uid, authorName: displayName, content: text.trim(), locality });
+      setText("");
+    } finally { setPosting(false); }
+  };
+
+  const handleDelete = async (postId: string) => {
+    if (!confirm("Delete this post?")) return;
+    await deleteFeedPost(postId);
+  };
+
+  function relTime(ts: unknown) {
+    if (!ts || !(ts instanceof Timestamp)) return "";
+    const diff = (Date.now() - ts.toDate().getTime()) / 1000;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+    return ts.toDate().toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 24 }}>
+      <div className="card-header">
+        <h3 className="card-title">📣 Local Feed{locality ? ` — ${locality}` : ""}</h3>
+      </div>
+      {/* Compose */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <textarea
+          ref={textRef}
+          className="form-input"
+          placeholder="Share something with your neighborhood…"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          rows={2}
+          style={{ flex: 1, resize: "none", fontSize: 13 }}
+        />
+        <button className="btn btn-primary" style={{ alignSelf: "flex-end" }} disabled={!text.trim() || posting} onClick={handlePost}>
+          {posting ? "…" : "Post"}
+        </button>
+      </div>
+      {/* Posts */}
+      {posts.length === 0 ? (
+        <p className="text-muted" style={{ fontSize: 13 }}>No posts yet. Be the first to share something!</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {posts.map(p => (
+            <div key={p.id as string} style={{ padding: "12px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{(p.authorName as string) || "Neighbor"}</span>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--muted)" }}>{relTime(p.createdAt)}</span>
+                  {(p.authorId as string) === uid && (
+                    <button onClick={() => handleDelete(p.id as string)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", fontSize: 12 }}>✕</button>
+                  )}
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-2)", margin: 0 }}>{p.content as string}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Recommended Pros Widget ───────────────────────────────────────────────
+function RecommendedPros({ uid }: { uid: string }) {
+  const navigate = useNavigate();
+  const [pros, setPros] = useState<Record<string, unknown>[]>([]);
+
+  useEffect(() => {
+    getRecommendedPros(uid, 4).then(setPros).catch(() => {});
+  }, [uid]);
+
+  if (!pros.length) return null;
+
+  return (
+    <div className="card" style={{ marginBottom: 24 }}>
+      <div className="card-header">
+        <h3 className="card-title">⭐ Recommended for You</h3>
+        <Link to="/browse" className="btn btn-ghost btn-sm">See all</Link>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+        {pros.map(p => {
+          const initials = ((p.displayName as string) || "?").split(" ").map((w: string) => w[0]).join("").slice(0,2).toUpperCase();
+          return (
+            <div key={p.uid as string} onClick={() => navigate(`/pro/${p.uid}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 10px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", transition: "background 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-dim)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "var(--surface-2)")}
+            >
+              <div className="avatar avatar-sm">
+                {(p.photoURL as string) ? <img src={p.photoURL as string} alt="" /> : initials}
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{(p.displayName as string) || "Pro"}</div>
+                {(p.rating as number) ? (
+                  <div style={{ fontSize: 11, color: "var(--warning)" }}>★ {(p.rating as number).toFixed(1)}</div>
+                ) : null}
+              </div>
+              <button className="btn btn-primary btn-xs" style={{ fontSize: 11, padding: "2px 10px" }}>Book</button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ─── Mobile Dashboard ──────────────────────────────────────────────────────
 function MobileDashboard({
@@ -332,7 +460,13 @@ export default function Dashboard() {
   const [upcomingBookings, setUpcomingBookings] = useState<Record<string, unknown>[]>([]);
   const [proBookings, setProBookings] = useState<Record<string, unknown>[]>([]);
   const [proTransactions, setProTransactions] = useState<Record<string, unknown>[]>([]);
+  const [lastBookedPro, setLastBookedPro] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const locality = (userProfile as { locality?: string } | null)?.locality;
+  const displayName = (userProfile as { displayName?: string } | null)?.displayName ||
+    (user as { displayName?: string } | null)?.displayName || "there";
 
   useEffect(() => {
     if (!user) return;
@@ -341,6 +475,12 @@ export default function Dashboard() {
         const [client, pro] = await Promise.all([getBookingsForUser(user.uid), getBookingsForPro(user.uid)]);
         setUpcomingBookings(client.filter(b => b.status === "pending" || b.status === "confirmed"));
         setProBookings(pro.filter(b => b.status === "pending" || b.status === "confirmed"));
+        // Load quick re-book
+        const lastProId = await getLastBookedPro(user.uid);
+        if (lastProId) {
+          const profile = await getUserProfile(lastProId);
+          if (profile) setLastBookedPro(profile);
+        }
       } catch { /* ignore */ }
       setLoading(false);
     };
@@ -386,14 +526,40 @@ export default function Dashboard() {
   }
 
   return (
-    <DesktopDashboard
-      userProfile={userProfile as Record<string, unknown> | null}
-      user={user as Record<string, unknown> | null}
-      upcomingBookings={upcomingBookings}
-      proBookings={proBookings}
-      earningsSummary={earningsSummary}
-      proTransactions={proTransactions}
-      loading={loading}
-    />
+    <>
+      <DesktopDashboard
+        userProfile={userProfile as Record<string, unknown> | null}
+        user={user as Record<string, unknown> | null}
+        upcomingBookings={upcomingBookings}
+        proBookings={proBookings}
+        earningsSummary={earningsSummary}
+        proTransactions={proTransactions}
+        loading={loading}
+      />
+
+      {/* Quick Re-book Banner */}
+      {lastBookedPro && !loading && (
+        <div style={{ background: "linear-gradient(135deg, var(--accent-dim), var(--surface-2))", borderRadius: "var(--radius)", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, border: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div className="avatar avatar-sm">
+              {(lastBookedPro.photoURL as string) ? <img src={lastBookedPro.photoURL as string} alt="" /> : ((lastBookedPro.displayName as string) || "?").slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Quick Re-book</div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>Last consulted: {(lastBookedPro.displayName as string) || "Professional"}</div>
+            </div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => navigate(`/book/${lastBookedPro.uid as string}`)}>
+            Book Again →
+          </button>
+        </div>
+      )}
+
+      {/* Recommended Pros */}
+      {user && <RecommendedPros uid={user.uid} />}
+
+      {/* Local Feed */}
+      {user && <LocalFeedWidget uid={user.uid} displayName={displayName} locality={locality} />}
+    </>
   );
 }

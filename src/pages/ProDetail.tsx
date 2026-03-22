@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getUserProfile, getServicesByUser, getReviewsForUser, formatTimestamp } from "../services/firestoreService";
+import { getUserProfile, getServicesByUser, getReviewsForUser, formatTimestamp, trackProView } from "../services/firestoreService";
 import { useAuth } from "../contexts/AuthContext";
 
 /* Reusable skeleton block */
@@ -59,6 +59,24 @@ export default function ProDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState("Spam / Fake Profile");
+  const [reportComment, setReportComment] = useState("");
+  const [reportSub, setReportSub] = useState(false);
+  
+  const handleReportSubmit = async () => {
+    setReportSub(true);
+    try {
+      await (await import("../services/firestoreService")).reportProfessional(id!, reportReason, reportComment);
+      setShowReport(false);
+      setReportComment("");
+      alert("Report submitted successfully and is pending review.");
+    } catch {
+      alert("Failed to submit report. Ensure you are logged in.");
+    }
+    setReportSub(false);
+  };
+
   useEffect(() => {
     if (!id) return;
     const load = async () => {
@@ -71,6 +89,10 @@ export default function ProDetail() {
         if (!profile) { setError("not_found"); } else { setPro(profile); }
         setServices(svcs);
         setReviews(revs);
+        // Track this view for recommendations / recently viewed
+        if (user?.uid && user.uid !== id) {
+          trackProView(user.uid, id).catch(() => {});
+        }
       } catch {
         setError("load_failed");
       }
@@ -189,7 +211,7 @@ export default function ProDetail() {
             {reviews.map(r => (
               <div key={r.id as string} style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontWeight: 600 }}>{(r.reviewerName as string) || "Anonymous"}</span>
+                  <span style={{ fontWeight: 600 }}>{(r.clientName as string) || (r.reviewerName as string) || "Anonymous"}</span>
                   <span style={{ color: "var(--warning)" }}>{"★".repeat(r.rating as number)}{"☆".repeat(5 - (r.rating as number))}</span>
                 </div>
                 <p style={{ color: "var(--text-2)", fontSize: 14, lineHeight: 1.5 }}>{r.comment as string}</p>
@@ -199,6 +221,44 @@ export default function ProDetail() {
           </div>
         )}
       </div>
+
+      {user && !isOwnProfile && (
+        <button className="btn btn-ghost btn-sm" onClick={() => setShowReport(true)} style={{ color: "var(--error)", marginTop: 24, width: "100%", opacity: 0.7 }}>
+          ⚐ Report Professional
+        </button>
+      )}
+
+      {/* Report modal */}
+      {showReport && (
+        <div className="modal-overlay" onClick={() => setShowReport(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Report Professional</h3>
+              <button className="modal-close" onClick={() => setShowReport(false)}>✕</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Reason</label>
+              <select className="form-input" value={reportReason} onChange={e => setReportReason(e.target.value)}>
+                <option>Spam / Fake Profile</option>
+                <option>Inappropriate Behavior</option>
+                <option>Did not deliver service</option>
+                <option>Off-platform payment request</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Additional Details</label>
+              <textarea className="form-input" placeholder="Provide details to help us investigate..." value={reportComment} onChange={e => setReportComment(e.target.value)} />
+            </div>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button className="btn btn-secondary" disabled={reportSub} onClick={() => setShowReport(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleReportSubmit} disabled={reportSub || !reportComment.trim()}>
+                {reportSub ? "Submitting…" : "Submit Report"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

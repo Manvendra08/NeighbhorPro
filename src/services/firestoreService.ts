@@ -219,18 +219,65 @@ export async function updateProAvailability(proId: string, availabilityData: Rec
 /* ═══════════════════════════════════════════
    REVIEWS
 ═══════════════════════════════════════════ */
-export async function addReview(data: Record<string, unknown>) {
-  const ref = await addDoc(collection(db, "reviews"), { ...data, createdAt: serverTimestamp() });
-  const proId = data.proId as string;
-  const allReviews = await getReviewsForUser(proId);
-  const avg = allReviews.length > 0 ? allReviews.reduce((s, r) => s + ((r.rating as number) || 0), 0) / allReviews.length : 0;
-  await updateDoc(doc(db, "users", proId), { rating: Math.round(avg * 10) / 10, reviewCount: allReviews.length });
-  return ref.id;
+export async function addReview(bookingId: string, proId: string, rating: number, comment: string) {
+  if (!auth.currentUser) throw new Error("Must be logged in to review");
+  // 1. Add review
+  await addDoc(collection(db, "reviews"), {
+    bookingId,
+    proId,
+    clientId: auth.currentUser.uid,
+    clientName: auth.currentUser.displayName || "User",
+    clientPhoto: auth.currentUser.photoURL || "",
+    rating,
+    comment,
+    createdAt: serverTimestamp()
+  });
+
+  // 2. Check spam and recalculate
+  await checkSpamReviews(proId);
+  await recalculateProRating(proId);
 }
 export async function getReviewsForUser(proId: string) {
   const q = query(collection(db, "reviews"), where("proId", "==", proId), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+}
+export async function recalculateProRating(proId: string) {
+  const allReviews = await getReviewsForUser(proId);
+  const avg = allReviews.length > 0 ? allReviews.reduce((s, r) => s + ((r.rating as number) || 0), 0) / allReviews.length : 0;
+  await updateDoc(doc(db, "users", proId), { rating: Math.round(avg * 10) / 10, reviewCount: allReviews.length });
+}
+export async function checkSpamReviews(proId: string) {
+  const q = query(collection(db, "reviews"), where("proId", "==", proId), orderBy("createdAt", "desc"), limit(3));
+  const snap = await getDocs(q);
+  if (snap.size < 3) return;
+
+  let allOneStar = true;
+  snap.forEach(doc => {
+    if (doc.data().rating > 1) allOneStar = false;
+  });
+
+  if (allOneStar) {
+    await addDoc(collection(db, "reports"), {
+      proId,
+      reason: "Automated Spam Flag",
+      comment: "3 consecutive 1-star reviews detected rapidly.",
+      reporterId: "system",
+      status: "pending",
+      createdAt: serverTimestamp()
+    });
+  }
+}
+export async function reportProfessional(proId: string, reason: string, comment: string) {
+  if (!auth.currentUser) throw new Error("Must be logged in to report");
+  await addDoc(collection(db, "reports"), {
+    proId,
+    reporterId: auth.currentUser.uid,
+    reason,
+    comment,
+    status: "pending",
+    createdAt: serverTimestamp()
+  });
 }
 
 /* ═══════════════════════════════════════════
@@ -324,4 +371,103 @@ export function formatTimestampTime(ts: unknown): string {
   if (!ts) return "";
   if (ts instanceof Timestamp) return ts.toDate().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
   return "";
+}
+
+/* ═══════════════════════════════════════════
+   LOCAL FEED
+═══════════════════════════════════════════ */
+export async function createFeedPost(data: {
+  authorId: string; authorName: string; content: string; locality?: string; tower?: string;
+}) {
+  const ref = await addDoc(collection(db, "localFeed"), { ...data, createdAt: serverTimestamp(), likes: 0 });
+  return ref.id;
+}
+
+export function subscribeToFeed(
+  locality: string | undefined,
+  callback: (posts: Record<string, unknown>[]) => void
+): Unsubscribe {
+  const q = locality
+    ? query(collection(db, "localFeed"), where("locality", "==", locality), orderBy("createdAt", "desc"), limit(30))
+    : query(collection(db, "localFeed"), orderBy("createdAt", "desc"), limit(30));
+  return onSnapshot(q, snap => callback(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+
+export async function deleteFeedPost(postId: string) {
+  await deleteDoc(doc(db, "localFeed", postId));
+}
+
+/* ═══════════════════════════════════════════
+   RECENTLY VIEWED / RECOMMENDATIONS
+═══════════════════════════════════════════ */
+export async function trackProView(uid: string, proId: string) {
+  const userRef = doc(db, "users", uid);
+  const snap = await getDoc(userRef);
+  if (!snap.exists()) return;
+  const existing: string[] = (snap.data().recentlyViewedPros as string[]) || [];
+  const updated = [proId, ...existing.filter(id => id !== proId)].slice(0, 10);
+  await updateDoc(userRef, { recentlyViewedPros: updated, updatedAt: serverTimestamp() });
+}
+
+export async function getRecommendedPros(
+  uid: string, limit_: number = 4
+): Promise<Record<string, unknown>[]> {
+  // Fetch 20 most-reviewed pros as recommendation baseline
+  const q = query(
+    collection(db, "users"),
+    where("isServiceProvider", "==", true),
+    orderBy("reviewCount", "desc"),
+    limit(limit_ * 5)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(d => ({ uid: d.id, ...d.data() }))
+    .filter(p => (p.uid as string) !== uid)
+    .slice(0, limit_);
+}
+
+export async function getLastBookedPro(uid: string): Promise<string | null> {
+  const q = query(
+    collection(db, "bookings"),
+    where("clientId", "==", uid),
+    where("status", "in", ["completed", "reviewed"]),
+    orderBy("createdAt", "desc"),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return (snap.docs[0].data().proId as string) || null;
+}
+
+/* ═══════════════════════════════════════════
+   MESSAGING — READ RECEIPTS & UNREAD COUNT
+═══════════════════════════════════════════ */
+/** Mark a conversation as read for a given user by updating lastReadAt. */
+export async function markConversationRead(convId: string, uid: string) {
+  await updateDoc(doc(db, "messages", convId), {
+    [`lastReadAt.${uid}`]: serverTimestamp(),
+  });
+}
+
+/** Return count of unread messages in a conversation for a given user since lastReadAt. */
+export async function getUnreadCount(convId: string, uid: string): Promise<number> {
+  const convSnap = await getDoc(doc(db, "messages", convId));
+  if (!convSnap.exists()) return 0;
+  const lastRead = convSnap.data()?.lastReadAt?.[uid] as Timestamp | undefined;
+  if (!lastRead) {
+    // Never read — count all messages not sent by self
+    const q = query(
+      collection(db, `messages/${convId}/chats`),
+      where("senderId", "!=", uid)
+    );
+    const snap = await getDocs(q);
+    return snap.size;
+  }
+  const q = query(
+    collection(db, `messages/${convId}/chats`),
+    where("senderId", "!=", uid),
+    where("timestamp", ">", lastRead)
+  );
+  const snap = await getDocs(q);
+  return snap.size;
 }

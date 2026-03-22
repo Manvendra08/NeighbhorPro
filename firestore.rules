@@ -50,8 +50,16 @@ service cloud.firestore {
     // Reviews
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() &&
+        get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.clientId == request.auth.uid &&
+        get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status == 'completed';
       allow update, delete: if isAdmin();
+    }
+
+    // Reports
+    match /reports/{reportId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isSignedIn();
     }
 
     // Societies
@@ -120,6 +128,14 @@ service cloud.firestore {
           (ticketId == "support_" + request.auth.uid || isAdmin());
         allow update, delete: if isAdmin();
       }
+    }
+
+    // Local Feed
+    match /localFeed/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow update: if isAdmin();
     }
 
     // Announcements
