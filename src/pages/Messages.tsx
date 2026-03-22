@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
@@ -9,7 +9,18 @@ import {
   uploadAttachment,
   getUserProfile,
   formatTimestampTime,
+  markConversationRead,
 } from "../services/firestoreService";
+import { Timestamp } from "firebase/firestore";
+
+function relativeTime(ts: unknown): string {
+  if (!ts || !(ts instanceof Timestamp)) return "";
+  const diff = (Date.now() - ts.toDate().getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return ts.toDate().toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
 
 export default function Messages() {
   const { user } = useAuth();
@@ -22,6 +33,8 @@ export default function Messages() {
   const [loading, setLoading] = useState(true);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +44,20 @@ export default function Messages() {
     const unsub = subscribeToConversations(user.uid, (convos) => {
       setConversations(convos);
       setLoading(false);
+
+      // Compute unread counts from lastReadAt + lastMessageAt
+      const counts: Record<string, number> = {};
+      convos.forEach(c => {
+        const lastReadAt = (c.lastReadAt as Record<string, Timestamp> | undefined)?.[user.uid];
+        const lastMessageAt = c.lastMessageAt as Timestamp | undefined;
+        const lastSenderId = (c.lastSenderId as string) || "";
+        if (lastSenderId !== user.uid && lastMessageAt) {
+          if (!lastReadAt || lastMessageAt.seconds > lastReadAt.seconds) {
+            counts[c.id as string] = (counts[c.id as string] || 0) + 1;
+          }
+        }
+      });
+      setUnreadCounts(counts);
 
       // Load other user profiles
       convos.forEach((c) => {
@@ -54,13 +81,16 @@ export default function Messages() {
     if (convParam) setActiveConv(convParam);
   }, [searchParams]);
 
-  // Subscribe to messages of active conversation
+  // Subscribe to messages of active conversation, mark as read
   useEffect(() => {
-    if (!activeConv) return;
+    if (!activeConv || !user) return;
     const unsub = subscribeToMessages(activeConv, (msgs) => {
       setMessages(msgs);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     });
+    // Mark as read
+    markConversationRead(activeConv, user.uid).catch(() => {});
+    setUnreadCounts(prev => ({ ...prev, [activeConv]: 0 }));
     return unsub;
   }, [activeConv]);
 
@@ -70,6 +100,7 @@ export default function Messages() {
     setNewMsg("");
     setShowEmojiPicker(false);
     await sendMessage(activeConv, user.uid, text);
+    markConversationRead(activeConv, user.uid).catch(() => {});
   };
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
@@ -79,40 +110,45 @@ export default function Messages() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeConv || !user) return;
-    
-    if (file.size > 10 * 1024 * 1024) {
-      alert("File must be less than 10MB");
-      return;
-    }
-    
+    if (file.size > 10 * 1024 * 1024) { alert("File must be less than 10MB"); return; }
     try {
       setAttachmentLoading(true);
       const result = await uploadAttachment(activeConv, file);
       await sendMessage(activeConv, user.uid, newMsg.trim(), {
-        url: result.url,
-        type: result.resourceType,
-        name: file.name
+        url: result.url, type: result.resourceType, name: file.name,
       });
-      setNewMsg("");
-      setShowEmojiPicker(false);
-    } catch (err: any) {
-      alert(err.message || "Failed to upload file");
+      setNewMsg(""); setShowEmojiPicker(false);
+    } catch (err: unknown) {
+      alert((err as Error).message || "Failed to upload file");
     } finally {
       setAttachmentLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const getOtherUserId = (conv: Record<string, unknown>) => {
+  const getOtherUserId = useCallback((conv: Record<string, unknown>) => {
     const participants = conv.participants as string[];
     return participants.find((p) => p !== user?.uid) || "";
-  };
+  }, [user]);
+
+  const filteredConvos = conversations.filter(conv => {
+    if (!search) return true;
+    const otherId = getOtherUserId(conv);
+    const other = otherUsers[otherId];
+    const name = ((other?.displayName as string) || "").toLowerCase();
+    const last = ((conv.lastMessage as string) || "").toLowerCase();
+    return name.includes(search.toLowerCase()) || last.includes(search.toLowerCase());
+  });
+
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Messages</h1>
+          <h1 className="page-title">
+            Messages {totalUnread > 0 && <span className="badge badge-error" style={{ fontSize: 12, marginLeft: 8 }}>{totalUnread}</span>}
+          </h1>
           <p className="page-subtitle">Chat with professionals and clients</p>
         </div>
       </div>
@@ -120,43 +156,66 @@ export default function Messages() {
       <div className="chat-layout">
         {/* Conversation list */}
         <div className="chat-list">
+          {/* Search bar */}
+          <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
+            <input
+              className="form-input"
+              style={{ fontSize: 13, padding: "6px 10px" }}
+              placeholder="🔍 Search conversations…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+
           {loading ? (
             <div style={{ textAlign: "center", padding: 40 }}>
               <div className="loader" style={{ margin: "0 auto" }} />
             </div>
-          ) : conversations.length === 0 ? (
+          ) : filteredConvos.length === 0 ? (
             <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
-              No conversations yet. Book a consultation to start chatting!
+              {search ? "No conversations match your search." : "No conversations yet. Book a consultation to start chatting!"}
             </div>
           ) : (
-            conversations.map((conv) => {
+            filteredConvos.map((conv) => {
               const otherId = getOtherUserId(conv);
               const other = otherUsers[otherId];
               const initials = ((other?.displayName as string) || "?")
-                .split(" ")
-                .map((w) => w[0])
-                .join("")
-                .slice(0, 2)
-                .toUpperCase();
+                .split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+              const unread = unreadCounts[conv.id as string] || 0;
+              const isActive = activeConv === conv.id;
 
               return (
                 <div
                   key={conv.id as string}
-                  className={`chat-list-item${activeConv === conv.id ? " active" : ""}`}
+                  className={`chat-list-item${isActive ? " active" : ""}`}
                   onClick={() => setActiveConv(conv.id as string)}
+                  style={{ position: "relative" }}
                 >
-                  <div className="avatar avatar-sm">
-                    {(other?.photoURL as string) ? (
-                      <img src={other.photoURL as string} alt="" />
-                    ) : (
-                      initials
+                  <div className="avatar avatar-sm" style={{ position: "relative", flexShrink: 0 }}>
+                    {(other?.photoURL as string) ? <img src={other.photoURL as string} alt="" /> : initials}
+                    {unread > 0 && (
+                      <span style={{
+                        position: "absolute", top: -3, right: -3,
+                        background: "var(--error)", color: "#fff",
+                        borderRadius: "50%", fontSize: 9, fontWeight: 700,
+                        width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center",
+                        border: "2px solid var(--surface)",
+                      }}>{unread > 9 ? "9+" : unread}</span>
                     )}
                   </div>
                   <div style={{ flex: 1, overflow: "hidden" }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>
-                      {(other?.displayName as string) || "User"}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ fontWeight: unread > 0 ? 700 : 600, fontSize: 14 }}>
+                        {(other?.displayName as string) || "User"}
+                      </span>
+                      <span style={{ fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap", marginLeft: 6 }}>
+                        {relativeTime(conv.lastMessageAt)}
+                      </span>
                     </div>
-                    <div className="text-muted text-xs" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div className="text-muted text-xs" style={{
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      fontWeight: unread > 0 ? 600 : 400, color: unread > 0 ? "var(--text)" : undefined,
+                    }}>
                       {(conv.lastMessage as string) || "No messages yet"}
                     </div>
                   </div>
@@ -195,7 +254,12 @@ export default function Messages() {
                         ((other?.displayName as string) || "?").slice(0, 2).toUpperCase()
                       )}
                     </div>
-                    <div style={{ fontWeight: 600 }}>{(other?.displayName as string) || "User"}</div>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{(other?.displayName as string) || "User"}</div>
+                      {(other?.isServiceProvider as boolean) && (
+                        <div style={{ fontSize: 11, color: "var(--success)" }}>✓ Professional</div>
+                      )}
+                    </div>
                   </div>
                 );
               })()}
@@ -214,21 +278,20 @@ export default function Messages() {
                           {msg.attachmentUrl ? (
                             <div style={{ marginBottom: msg.text ? 8 : 0 }}>
                               {(msg.attachmentType as string) === "image" ? (
-                                <img 
-                                  src={msg.attachmentUrl as string} 
-                                  alt="attachment" 
-                                  style={{ maxWidth: 200, borderRadius: 8, display: "block", marginBottom: 4 }} 
+                                <img
+                                  src={msg.attachmentUrl as string}
+                                  alt="attachment"
+                                  style={{ maxWidth: 200, borderRadius: 8, display: "block", marginBottom: 4 }}
                                 />
                               ) : (
-                                <a 
-                                  href={msg.attachmentUrl as string} 
-                                  target="_blank" 
+                                <a
+                                  href={msg.attachmentUrl as string}
+                                  target="_blank"
                                   rel="noopener noreferrer"
-                                  style={{ 
-                                    display: "flex", alignItems: "center", gap: 6, 
-                                    color: isMine ? "white" : "var(--primary)", 
-                                    textDecoration: "underline",
-                                    wordBreak: "break-all"
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 6,
+                                    color: isMine ? "white" : "var(--primary)",
+                                    textDecoration: "underline", wordBreak: "break-all",
                                   }}
                                 >
                                   📄 {(msg.attachmentName as string) || "Document"}
@@ -238,11 +301,9 @@ export default function Messages() {
                           ) : null}
                           {msg.text as string}
                         </div>
-                        <div
-                          className="chat-bubble-time"
-                          style={{ textAlign: isMine ? "right" : "left" }}
-                        >
+                        <div className="chat-bubble-time" style={{ textAlign: isMine ? "right" : "left" }}>
                           {formatTimestampTime(msg.timestamp)}
+                          {isMine && <span style={{ marginLeft: 4, opacity: 0.5 }}>✓</span>}
                         </div>
                       </div>
                     );
@@ -257,7 +318,7 @@ export default function Messages() {
                     <EmojiPicker onEmojiClick={onEmojiClick} />
                   </div>
                 )}
-                
+
                 <input
                   type="file"
                   style={{ display: "none" }}
@@ -265,9 +326,9 @@ export default function Messages() {
                   onChange={handleFileChange}
                   accept="image/*,.pdf,.doc,.docx,.txt"
                 />
-                
-                <button 
-                  className="btn btn-outline btn-icon" 
+
+                <button
+                  className="btn btn-outline btn-icon"
                   onClick={() => fileInputRef.current?.click()}
                   title="Attach file (max 10MB)"
                   disabled={attachmentLoading}
@@ -275,9 +336,9 @@ export default function Messages() {
                 >
                   {attachmentLoading ? "⏳" : "📎"}
                 </button>
-                
-                <button 
-                  className="btn btn-outline btn-icon" 
+
+                <button
+                  className="btn btn-outline btn-icon"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                   title="Add emoji"
                   style={{ padding: "0 12px" }}
@@ -290,9 +351,7 @@ export default function Messages() {
                   placeholder="Type a message…"
                   value={newMsg}
                   onChange={(e) => setNewMsg(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSend();
-                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
                   id="chat-message-input"
                   style={{ flex: 1 }}
                 />
