@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp } from "../services/firestoreService";
-import { releaseEscrow, refundEscrow } from "../services/coinService";
+import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview } from "../services/firestoreService";
+import { releaseEscrow, refundEscrow, earnCoins } from "../services/coinService";
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +13,11 @@ export default function BookingDetail() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setAL] = useState<string | null>(null);
   const [error, setError] = useState("");
+  
+  const [showReview, setShowReview] = useState(false);
+  const [reviewRating, setRR] = useState(5);
+  const [reviewComment, setRC] = useState("");
+  const [reviewSub, setRS] = useState(false);
 
   const load = async () => {
     if (!id || !user) return;
@@ -72,6 +77,19 @@ export default function BookingDetail() {
       await load();
     } catch { setError("Failed to complete booking."); }
     setAL(null);
+  };
+
+  const handleReviewSubmit = async () => {
+    setRS(true); setError("");
+    try {
+      await addReview(id!, booking!.proId as string, reviewRating, reviewComment);
+      await updateBookingStatus(id!, "reviewed");
+      await earnCoins(user!.uid, "earn_review", id!);
+      setShowReview(false);
+      setRR(5); setRC("");
+      await load();
+    } catch { setError("Failed to submit review."); }
+    setRS(false);
   };
 
   const openChat = async () => {
@@ -160,8 +178,43 @@ export default function BookingDetail() {
               {actionLoading === "cancel" ? "Cancelling..." : `Cancel Booking${escrowCoins > 0 ? " & Request Refund" : ""}`}
             </button>
           )}
+
+          {isClient && status === "completed" && (
+            <button className="btn btn-primary" onClick={() => setShowReview(true)}>⭐ Leave Review</button>
+          )}
         </div>
       </div>
+
+      {/* Review modal */}
+      {showReview && (
+        <div className="modal-overlay" onClick={() => setShowReview(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Leave a Review</h3>
+              <button className="modal-close" onClick={() => setShowReview(false)}>✕</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Rating</label>
+              <div className="stars" style={{ display: "flex", gap: 4, fontSize: 24, cursor: "pointer" }}>
+                {[1,2,3,4,5].map(n => (
+                  <button key={n} type="button" style={{ background: "none", border: "none", color: n <= reviewRating ? "#fbbf24" : "var(--muted)", cursor: "pointer", fontSize: 28 }} onClick={() => setRR(n)}>★</button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Comment</label>
+              <textarea className="form-input" placeholder="Share your experience…" value={reviewComment} onChange={e => setRC(e.target.value)} />
+            </div>
+            <p style={{ fontSize: "0.8rem", color: "#16a34a", marginBottom: 12 }}>🏆 You'll earn +10 NC for leaving a verified review</p>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button className="btn btn-secondary" disabled={reviewSub} onClick={() => setShowReview(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleReviewSubmit} disabled={reviewSub || !reviewComment.trim()}>
+                {reviewSub ? "Submitting…" : "Submit Review"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

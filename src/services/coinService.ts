@@ -1,6 +1,6 @@
 import {
-  collection, collectionGroup, doc, getDoc, updateDoc,
-  serverTimestamp, query, orderBy, limit, getDocs, runTransaction, where,
+  collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
+  serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc, deleteDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -75,12 +75,94 @@ export const EARN_RULES: Record<LedgerType, { coins: number; label: string }> = 
   admin_debit:             { coins: 0,   label: "Admin debit" },
 };
 
+// ── NC Terms (read from appSettings, fallback defaults) ──────────────────
+export interface NCTerms {
+  expiryDays: number | null;       // null = never expire
+  refundPolicy: string;
+  earnCap: string;
+  minPayout: number;
+  platformFeePct: number;
+  lastUpdated?: unknown;
+}
+
+export const NC_TERMS_DEFAULTS: NCTerms = {
+  expiryDays: null,
+  refundPolicy: "Unused purchased NC refunded within 7 days of purchase if no bookings made. Earned NC is non-refundable.",
+  earnCap: "Earned NC capped at 20% of monthly booking value.",
+  minPayout: 200,
+  platformFeePct: 10,
+};
+
+export async function getNCTerms(): Promise<NCTerms> {
+  try {
+    const snap = await getDoc(doc(db, "appSettings", "ncTerms"));
+    if (snap.exists()) return { ...NC_TERMS_DEFAULTS, ...snap.data() } as NCTerms;
+  } catch { /* fallback */ }
+  return NC_TERMS_DEFAULTS;
+}
+
+// ── Referral ─────────────────────────────────────────────────────────────
+export function generateReferralCode(uid: string): string {
+  return "PN" + uid.slice(0, 6).toUpperCase();
+}
+
+/**
+ * Apply a referral code. Both referrer and new user earn 100 NC
+ * on the new user's first completed booking (triggered from booking completion).
+ * This function just validates + stores the referral link.
+ */
+export async function applyReferralCode(
+  newUserUid: string,
+  code: string
+): Promise<{ success: boolean; reason?: string }> {
+  if (!code?.trim()) return { success: false, reason: "No code entered." };
+  const upper = code.trim().toUpperCase();
+
+  // Find referrer by code
+  const q = query(collection(db, "users"), where("referralCode", "==", upper), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) return { success: false, reason: "Invalid referral code." };
+
+  const referrerUid = snap.docs[0].id;
+  if (referrerUid === newUserUid) return { success: false, reason: "Can't refer yourself." };
+
+  // Check not already applied
+  const existing = await getDoc(doc(db, "referrals", newUserUid));
+  if (existing.exists()) return { success: false, reason: "Referral code already applied." };
+
+  await setDoc(doc(db, "referrals", newUserUid), {
+    newUserUid,
+    referrerUid,
+    code: upper,
+    status: "pending", // becomes "rewarded" on first booking completion
+    createdAt: serverTimestamp(),
+  });
+
+  return { success: true };
+}
+
+/**
+ * Reward referral — called when new user completes their first booking.
+ */
+export async function rewardReferral(newUserUid: string): Promise<void> {
+  const refSnap = await getDoc(doc(db, "referrals", newUserUid));
+  if (!refSnap.exists() || refSnap.data().status !== "pending") return;
+  const { referrerUid } = refSnap.data() as { referrerUid: string };
+
+  await Promise.all([
+    earnCoins(referrerUid, "earn_referral", newUserUid),
+    earnCoins(newUserUid,  "earn_referral", referrerUid),
+  ]);
+  await updateDoc(doc(db, "referrals", newUserUid), { status: "rewarded" });
+}
+
+// ── Core coin fns ─────────────────────────────────────────────────────────
 export async function getCoinBalance(uid: string): Promise<number> {
   const snap = await getDoc(doc(db, "users", uid));
   return (snap.data()?.coinBalance as number) ?? 0;
 }
 
-export async function getLedger(uid: string, pageLimit = 30): Promise<LedgerEntry[]> {
+export async function getLedger(uid: string, pageLimit = 50): Promise<LedgerEntry[]> {
   const q = query(collection(db, "coinLedger", uid, "entries"), orderBy("createdAt", "desc"), limit(pageLimit));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as LedgerEntry));
@@ -99,18 +181,8 @@ export async function topUpCoins(uid: string, priceRs: number, coins: number, pa
   });
 }
 
-/**
- * STEP 1 of payment: debit NC from client and hold as escrow.
- * Pro is NOT credited yet — funds are locked on the booking doc.
- * Pro gets paid only when they mark the session complete (releaseEscrow).
- */
-export async function holdEscrow(
-  clientUid: string,
-  bookingId: string,
-  coins: number,
-  serviceName: string
-): Promise<{ success: boolean; reason?: string }> {
-  if (coins === 0) return { success: true }; // free session, nothing to hold
+export async function holdEscrow(clientUid: string, bookingId: string, coins: number, serviceName: string): Promise<{ success: boolean; reason?: string }> {
+  if (coins === 0) return { success: true };
   try {
     await runTransaction(db, async tx => {
       const clientRef  = doc(db, "users", clientUid);
@@ -118,25 +190,9 @@ export async function holdEscrow(
       const clientBal  = (clientSnap.data()?.coinBalance as number) ?? 0;
       if (clientBal < coins) throw new Error("INSUFFICIENT_BALANCE");
       const newBal = clientBal - coins;
-
-      // Debit client
       tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
-
-      // Mark booking as escrowed
-      tx.update(doc(db, "bookings", bookingId), {
-        escrowCoins: coins,
-        coinsPaid: true,
-        escrowStatus: "held",
-        updatedAt: serverTimestamp(),
-      });
-
-      // Client ledger: escrow hold
-      tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), {
-        uid: clientUid, type: "booking_escrow",
-        amount: -coins, balanceAfter: newBal,
-        description: `Payment held: ${serviceName}`,
-        refId: bookingId, createdAt: serverTimestamp(),
-      } as LedgerEntry);
+      tx.update(doc(db, "bookings", bookingId), { escrowCoins: coins, coinsPaid: true, escrowStatus: "held", updatedAt: serverTimestamp() });
+      tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), { uid: clientUid, type: "booking_escrow", amount: -coins, balanceAfter: newBal, description: `Payment held: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
@@ -145,56 +201,23 @@ export async function holdEscrow(
   }
 }
 
-/**
- * STEP 2 of payment: release escrow to pro after session is marked complete.
- * Platform takes its fee here. Pro receives net amount.
- */
-export async function releaseEscrow(
-  proUid: string,
-  bookingId: string,
-  serviceName: string,
-  platformFeePct = 0.10
-): Promise<{ success: boolean; reason?: string }> {
+export async function releaseEscrow(proUid: string, bookingId: string, serviceName: string, platformFeePct = 0.10): Promise<{ success: boolean; reason?: string }> {
   try {
     await runTransaction(db, async tx => {
       const bookingRef  = doc(db, "bookings", bookingId);
       const bookingSnap = await tx.get(bookingRef);
       if (!bookingSnap.exists()) throw new Error("BOOKING_NOT_FOUND");
-
       const escrowCoins  = (bookingSnap.data()?.escrowCoins as number) ?? 0;
-      const escrowStatus = bookingSnap.data()?.escrowStatus as string;
-
-      // Idempotency guard
-      if (escrowStatus === "released") return;
-      if (escrowCoins === 0) return; // free session
-
+      if (bookingSnap.data()?.escrowStatus === "released") return;
+      if (escrowCoins === 0) return;
       const platformFee = Math.round(escrowCoins * platformFeePct);
       const proEarning  = escrowCoins - platformFee;
-
-      const proRef     = doc(db, "users", proUid);
-      const proSnap    = await tx.get(proRef);
-      const proBal     = (proSnap.data()?.coinBalance as number) ?? 0;
-      const newProBal  = proBal + proEarning;
-
-      // Credit pro
+      const proRef  = doc(db, "users", proUid);
+      const proSnap = await tx.get(proRef);
+      const newProBal = ((proSnap.data()?.coinBalance as number) ?? 0) + proEarning;
       tx.update(proRef, { coinBalance: newProBal, updatedAt: serverTimestamp() });
-
-      // Mark escrow as released on booking
-      tx.update(bookingRef, {
-        escrowStatus: "released",
-        platformFee,
-        proEarning,
-        paidInCoins: escrowCoins,
-        updatedAt: serverTimestamp(),
-      });
-
-      // Pro ledger: escrow release
-      tx.set(doc(collection(db, "coinLedger", proUid, "entries")), {
-        uid: proUid, type: "booking_escrow_release",
-        amount: proEarning, balanceAfter: newProBal,
-        description: `Earned: ${serviceName} (10% platform fee deducted)`,
-        refId: bookingId, createdAt: serverTimestamp(),
-      } as LedgerEntry);
+      tx.update(bookingRef, { escrowStatus: "released", platformFee, proEarning, paidInCoins: escrowCoins, updatedAt: serverTimestamp() });
+      tx.set(doc(collection(db, "coinLedger", proUid, "entries")), { uid: proUid, type: "booking_escrow_release", amount: proEarning, balanceAfter: newProBal, description: `Earned: ${serviceName} (10% platform fee deducted)`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
@@ -202,52 +225,27 @@ export async function releaseEscrow(
   }
 }
 
-/**
- * Refund escrow back to client (on cancellation or pro decline).
- * Works whether escrow is held or never held (free session).
- */
-export async function refundEscrow(
-  clientUid: string,
-  bookingId: string,
-  serviceName: string
-): Promise<void> {
+export async function refundEscrow(clientUid: string, bookingId: string, serviceName: string): Promise<void> {
   await runTransaction(db, async tx => {
     const bookingRef  = doc(db, "bookings", bookingId);
     const bookingSnap = await tx.get(bookingRef);
     const escrowCoins  = (bookingSnap.data()?.escrowCoins as number) ?? 0;
     const escrowStatus = bookingSnap.data()?.escrowStatus as string;
-
-    // Already released or nothing to refund
     if (escrowStatus === "released" || escrowCoins === 0) {
       tx.update(bookingRef, { escrowStatus: "refunded", updatedAt: serverTimestamp() });
       return;
     }
-
-    const userRef  = doc(db, "users", clientUid);
-    const snap     = await tx.get(userRef);
-    const newBal   = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
-
+    const userRef = doc(db, "users", clientUid);
+    const snap    = await tx.get(userRef);
+    const newBal  = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
     tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false, updatedAt: serverTimestamp() });
-
-    tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), {
-      uid: clientUid, type: "booking_refund",
-      amount: escrowCoins, balanceAfter: newBal,
-      description: `Refund: ${serviceName}`,
-      refId: bookingId, createdAt: serverTimestamp(),
-    } as LedgerEntry);
+    tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), { uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal, description: `Refund: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
   });
 }
 
-// Legacy alias kept for backward compat with any existing calls
-export const payForBooking = holdEscrow as unknown as (
-  clientUid: string, proUid: string, bookingId: string,
-  coins: number, serviceName: string
-) => Promise<{ success: boolean; reason?: string }>;
-
-export const refundBooking = (
-  clientUid: string, bookingId: string, _coins: number, serviceName: string
-) => refundEscrow(clientUid, bookingId, serviceName);
+export const payForBooking = holdEscrow as unknown as (clientUid: string, proUid: string, bookingId: string, coins: number, serviceName: string) => Promise<{ success: boolean; reason?: string }>;
+export const refundBooking = (clientUid: string, bookingId: string, _coins: number, serviceName: string) => refundEscrow(clientUid, bookingId, serviceName);
 
 export async function earnCoins(uid: string, type: LedgerType, refId?: string): Promise<void> {
   const rule = EARN_RULES[type];
@@ -261,10 +259,7 @@ export async function earnCoins(uid: string, type: LedgerType, refId?: string): 
     const snap    = await tx.get(userRef);
     const newBal  = ((snap.data()?.coinBalance as number) ?? 0) + rule.coins;
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
-    tx.set(doc(collection(db, "coinLedger", uid, "entries")), {
-      uid, type, amount: rule.coins, balanceAfter: newBal,
-      description: rule.label, refId: refId ?? null, createdAt: serverTimestamp(),
-    } as LedgerEntry);
+    tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type, amount: rule.coins, balanceAfter: newBal, description: rule.label, refId: refId ?? null, createdAt: serverTimestamp() } as LedgerEntry);
   });
 }
 
@@ -278,14 +273,11 @@ export async function requestPayout(uid: string, displayName: string, coins: num
       const snap    = await tx.get(userRef);
       const balance = (snap.data()?.coinBalance as number) ?? 0;
       if (balance < coins) throw new Error("INSUFFICIENT_BALANCE");
-      const newBal  = balance - coins;
+      const newBal = balance - coins;
       tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
       const payoutRef = doc(collection(db, "coinPayouts"));
       tx.set(payoutRef, { uid, displayName, coinsRedeemed: coins, amountRs: coins, upiId, status: "pending", createdAt: serverTimestamp() } as CoinPayout);
-      tx.set(doc(collection(db, "coinLedger", uid, "entries")), {
-        uid, type: "payout", amount: -coins, balanceAfter: newBal,
-        description: `Payout ₹${coins} → ${upiId}`, refId: payoutRef.id, createdAt: serverTimestamp(),
-      } as LedgerEntry);
+      tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type: "payout", amount: -coins, balanceAfter: newBal, description: `Payout ₹${coins} → ${upiId}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
@@ -294,7 +286,7 @@ export async function requestPayout(uid: string, displayName: string, coins: num
   }
 }
 
-/* ══ ADMIN ══ */
+/* ── Admin ── */
 export async function getAllCoinPurchases(pageLimit = 100): Promise<CoinPurchase[]> {
   const snap = await getDocs(query(collection(db, "coinPurchases"), orderBy("createdAt", "desc"), limit(pageLimit)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinPurchase));
@@ -320,37 +312,27 @@ export async function adminAdjustCoins(uid: string, amount: number, reason: stri
       const newBal  = ((snap.data()?.coinBalance as number) ?? 0) + amount;
       if (newBal < 0) throw new Error("WOULD_GO_NEGATIVE");
       tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
-      tx.set(doc(collection(db, "coinLedger", uid, "entries")), {
-        uid, type: amount > 0 ? "admin_credit" : "admin_debit", amount, balanceAfter: newBal,
-        description: `Admin ${amount > 0 ? "credit" : "debit"}: ${reason}`, refId: adminUid, createdAt: serverTimestamp(),
-      } as LedgerEntry);
+      tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type: amount > 0 ? "admin_credit" : "admin_debit", amount, balanceAfter: newBal, description: `Admin ${amount > 0 ? "credit" : "debit"}: ${reason}`, refId: adminUid, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
-    if (msg === "USER_NOT_FOUND")     return { success: false, reason: "User not found" };
-    if (msg === "WOULD_GO_NEGATIVE")  return { success: false, reason: "Balance would go negative" };
+    if (msg === "USER_NOT_FOUND")    return { success: false, reason: "User not found" };
+    if (msg === "WOULD_GO_NEGATIVE") return { success: false, reason: "Balance would go negative" };
     return { success: false, reason: "Transaction failed" };
   }
 }
 export async function getCoinEconomySummary() {
   const [purchases, payouts, earnedSnap] = await Promise.all([
     getAllCoinPurchases(500), getAllPayouts(500),
-    getDocs(query(collectionGroup(db, "entries"), where("type", "in", [
-      "earn_signup_bonus","earn_profile","earn_review","earn_referral",
-      "earn_free_consult","earn_groupsession","earn_ondemand","earn_milestone",
-    ]))),
+    getDocs(query(collectionGroup(db, "entries"), where("type", "in", ["earn_signup_bonus","earn_profile","earn_review","earn_referral","earn_free_consult","earn_groupsession","earn_ondemand","earn_milestone"]))),
   ]);
   const totalPurchasedNC     = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.coinsGranted, 0);
   const totalPurchaseRevenue = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.amountPaid, 0);
   const totalPayoutNC        = payouts.filter(p => p.status === "processed").reduce((s, p) => s + p.coinsRedeemed, 0);
   const pendingPayouts       = payouts.filter(p => p.status === "pending");
   const totalEarnedNC        = earnedSnap.docs.reduce((s, d) => s + ((d.data().amount as number) || 0), 0);
-  return {
-    totalPurchasedNC, totalPurchaseRevenue, totalPayoutNC, totalEarnedNC,
-    pendingPayoutNC:    pendingPayouts.reduce((s, p) => s + p.coinsRedeemed, 0),
-    pendingPayoutCount: pendingPayouts.length,
-  };
+  return { totalPurchasedNC, totalPurchaseRevenue, totalPayoutNC, totalEarnedNC, pendingPayoutNC: pendingPayouts.reduce((s, p) => s + p.coinsRedeemed, 0), pendingPayoutCount: pendingPayouts.length };
 }
 
 export { getLedger as adminGetLedger };
