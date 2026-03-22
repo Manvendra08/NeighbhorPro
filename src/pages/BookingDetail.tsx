@@ -1,141 +1,165 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { getBookingById, updateBookingStatus } from "../services/firestoreService";
-import { refundBooking } from "../services/coinService";
-import { useToast } from "../components/layout/Toast";
+import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp } from "../services/firestoreService";
+import { releaseEscrow, refundEscrow } from "../services/coinService";
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  
+
   const [booking, setBooking] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionBusy, setActionBusy] = useState(false);
+  const [actionLoading, setAL] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const load = async () => {
     if (!id || !user) return;
-    setLoading(true);
+    setLoading(true); setError("");
     try {
       const b = await getBookingById(id);
-      if (b) setBooking(b);
-      else toast.error("Booking not found");
+      if (b && (b.clientId === user.uid || b.proId === user.uid)) {
+        setBooking(b);
+      } else {
+        setError("Booking not found or access denied.");
+      }
     } catch {
-      toast.error("Failed to load booking details");
+      setError("Failed to load booking details.");
     }
     setLoading(false);
   };
 
   useEffect(() => { load(); }, [id, user]);
 
-  const handleStatusChange = async (status: string) => {
-    if (!id || !booking) return;
-    setActionBusy(true);
-    try {
-      await updateBookingStatus(id, status);
-      toast.success(`Booking ${status}`);
-      load();
-    } catch {
-      toast.error("Action failed");
-    }
-    setActionBusy(false);
-  };
-
-  const handleCancel = async () => {
-    if (!id || !booking) return;
-    setActionBusy(true);
-    try {
-      await updateBookingStatus(id, "cancelled");
-      if (booking.coinsPaid && (booking.paidInCoins as number) > 0) {
-        await refundBooking(user!.uid, id, booking.paidInCoins as number, (booking.serviceName as string) || "Booking");
-      }
-      toast.success("Booking cancelled" + (booking.coinsPaid ? " and refunded" : ""));
-      load();
-    } catch {
-      toast.error("Failed to cancel booking");
-    }
-    setActionBusy(false);
-  };
-
   if (loading) return <div style={{ textAlign: "center", padding: 80 }}><div className="loader" style={{ margin: "0 auto" }} /></div>;
-  if (!booking) return (
-    <div className="empty-state">
-      <div className="empty-state-icon">❌</div>
-      <div className="empty-state-title">Booking Not Found</div>
-      <button className="btn btn-primary" onClick={() => navigate("/bookings")} style={{ marginTop: 12 }}>Back to Bookings</button>
-    </div>
-  );
+  if (error || !booking) return <div className="error-box" style={{ maxWidth: 600, margin: "40px auto" }}>{error || "Booking not found"}</div>;
 
   const isClient = user?.uid === booking.clientId;
   const isPro = user?.uid === booking.proId;
-  const otherName = isClient ? booking.proName : booking.clientName;
-  const statusColor: Record<string, string> = { pending: "badge-warning", confirmed: "badge-accent", completed: "badge-success", reviewed: "badge-success", cancelled: "badge-error" };
+  const status = booking.status as string;
+  const otherUid = isClient ? (booking.proId as string) : (booking.clientId as string);
+  const escrowCoins = (booking.escrowCoins as number) || 0;
+
+  const handleCancel = async () => {
+    setAL("cancel");
+    try {
+      await updateBookingStatus(id!, "cancelled");
+      if (escrowCoins > 0 && isClient) {
+        await refundEscrow(user!.uid, id!, (booking.serviceName as string) || "Booking");
+      } else if (escrowCoins > 0 && isPro) {
+        // If pro declines, refund the client
+        await refundEscrow(booking.clientId as string, id!, (booking.serviceName as string) || "Booking");
+      }
+      await load();
+    } catch { setError("Failed to cancel."); }
+    setAL(null);
+  };
+
+  const handleConfirm = async () => {
+    setAL("confirm");
+    try { await updateBookingStatus(id!, "confirmed"); await load(); }
+    catch { setError("Failed to confirm."); }
+    setAL(null);
+  };
+
+  const handleComplete = async () => {
+    setAL("complete");
+    try {
+      const result = await releaseEscrow(user!.uid, id!, (booking.serviceName as string) || "Session");
+      if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
+      await updateBookingStatus(id!, "completed");
+      await load();
+    } catch { setError("Failed to complete booking."); }
+    setAL(null);
+  };
+
+  const openChat = async () => {
+    const cid = await getOrCreateConversation(user!.uid, otherUid);
+    navigate(`/messages?conv=${cid}`);
+  };
+
+  const STATUS_COLOR: Record<string, string> = {
+    pending: "badge-warning", confirmed: "badge-accent",
+    completed: "badge-success", reviewed: "badge-success", cancelled: "badge-error",
+  };
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto" }}>
+    <div style={{ maxWidth: 800, margin: "0 auto" }}>
       <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>← Back</button>
-      
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <div>
-            <h1 style={{ fontSize: 22, marginBottom: 4 }}>{(booking.serviceName as string) || "Consultation"}</h1>
-            <p className="text-muted">{isClient ? `with ${(otherName as string)}` : `from ${(otherName as string)}`}</p>
+            <h1 className="card-title" style={{ fontSize: 24, marginBottom: 4 }}>{booking.serviceName as string}</h1>
+            <p className="text-muted">Category: {(booking.serviceCategory as string) || "Other"}</p>
           </div>
-          <span className={`badge ${statusColor[booking.status as string] || "badge-muted"}`} style={{ fontSize: 13, padding: "6px 12px" }}>
-            {booking.status as string}
+          <span className={`badge ${STATUS_COLOR[status] || "badge-muted"}`} style={{ fontSize: 14, padding: "6px 12px" }}>
+            {status.toUpperCase()}
           </span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-          <div style={{ background: "var(--surface-2)", padding: 16, borderRadius: 8 }}>
-            <span className="text-muted text-sm" style={{ display: "block", marginBottom: 4 }}>Date</span>
-            <span style={{ fontWeight: 600 }}>{booking.date as string}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24, padding: 16, background: "var(--surface-2)", borderRadius: "var(--radius)" }}>
+          <div>
+            <div className="text-muted text-sm" style={{ marginBottom: 4 }}>{isClient ? "Professional" : "Client"}</div>
+            <div style={{ fontWeight: 600 }}>{isClient ? (booking.proName as string) : (booking.clientName as string)}</div>
           </div>
-          <div style={{ background: "var(--surface-2)", padding: 16, borderRadius: 8 }}>
-            <span className="text-muted text-sm" style={{ display: "block", marginBottom: 4 }}>Time</span>
-            <span style={{ fontWeight: 600 }}>{booking.timeSlot as string}</span>
+          <div>
+            <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Date & Time</div>
+            <div style={{ fontWeight: 600 }}>{(booking.date as string) || formatTimestamp(booking.createdAt)} • {(booking.timeSlot as string) || "TBD"}</div>
           </div>
-        </div>
-
-        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span className="text-muted">Payment</span>
-            <span style={{ fontWeight: 700 }}>
-              {(booking.amount as number) === 0 ? "Free" : `${booking.amount as number} NC`}
-            </span>
-          </div>
-          {(booking.notes as string) && (
-            <div style={{ marginTop: 12 }}>
-              <span className="text-muted" style={{ display: "block", marginBottom: 4 }}>Notes</span>
-              <p style={{ background: "var(--surface-2)", padding: 12, borderRadius: 6, fontSize: 14 }}>{booking.notes as string}</p>
+          <div>
+            <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Price</div>
+            <div style={{ fontWeight: 600 }}>
+              {(booking.isPaid as boolean) ? `${booking.amount as number} NC` : "Free"}
             </div>
-          )}
+          </div>
+          <div>
+            <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Payment Status</div>
+            <div style={{ fontWeight: 600 }}>
+              {escrowCoins > 0 ? `Held in Escrow (${escrowCoins} NC)` : (booking.coinsPaid as boolean ? "Paid" : "Unpaid")}
+            </div>
+          </div>
         </div>
 
-        {/* Actions based on role and status */}
-        <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-          {isClient && booking.status === "pending" && (
-            <button className="btn btn-danger" disabled={actionBusy} onClick={handleCancel}>
-              {actionBusy ? "Cancelling…" : `Cancel${booking.coinsPaid ? " & Refund" : ""}`}
-            </button>
-          )}
-          {isClient && booking.status === "completed" && (
-             <button className="btn btn-primary" onClick={() => navigate("/bookings")}>Go to Bookings to Review</button>
-          )}
-          {isPro && booking.status === "pending" && (
+        {(booking.notes as string) && (
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ marginBottom: 8 }}>Brief of service</h4>
+            <div style={{ padding: 16, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", whiteSpace: "pre-wrap" }}>
+              {(booking.notes as string)}
+            </div>
+          </div>
+        )}
+
+        {(booking.attachmentUrl as string) && (
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ marginBottom: 8 }}>Attachment</h4>
+            <a href={booking.attachmentUrl as string} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              📎 {(booking.attachmentName as string) || "View Attachment"}
+            </a>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 12, borderTop: "1px solid var(--border)", paddingTop: 24, flexWrap: "wrap" }}>
+          <button className="btn btn-primary" onClick={openChat}>💬 Message {isClient ? "Professional" : "Client"}</button>
+          
+          {isPro && status === "pending" && (
             <>
-              <button className="btn btn-danger" disabled={actionBusy} onClick={() => handleStatusChange("cancelled")}>Decline</button>
-              <button className="btn btn-success" disabled={actionBusy} onClick={() => handleStatusChange("confirmed")}>Confirm Bookings</button>
+              <button className="btn btn-success" disabled={!!actionLoading} onClick={handleConfirm}>{actionLoading === "confirm" ? "..." : "✓ Confirm Booking"}</button>
+              <button className="btn btn-danger" disabled={!!actionLoading} onClick={handleCancel}>{actionLoading === "cancel" ? "..." : "✕ Decline"}</button>
             </>
           )}
-          {isPro && booking.status === "confirmed" && (
-            <button className="btn btn-success" disabled={actionBusy} onClick={() => handleStatusChange("completed")}>Mark Complete</button>
+
+          {isPro && status === "confirmed" && (
+            <button className="btn btn-success" disabled={!!actionLoading} onClick={handleComplete}>
+              {actionLoading === "complete" ? "Processing..." : "✓ Mark as Completed"}
+            </button>
           )}
-          <button className="btn btn-secondary" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied"); }}>
-            Share Link
-          </button>
+
+          {isClient && (status === "pending" || status === "confirmed") && (
+            <button className="btn btn-danger" disabled={!!actionLoading} onClick={handleCancel}>
+              {actionLoading === "cancel" ? "Cancelling..." : `Cancel Booking${escrowCoins > 0 ? " & Request Refund" : ""}`}
+            </button>
+          )}
         </div>
       </div>
     </div>

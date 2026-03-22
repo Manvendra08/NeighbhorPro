@@ -5,6 +5,7 @@ import { EmailVerifiedPage } from "./components/auth/EmailVerifiedPage";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import Layout from "./components/layout/Layout";
 import PWAInstallBanner from "./components/PWAInstallBanner";
+import PWASplashScreen from "./components/PWASplashScreen";
 
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
@@ -33,6 +34,7 @@ import AdminWallet from "./pages/admin/AdminWallet";
 export default function App() {
   return (
     <BrowserRouter>
+      <PWASplashScreen />
       <AuthProvider>
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -70,7 +72,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
-        {/* PWA install prompt — shows on mobile browsers */}
         <PWAInstallBanner />
       </AuthProvider>
     </BrowserRouter>

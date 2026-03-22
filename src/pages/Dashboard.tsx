@@ -70,7 +70,7 @@ function MobileDashboard({
               <div key={b.id as string} className="m-action-card" onClick={() => navigate("/bookings")}>
                 <div className="m-action-card-icon" style={{ background: "rgba(27,107,138,0.1)", color: "#1B6B8A" }}>📅</div>
                 <div className="m-action-card-body">
-                  <div className="m-action-card-title">{(b.serviceName as string) || "Consultation"}</div>
+                  <div className="m-action-card-title">{(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${(b.serviceCategory as string)})` : ((b.serviceName as string) || "Consultation")}</div>
                   <div className="m-action-card-sub">{(b.date as string) || "Upcoming"} · {(b.timeSlot as string) || ""}</div>
                 </div>
                 <span className={`badge ${b.status === "confirmed" ? "badge-success" : "badge-warning"}`} style={{ fontSize: 10 }}>{b.status as string}</span>
@@ -81,7 +81,7 @@ function MobileDashboard({
                 <div className="m-action-card-icon" style={{ background: "rgba(212,92,59,0.1)", color: "#D45C3B" }}>🔔</div>
                 <div className="m-action-card-body">
                   <div className="m-action-card-title">New request from {(b.clientName as string) || "client"}</div>
-                  <div className="m-action-card-sub">{(b.serviceName as string) || "Consultation"}</div>
+                  <div className="m-action-card-sub">{(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${(b.serviceCategory as string)})` : ((b.serviceName as string) || "Consultation")}</div>
                 </div>
                 <span className="badge badge-accent" style={{ fontSize: 10 }}>Pending</span>
               </div>
@@ -276,7 +276,7 @@ function DesktopDashboard({
             {proBookings.slice(0, 5).map(b => (
               <div key={b.id as string} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{(b.serviceName as string) || "Consultation"}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${(b.serviceCategory as string)})` : ((b.serviceName as string) || "Consultation")}</div>
                   <div className="text-muted text-sm">{(b.clientName as string) || "Client"}</div>
                 </div>
                 <span className="badge badge-accent">{(b.status as string) || "pending"}</span>

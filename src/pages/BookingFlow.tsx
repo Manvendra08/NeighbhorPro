@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { createBooking, getUserProfile, getServicesByUser, getOrCreateConversation } from "../services/firestoreService";
+import {
+  createBooking, getUserProfile, getServicesByUser, getOrCreateConversation,
+  getProAvailability, getBookingsForProOnDate, uploadBookingAttachment
+} from "../services/firestoreService";
 import { holdEscrow, earnCoins } from "../services/coinService";
 
 export default function BookingFlow() {
@@ -20,14 +23,21 @@ export default function BookingFlow() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
   const [convId, setConvId]       = useState<string | null>(null); // for success screen
+  
+  const [proAvail, setProAvail]   = useState<Record<string, any> | null>(null);
+  const [availableSlots, setAvailSlots] = useState<string[]>([]);
+  const [checkingAvail, setCA]    = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
 
   useEffect(() => {
     if (!proId) return;
-    Promise.all([getUserProfile(proId), getServicesByUser(proId)])
-      .then(([p, s]) => {
+    Promise.all([getUserProfile(proId), getServicesByUser(proId), getProAvailability(proId)])
+      .then(([p, s, a]) => {
         if (!p) { setPNF(true); return; }
         setPro(p);
         setServices(s);
+        setProAvail(a);
+        
         // Pre-select default service
         const defaultSvc = s.length > 0 ? s[0] : {
           id: "generic",
@@ -40,12 +50,30 @@ export default function BookingFlow() {
       .catch(() => setPNF(true));
   }, [proId]);
 
-  const timeSlots = [
-    "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
-    "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM",
-    "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
-    "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM"
-  ];
+  useEffect(() => {
+    if (!date || !proId || !proAvail) return;
+    setCA(true);
+    const d = new Date(date);
+    const dayName = d.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+    
+    const dayAvail = proAvail[dayName];
+    if (!dayAvail || !dayAvail.active || !dayAvail.slots || dayAvail.slots.length === 0) {
+      setAvailSlots([]);
+      setCA(false);
+      return;
+    }
+
+    getBookingsForProOnDate(proId, date).then(bookings => {
+      const bookedSlots = bookings.filter(b => b.status !== "cancelled").map(b => b.timeSlot as string);
+      const slots = (dayAvail.slots as string[]).filter(s => !bookedSlots.includes(s));
+      setAvailSlots(slots);
+      setCA(false);
+    }).catch(() => {
+      setAvailSlots([]);
+      setCA(false);
+    });
+  }, [date, proId, proAvail]);
+
 
   const isSelf    = user?.uid === proId;
   const isFree    = (selectedSvc?.price as number) === 0;
@@ -60,6 +88,11 @@ export default function BookingFlow() {
     try {
       const serviceName = selectedSvc.title as string;
 
+      let attachData;
+      if (attachment) {
+        attachData = await uploadBookingAttachment(null, attachment);
+      }
+
       // 1. Create booking in pending state — escrow NOT yet released to pro
       const bookingId = await createBooking({
         clientId:   user!.uid,
@@ -72,6 +105,7 @@ export default function BookingFlow() {
         date, timeSlot, notes,
         isPaid: !isFree, amount: feeCoins,
         coinsPaid: false, escrowCoins: 0, escrowStatus: "none",
+        ...(attachData && { attachmentUrl: attachData.url, attachmentName: attachData.name, attachmentType: attachData.type })
       });
 
       // 2. Debit client and hold in escrow (pro is NOT credited here)
@@ -173,10 +207,10 @@ export default function BookingFlow() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Start Time <span style={{ color: "var(--error)" }}>*</span></label>
-            <select className="form-input" value={timeSlot} onChange={e => setTS(e.target.value)} required>
-              <option value="">Select a time...</option>
-              {timeSlots.map(t => (
+            <label className="form-label">Start Time <span style={{ color: "var(--error)" }}>*</span> {checkingAvail && <span style={{ fontSize: 12, color: "var(--accent)", marginLeft: 8 }}>Checking availability...</span>}</label>
+            <select className="form-input" value={timeSlot} onChange={e => setTS(e.target.value)} required disabled={!date || checkingAvail}>
+              <option value="">{date ? (!checkingAvail && availableSlots.length === 0 ? "No slots available" : "Select a time...") : "Select a date first..."}</option>
+              {availableSlots.map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
@@ -185,6 +219,29 @@ export default function BookingFlow() {
           <div className="form-group">
             <label className="form-label">Brief of service</label>
             <textarea className="form-input" placeholder="Describe what you need help with…" value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Attachment (optional)</label>
+            <input 
+              type="file" 
+              className="form-input" 
+              accept="image/*,.pdf,.doc,.docx"
+              onChange={e => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const mb = file.size / (1024 * 1024);
+                  if (mb > 10) {
+                    alert("File size must be less than 10MB.");
+                    e.target.value = "";
+                    setAttachment(null);
+                    return;
+                  }
+                }
+                setAttachment(file || null);
+              }} 
+            />
+            <p className="text-muted text-sm" style={{ marginTop: 4 }}>Upload images, PDFs, etc. to provide more context (Max 10MB).</p>
           </div>
 
           {error && <div className="error-box">{error}</div>}

@@ -20,6 +20,9 @@ export default function MyBookings() {
   const [reviewRating, setRR]     = useState(5);
   const [reviewComment, setRC]    = useState("");
   const [reviewSub, setRS]        = useState(false);
+  
+  const [subTab, setSubTab]       = useState<"upcoming" | "past">("upcoming");
+  const [searchQ, setSearchQ]     = useState("");
 
   const load = async () => {
     if (!user) return;
@@ -99,6 +102,19 @@ export default function MyBookings() {
 
   const bookings = tab === "client" ? clientBookings : proBookings;
 
+  const filtered = bookings.filter(b => {
+    // search match
+    const match = !searchQ || [b.serviceCategory, b.proName, b.clientName, b.serviceName]
+      .some(val => (val as string)?.toLowerCase().includes(searchQ.toLowerCase()));
+      
+    // subtab match
+    const isPast = ["completed", "reviewed", "cancelled"].includes(b.status as string);
+    const isUpcoming = ["pending", "confirmed"].includes(b.status as string);
+    const subMatch = subTab === "upcoming" ? isUpcoming : isPast;
+    
+    return match && subMatch;
+  });
+
   const STATUS_COLOR: Record<string, string> = {
     pending: "badge-warning", confirmed: "badge-accent",
     completed: "badge-success", reviewed: "badge-success", cancelled: "badge-error",
@@ -135,18 +151,31 @@ export default function MyBookings() {
         </div>
       )}
 
-      {loading ? (
+      {loading && (
         <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
-      ) : bookings.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">📅</div>
-          <div className="empty-state-title">No bookings yet</div>
-          <div className="empty-state-desc">{tab === "client" ? "Browse professionals and book a consultation" : "Client bookings will appear here"}</div>
-          {tab === "client" && <a href="/browse" className="btn btn-primary" style={{ marginTop: 16 }}>Book Now</a>}
-        </div>
-      ) : (
+      )}
+
+      {/* Main Container */}
+      {!loading && (
+        <div style={{ display: "flex", gap: 24, flexDirection: "column" }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, background: "var(--surface-2)", padding: 4, borderRadius: "var(--radius)" }}>
+                <button className={`btn btn-sm ${subTab === "upcoming" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("upcoming")} style={{ borderRadius: "var(--radius-sm)" }}>Upcoming</button>
+                <button className={`btn btn-sm ${subTab === "past" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("past")} style={{ borderRadius: "var(--radius-sm)" }}>Past</button>
+              </div>
+              <input type="text" className="form-input" placeholder="Search bookings..." value={searchQ} onChange={e => setSearchQ(e.target.value)} style={{ maxWidth: 300 }} />
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">📅</div>
+                <div className="empty-state-title">No bookings found</div>
+                <div className="empty-state-desc">{searchQ ? "No bookings match your search" : (tab === "client" ? "Browse professionals and book a consultation" : "Client bookings will appear here")}</div>
+                {tab === "client" && !searchQ && <a href="/browse" className="btn btn-primary" style={{ marginTop: 16 }}>Book Now</a>}
+              </div>
+            ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {bookings.map(b => {
+          {filtered.map(b => {
             const id    = b.id as string;
             const busy  = actionLoading === id;
             const status = b.status as string;
@@ -156,7 +185,7 @@ export default function MyBookings() {
             return (
               <div className="card" key={id} style={{ opacity: busy ? 0.65 : 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, cursor: "pointer" }} onClick={() => navigate(`/bookings/${id}`)}>
                     <h4 style={{ marginBottom: 4 }}>Consultation for {(b.serviceCategory as string) || "Other"}</h4>
                     <p className="text-muted text-sm">
                       {tab === "client" ? `with ${(b.proName as string) || "Professional"}` : `from ${(b.clientName as string) || "Client"}`}
@@ -209,6 +238,8 @@ export default function MyBookings() {
                       {tab === "client" && status === "completed" && (
                         <button className="btn btn-primary btn-sm" onClick={() => setReviewBid(id)}>⭐ Review</button>
                       )}
+
+                      <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/bookings/${id}`)}>View Details</button>
                     </div>
                   </div>
                 </div>
@@ -222,6 +253,8 @@ export default function MyBookings() {
               </div>
             );
           })}
+        </div>
+            )}
         </div>
       )}
 

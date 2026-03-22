@@ -142,7 +142,7 @@ export function RegisterPage() {
       <div className="auth-form-panel">
         <div className="auth-card">
           <h1 className="auth-title">Create account</h1>
-          <p className="auth-sub">Join your ProNeighbor network</p>
+          <p className="auth-sub">Join your neighborhood network</p>
 
           {error && <div className="error-box">{error}</div>}
 
@@ -155,7 +155,7 @@ export function RegisterPage() {
           <form onSubmit={handleSubmit}>
             <div className="field">
               <label>Full Name</label>
-              <input type="text" placeholder="John Doe" value={name}
+              <input type="text" placeholder="John Doe" value={name} autoComplete="off"
                 onChange={e => setName(e.target.value)} required />
             </div>
             <div className="field">
@@ -219,7 +219,7 @@ function BrandPanel({ register }: { register?: boolean }) {
         color: "rgba(255, 255, 255, 0.95)",
         textShadow: "0 1px 6px rgba(0,0,0,0.3)"
       }}>
-        Connect with verified local professionals — CA, Tutor, Health experts, and more — within your neighbourhood.
+        Connect with verified local professionals — CA, Tutor, Health experts, and more — within your neighborhood.
       </p>
       <div className="brand-pill" style={{
         background: "rgba(255, 255, 255, 0.12)",

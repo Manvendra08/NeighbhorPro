@@ -4,6 +4,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  setDoc,
   addDoc,
   deleteDoc,
   query,
@@ -167,6 +168,52 @@ export async function getBookingsForProOnDate(proId: string, date: string) {
   const q = query(collection(db, "bookings"), where("proId", "==", proId), where("date", "==", date));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+}
+
+// upload booking attachment
+export async function uploadBookingAttachment(bookingId: string | null, file: File) {
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  if (!cloudName || !uploadPreset) throw new Error("Cloudinary missing");
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  const resourceType = file.type.startsWith("image/") ? "image" : "raw";
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, { method: "POST", body: formData });
+  if (!res.ok) throw new Error("Upload failed");
+  const data = await res.json();
+  const fileUrl = data.secure_url;
+  
+  if (bookingId) {
+    await updateDoc(doc(db, "bookings", bookingId), { attachmentUrl: fileUrl, attachmentName: file.name, attachmentType: file.type });
+  }
+  
+  return { url: fileUrl, name: file.name, type: file.type };
+}
+
+/* ═══════════════════════════════════════════
+   AVAILABILITY
+═══════════════════════════════════════════ */
+export async function getProAvailability(proId: string) {
+  const snap = await getDoc(doc(db, "proAvailability", proId));
+  if (snap.exists()) return snap.data() as Record<string, unknown>;
+  
+  // Default availability
+  const defaultSlots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"];
+  const defaultAvail = {
+    monday: { active: true, slots: defaultSlots },
+    tuesday: { active: true, slots: defaultSlots },
+    wednesday: { active: true, slots: defaultSlots },
+    thursday: { active: true, slots: defaultSlots },
+    friday: { active: true, slots: defaultSlots },
+    saturday: { active: false, slots: [] },
+    sunday: { active: false, slots: [] },
+  };
+  return defaultAvail;
+}
+
+export async function updateProAvailability(proId: string, availabilityData: Record<string, unknown>) {
+  await setDoc(doc(db, "proAvailability", proId), { ...availabilityData, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 /* ═══════════════════════════════════════════

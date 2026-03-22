@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import Profile from "./Profile";
+import ProAvailabilityEditor from "../components/ProAvailabilityEditor";
 
-type Tab = "profile" | "transactions" | "activity";
+type Tab = "profile" | "transactions" | "activity" | "availability";
 
 export default function MyAccount() {
   const [tab, setTab] = useState<Tab>("profile");
@@ -19,11 +20,15 @@ export default function MyAccount() {
 
       <div className="tabs">
         <button className={`tab${tab === "profile" ? " active" : ""}`} onClick={() => setTab("profile")}>Profile</button>
+        {userProfile?.isServiceProvider && (
+          <button className={`tab${tab === "availability" ? " active" : ""}`} onClick={() => setTab("availability")}>Availability</button>
+        )}
         <button className={`tab${tab === "transactions" ? " active" : ""}`} onClick={() => setTab("transactions")}>Transactions</button>
         <button className={`tab${tab === "activity" ? " active" : ""}`} onClick={() => setTab("activity")}>Activity</button>
       </div>
 
       {tab === "profile" && <Profile />}
+      {tab === "availability" && <ProAvailabilityEditor />}
 
       {tab === "transactions" && (
         <div className="card">
