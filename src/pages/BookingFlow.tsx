@@ -40,7 +40,12 @@ export default function BookingFlow() {
       .catch(() => setPNF(true));
   }, [proId]);
 
-  const timeSlots = ["09:00 AM","10:00 AM","11:00 AM","12:00 PM","02:00 PM","03:00 PM","04:00 PM","05:00 PM","06:00 PM","07:00 PM"];
+  const timeSlots = [
+    "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+    "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM",
+    "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
+    "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM"
+  ];
 
   const isSelf    = user?.uid === proId;
   const isFree    = (selectedSvc?.price as number) === 0;
@@ -62,7 +67,9 @@ export default function BookingFlow() {
         proId:      proId!,
         proName:    (pro?.displayName as string) || "",
         serviceId:  selectedSvc.id,
-        serviceName, date, timeSlot, notes,
+        serviceName, 
+        serviceCategory: selectedSvc.category || "Other",
+        date, timeSlot, notes,
         isPaid: !isFree, amount: feeCoins,
         coinsPaid: false, escrowCoins: 0, escrowStatus: "none",
       });
@@ -153,22 +160,30 @@ export default function BookingFlow() {
             </div>
           )}
 
-          <div className="form-group">
-            <label className="form-label">Date</label>
-            <input type="date" className="form-input" value={date} onChange={e => { setDate(e.target.value); setTS(""); }} min={new Date().toISOString().split("T")[0]} />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Time Slot</label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
-              {timeSlots.map(t => (
-                <button key={t} className={`chip${timeSlot === t ? " active" : ""}`} onClick={() => setTS(t)} style={{ justifyContent: "center" }}>{t}</button>
-              ))}
+          {selectedSvc && (
+            <div className="form-group">
+              <label className="form-label">Service Category</label>
+              <input type="text" className="form-input" disabled value={(selectedSvc.category as string) || "Other"} />
             </div>
+          )}
+
+          <div className="form-group">
+            <label className="form-label">Date <span style={{ color: "var(--error)" }}>*</span></label>
+            <input type="date" className="form-input" value={date} onChange={e => { setDate(e.target.value); setTS(""); }} min={new Date().toISOString().split("T")[0]} required />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Notes (optional)</label>
+            <label className="form-label">Start Time <span style={{ color: "var(--error)" }}>*</span></label>
+            <select className="form-input" value={timeSlot} onChange={e => setTS(e.target.value)} required>
+              <option value="">Select a time...</option>
+              {timeSlots.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Brief of service</label>
             <textarea className="form-input" placeholder="Describe what you need help with…" value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
 

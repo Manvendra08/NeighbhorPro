@@ -142,7 +142,7 @@ export function RegisterPage() {
       <div className="auth-form-panel">
         <div className="auth-card">
           <h1 className="auth-title">Create account</h1>
-          <p className="auth-sub">Join your neighbourhood network</p>
+          <p className="auth-sub">Join your ProNeighbor network</p>
 
           {error && <div className="error-box">{error}</div>}
 
@@ -155,7 +155,7 @@ export function RegisterPage() {
           <form onSubmit={handleSubmit}>
             <div className="field">
               <label>Full Name</label>
-              <input type="text" placeholder="Manvendra Anjan" value={name}
+              <input type="text" placeholder="John Doe" value={name}
                 onChange={e => setName(e.target.value)} required />
             </div>
             <div className="field">

@@ -218,7 +218,9 @@ export default function Dashboard() {
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{(b.serviceName as string) || "Consultation"}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    {(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${b.serviceCategory as string})` : ((b.serviceName as string) || "Consultation")}
+                  </div>
                   <div className="text-muted text-sm">
                     {(b.date as string) || formatTimestamp(b.createdAt)} · {(b.timeSlot as string) || "TBD"}
                   </div>
@@ -253,7 +255,9 @@ export default function Dashboard() {
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{(b.serviceName as string) || "Consultation"}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    {(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${b.serviceCategory as string})` : ((b.serviceName as string) || "Consultation")}
+                  </div>
                   <div className="text-muted text-sm">{(b.clientName as string) || "Client"}</div>
                 </div>
                 <span className="badge badge-accent">

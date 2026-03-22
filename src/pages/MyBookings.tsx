@@ -114,11 +114,12 @@ export default function MyBookings() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 className="page-title">My Bookings</h1>
           <p className="page-subtitle">Manage your consultations</p>
         </div>
+        <button className="btn btn-primary" onClick={() => navigate("/browse")}>+ New Booking</button>
       </div>
 
       <div className="tabs">
@@ -156,7 +157,7 @@ export default function MyBookings() {
               <div className="card" key={id} style={{ opacity: busy ? 0.65 : 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                   <div style={{ flex: 1 }}>
-                    <h4 style={{ marginBottom: 4 }}>{(b.serviceName as string) || "Consultation"}</h4>
+                    <h4 style={{ marginBottom: 4 }}>Consultation for {(b.serviceCategory as string) || "Other"}</h4>
                     <p className="text-muted text-sm">
                       {tab === "client" ? `with ${(b.proName as string) || "Professional"}` : `from ${(b.clientName as string) || "Client"}`}
                     </p>

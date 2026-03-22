@@ -189,9 +189,32 @@ export async function getOrCreateConversation(uid1: string, uid2: string) {
   const ref = await addDoc(collection(db, "messages"), { participants: [uid1, uid2], lastMessage: "", lastMessageAt: serverTimestamp() });
   return ref.id;
 }
-export async function sendMessage(conversationId: string, senderId: string, text: string) {
-  await addDoc(collection(db, `messages/${conversationId}/chats`), { senderId, text, timestamp: serverTimestamp(), read: false });
-  await updateDoc(doc(db, "messages", conversationId), { lastMessage: text, lastMessageAt: serverTimestamp() });
+export async function sendMessage(conversationId: string, senderId: string, text: string, attachment?: { url: string; type: string; name: string }) {
+  const payload: Record<string, unknown> = { senderId, text, timestamp: serverTimestamp(), read: false };
+  if (attachment) {
+    payload.attachmentUrl = attachment.url;
+    payload.attachmentType = attachment.type;
+    payload.attachmentName = attachment.name;
+  }
+  await addDoc(collection(db, `messages/${conversationId}/chats`), payload);
+  
+  const lastMsg = attachment ? (text ? `📎 ${text}` : `📎 Attachment`) : text;
+  await updateDoc(doc(db, "messages", conversationId), { lastMessage: lastMsg, lastMessageAt: serverTimestamp() });
+}
+
+export async function uploadAttachment(conversationId: string, file: File) {
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  if (!cloudName || !uploadPreset) throw new Error("Cloudinary configuration is missing.");
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  formData.append("folder", `neighborpro/messages/${conversationId}`);
+  
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
+  if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
+  const data = await response.json();
+  return { url: data.secure_url as string, resourceType: data.resource_type as string, format: data.format as string, originalFilename: data.original_filename as string };
 }
 export function subscribeToMessages(conversationId: string, callback: (messages: Record<string, unknown>[]) => void): Unsubscribe {
   const q = query(collection(db, `messages/${conversationId}/chats`), orderBy("timestamp", "asc"));

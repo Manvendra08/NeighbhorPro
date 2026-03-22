@@ -2,12 +2,45 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- PWA essentials -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1B6B8A" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ProNeighbour" />
+    <link rel="apple-touch-icon" href="/images/logo.png" />
+
+    <!-- Splash screen background colour (shows while app loads on iOS) -->
+    <meta name="msapplication-TileColor" content="#1B6B8A" />
+    <meta name="msapplication-TileImage" content="/images/logo.png" />
+
+    <!-- SEO / share -->
+    <meta name="description" content="Your society's professional network. Book verified experts who live in your gated community." />
+    <meta property="og:title" content="ProNeighbour" />
+    <meta property="og:description" content="Book CAs, doctors, tutors and more — all within your society." />
+    <meta property="og:image" content="/images/hero-bg.jpg" />
+    <meta property="og:type" content="website" />
+
     <link rel="icon" type="image/png" href="/images/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ProNeighbor — Your Society's Professional Network</title>
+    <title>ProNeighbour — Your Society's Professional Network</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Register service worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .catch(err => console.warn('SW registration failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>
