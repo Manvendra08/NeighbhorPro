@@ -1,9 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, isSupported } from "firebase/messaging";
 
-// Blocker #1 fix: Firebase config read from env vars — never hardcode keys in source
-// Required vars in .env.local (see .env.example for reference)
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -14,7 +13,14 @@ const firebaseConfig = {
   measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-export const app           = initializeApp(firebaseConfig);
-export const auth          = getAuth(app);
-export const db            = getFirestore(app);
+export const app            = initializeApp(firebaseConfig);
+export const auth           = getAuth(app);
+export const db             = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// FCM — lazily resolved; returns null if browser doesn't support (e.g. Safari < 16)
+export async function getMessagingInstance() {
+  const supported = await isSupported();
+  if (!supported) return null;
+  return getMessaging(app);
+}

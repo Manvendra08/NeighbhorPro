@@ -1,16 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import {
-  User,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  signOut,
-  updateProfile,
-  sendPasswordResetEmail,
-  sendEmailVerification,
+  User, onAuthStateChanged, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signInWithPopup, signOut,
+  updateProfile, sendPasswordResetEmail, sendEmailVerification,
+  PhoneAuthProvider, signInWithPhoneNumber, RecaptchaVerifier,
+  reauthenticateWithCredential, EmailAuthProvider, deleteUser,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
 import { earnCoins } from "../services/coinService";
 
@@ -18,6 +14,7 @@ export interface UserProfile {
   uid: string;
   displayName: string;
   email: string;
+  phoneNumber?: string;
   photoURL: string;
   bio: string;
   skills: string[];
@@ -38,6 +35,12 @@ export interface UserProfile {
   coinBalance: number;
   referralCode?: string;
   emailVerified?: boolean;
+  // Privacy controls
+  phoneVisible?: boolean;
+  flatVisible?: boolean;
+  // Account state
+  deleted?: boolean;
+  fcmToken?: string;
   createdAt: unknown;
 }
 
@@ -51,6 +54,9 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   logout: () => Promise<void>;
+  sendPhoneOTP: (phone: string, containerId: string) => Promise<string>; // returns verificationId
+  verifyPhoneOTP: (verificationId: string, otp: string) => Promise<void>;
+  deleteAccount: (password?: string) => Promise<{ success: boolean; reason?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -59,74 +65,50 @@ function generateReferralCode(uid: string): string {
   return "PN" + uid.slice(0, 6).toUpperCase();
 }
 
-// Important #8: check if profile is "complete" enough to earn the profile coin
 function isProfileComplete(profile: Partial<UserProfile>): boolean {
-  return !!(
-    profile.displayName?.trim() &&
-    profile.bio?.trim() &&
-    profile.society?.trim() &&
-    (profile.skills?.length ?? 0) > 0
-  );
+  return !!(profile.displayName?.trim() && profile.bio?.trim() && profile.society?.trim() && (profile.skills?.length ?? 0) > 0);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser]               = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, u => {
       setUser(u);
       if (!u) { setUserProfile(null); setLoading(false); }
     });
-    return unsubscribe;
+    return unsub;
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    const ref = doc(db, "users", user.uid);
-    const unsubscribe = onSnapshot(ref, (snap) => {
+    const unsub = onSnapshot(doc(db, "users", user.uid), snap => {
       if (snap.exists()) {
         const data = snap.data() as UserProfile;
         setUserProfile(data);
-
-        // Important #8: award earn_profile coin when profile becomes complete
-        if (isProfileComplete(data)) {
-          earnCoins(user.uid, "earn_profile", user.uid).catch(() => {});
-        }
+        if (isProfileComplete(data)) earnCoins(user.uid, "earn_profile", user.uid).catch(() => {});
       }
       setLoading(false);
     }, () => setLoading(false));
-    return unsubscribe;
+    return unsub;
   }, [user]);
 
   const createUserProfile = async (u: User) => {
-    const ref = doc(db, "users", u.uid);
+    const ref  = doc(db, "users", u.uid);
     const snap = await getDoc(ref);
     if (!snap.exists()) {
       const profile: UserProfile = {
-        uid: u.uid,
-        displayName: u.displayName ?? "",
-        email: u.email ?? "",
-        photoURL: u.photoURL ?? "",
-        bio: "",
-        skills: [],
-        hourlyRate: 0,
-        isFreeConsultation: true,
-        society: "",
-        locality: "",
-        tower: "",
-        flatNumber: "",
-        residentVerificationStatus: "none",
-        verificationMethod: null,
-        isServiceProvider: false,
-        priceAfterQuote: false,
-        role: "user",
-        rating: 0,
-        reviewCount: 0,
-        coinBalance: 0,
+        uid: u.uid, displayName: u.displayName ?? "", email: u.email ?? "",
+        photoURL: u.photoURL ?? "", bio: "", skills: [], hourlyRate: 0,
+        isFreeConsultation: true, society: "", locality: "", tower: "", flatNumber: "",
+        residentVerificationStatus: "none", verificationMethod: null,
+        isServiceProvider: false, priceAfterQuote: false,
+        role: "user", rating: 0, reviewCount: 0, coinBalance: 0,
         referralCode: generateReferralCode(u.uid),
         emailVerified: u.emailVerified,
+        phoneVisible: false, flatVisible: false,
         createdAt: serverTimestamp(),
       };
       await setDoc(ref, profile);
@@ -134,42 +116,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
-  };
-
-  const signUp = async (email: string, password: string, displayName: string) => {
+  const signIn    = async (email: string, password: string) => { await signInWithEmailAndPassword(auth, email, password); };
+  const signUp    = async (email: string, password: string, displayName: string) => {
     const { user: u } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(u, { displayName });
     await createUserProfile({ ...u, displayName });
-    // Blocker #2: send verification email on registration
     await sendEmailVerification(u);
   };
+  const signInWithGoogle     = async () => { const { user: u } = await signInWithPopup(auth, googleProvider); await createUserProfile(u); };
+  const resetPassword        = async (email: string) => { await sendPasswordResetEmail(auth, email); };
+  const resendVerificationEmail = async () => { if (auth.currentUser && !auth.currentUser.emailVerified) await sendEmailVerification(auth.currentUser); };
+  const logout               = async () => { await signOut(auth); };
 
-  const signInWithGoogle = async () => {
-    const { user: u } = await signInWithPopup(auth, googleProvider);
-    await createUserProfile(u);
-    // Google accounts are pre-verified — no email verification needed
+  // ── Phone OTP ────────────────────────────────────────────────────────
+  const sendPhoneOTP = async (phone: string, containerId: string): Promise<string> => {
+    const recaptcha = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
+    const result    = await signInWithPhoneNumber(auth, phone, recaptcha);
+    // Store confirmationResult on window for verifyPhoneOTP
+    (window as unknown as Record<string, unknown>)["_phoneConfirmation"] = result;
+    return result.verificationId;
   };
 
-  const resetPassword = async (email: string) => {
-    await sendPasswordResetEmail(auth, email);
-  };
-
-  // Blocker #2: allow users to re-request verification email
-  const resendVerificationEmail = async () => {
-    if (auth.currentUser && !auth.currentUser.emailVerified) {
-      await sendEmailVerification(auth.currentUser);
+  const verifyPhoneOTP = async (_verificationId: string, otp: string): Promise<void> => {
+    const confirmation = (window as unknown as Record<string, unknown>)["_phoneConfirmation"] as { confirm: (otp: string) => Promise<unknown> };
+    if (!confirmation) throw new Error("No pending OTP");
+    await confirmation.confirm(otp);
+    // Update Firestore with phone number
+    if (auth.currentUser?.phoneNumber) {
+      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        phoneNumber: auth.currentUser.phoneNumber, updatedAt: serverTimestamp(),
+      });
     }
   };
 
-  const logout = async () => { await signOut(auth); };
+  // ── Delete account (soft-delete, DPDP compliant) ─────────────────────
+  const deleteAccount = async (password?: string): Promise<{ success: boolean; reason?: string }> => {
+    if (!auth.currentUser) return { success: false, reason: "Not logged in" };
+    try {
+      // Re-authenticate for email/password users
+      const isEmailProvider = auth.currentUser.providerData.some(p => p.providerId === "password");
+      if (isEmailProvider && password) {
+        const credential = EmailAuthProvider.credential(auth.currentUser.email!, password);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+      }
+      // Soft-delete: anonymize profile, mark deleted, keep for 30 days
+      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        displayName: "Deleted User",
+        email: `deleted_${auth.currentUser.uid}@proneighbour.in`,
+        bio: "", photoURL: "", skills: [], society: "", flatNumber: "",
+        phoneNumber: null, fcmToken: null,
+        deleted: true, deletedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await deleteUser(auth.currentUser);
+      return { success: true };
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code === "auth/wrong-password") return { success: false, reason: "Incorrect password." };
+      if (code === "auth/requires-recent-login") return { success: false, reason: "Please sign out and sign in again before deleting." };
+      return { success: false, reason: "Deletion failed. Try again." };
+    }
+  };
 
   return (
     <AuthContext.Provider value={{
       user, userProfile, loading,
-      signIn, signUp, signInWithGoogle,
-      resetPassword, resendVerificationEmail, logout,
+      signIn, signUp, signInWithGoogle, resetPassword, resendVerificationEmail, logout,
+      sendPhoneOTP, verifyPhoneOTP, deleteAccount,
     }}>
       {children}
     </AuthContext.Provider>
