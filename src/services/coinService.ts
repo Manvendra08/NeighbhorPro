@@ -1,6 +1,6 @@
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
-  serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc, deleteDoc,
+  serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -145,15 +145,39 @@ export async function applyReferralCode(
  * Reward referral — called when new user completes their first booking.
  */
 export async function rewardReferral(newUserUid: string): Promise<void> {
-  const refSnap = await getDoc(doc(db, "referrals", newUserUid));
-  if (!refSnap.exists() || refSnap.data().status !== "pending") return;
-  const { referrerUid } = refSnap.data() as { referrerUid: string };
+  await runTransaction(db, async tx => {
+    const refRef = doc(db, "referrals", newUserUid);
+    const refSnap = await tx.get(refRef);
+    if (!refSnap.exists() || refSnap.data().status !== "pending") return;
 
-  await Promise.all([
-    earnCoins(referrerUid, "earn_referral", newUserUid),
-    earnCoins(newUserUid,  "earn_referral", referrerUid),
-  ]);
-  await updateDoc(doc(db, "referrals", newUserUid), { status: "rewarded" });
+    const { referrerUid } = refSnap.data() as { referrerUid: string };
+    const rule = EARN_RULES.earn_referral;
+
+    // 1. Reward Referrer
+    const rRef  = doc(db, "users", referrerUid);
+    const rSnap = await tx.get(rRef);
+    const rBal  = ((rSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
+    tx.update(rRef, { coinBalance: rBal, updatedAt: serverTimestamp() });
+    tx.set(doc(collection(db, "coinLedger", referrerUid, "entries")), {
+      uid: referrerUid, type: "earn_referral", amount: rule.coins, balanceAfter: rBal,
+      description: `Referral reward (for inviting ${newUserUid.slice(0, 5)}...)`,
+      refId: newUserUid, createdAt: serverTimestamp()
+    } as LedgerEntry);
+
+    // 2. Reward New User
+    const nRef  = doc(db, "users", newUserUid);
+    const nSnap = await tx.get(nRef);
+    const nBal  = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
+    tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp() });
+    tx.set(doc(collection(db, "coinLedger", newUserUid, "entries")), {
+      uid: newUserUid, type: "earn_referral", amount: rule.coins, balanceAfter: nBal,
+      description: `Referral reward (invited by ${referrerUid.slice(0, 5)}...)`,
+      refId: referrerUid, createdAt: serverTimestamp()
+    } as LedgerEntry);
+
+    // 3. Mark referral as rewarded
+    tx.update(refRef, { status: "rewarded", updatedAt: serverTimestamp() });
+  });
 }
 
 // ── Core coin fns ─────────────────────────────────────────────────────────
@@ -250,16 +274,25 @@ export const refundBooking = (clientUid: string, bookingId: string, _coins: numb
 export async function earnCoins(uid: string, type: LedgerType, refId?: string): Promise<void> {
   const rule = EARN_RULES[type];
   if (!rule || rule.coins === 0) return;
-  if (refId) {
-    const existing = await getDocs(query(collection(db, "coinLedger", uid, "entries"), where("type", "==", type), where("refId", "==", refId), limit(1)));
-    if (!existing.empty) return;
-  }
+
+  // Deterministic dedup document ID — checked atomically INSIDE the transaction
+  // to eliminate the TOCTOU race that a pre-transaction getDocs check would cause.
+  const dedupDocId = refId ? `${uid}_${type}_${refId}` : `${uid}_${type}`;
+  const dedupRef = doc(collection(db, "coinLedger", uid, "entries"), dedupDocId);
+
   await runTransaction(db, async tx => {
+    // Dedup check inside the transaction — atomic and race-free
+    const existing = await tx.get(dedupRef);
+    if (existing.exists()) return; // Already credited
+
     const userRef = doc(db, "users", uid);
     const snap    = await tx.get(userRef);
     const newBal  = ((snap.data()?.coinBalance as number) ?? 0) + rule.coins;
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
-    tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type, amount: rule.coins, balanceAfter: newBal, description: rule.label, refId: refId ?? null, createdAt: serverTimestamp() } as LedgerEntry);
+    tx.set(dedupRef, {
+      uid, type, amount: rule.coins, balanceAfter: newBal,
+      description: rule.label, refId: refId ?? null, createdAt: serverTimestamp(),
+    } as LedgerEntry);
   });
 }
 
@@ -343,3 +376,4 @@ export function ledgerColor(type: LedgerType): string {
 export function ledgerSign(amount: number): string {
   return amount >= 0 ? `+${amount.toLocaleString("en-IN")}` : amount.toLocaleString("en-IN");
 }
+

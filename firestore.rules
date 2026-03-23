@@ -2,152 +2,165 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── Helper Functions ────────────────────────────────
     function isSignedIn() { return request.auth != null; }
-    function isOwner(uid) { return request.auth.uid == uid; }
+    function isOwner(userId) { return request.auth.uid == userId; }
     function isAdmin() {
       return isSignedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-
-    // Blocker #3: Fields that must NEVER be writable by the client directly.
-    // role protects privilege escalation.
     function noSensitiveFieldChange() {
-      return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(["role"]);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"]);
     }
 
-    // Users
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isOwner(userId);
-      // Owners can update own profile. Anyone can update another user's coinBalance for bookings.
       allow update: if isSignedIn() && (isOwner(userId) || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coinBalance', 'updatedAt'])) && noSensitiveFieldChange();
-      // Admin can update anything including role (needed for adminAdjustCoins & role management)
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    // Services
     match /services/{serviceId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Bookings
     match /bookings/{bookingId} {
-      allow read: if isSignedIn() &&
-        (resource.data.clientId == request.auth.uid ||
-         resource.data.proId    == request.auth.uid || isAdmin());
-      allow create: if isSignedIn()
-        // Important #7: prevent self-booking
-        && request.resource.data.clientId != request.resource.data.proId;
-      allow update: if isSignedIn() &&
-        (resource.data.clientId == request.auth.uid ||
-         resource.data.proId    == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.clientId != request.resource.data.proId;
+      allow update: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
     }
 
-    // Reviews
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() &&
-        get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.clientId == request.auth.uid &&
-        get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status == 'completed';
+        get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.clientId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
-    // Reports
     match /reports/{reportId} {
       allow read, update, delete: if isAdmin();
       allow create: if isSignedIn();
     }
 
-    // Societies
     match /societies/{societyId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Transactions (legacy)
     match /transactions/{txId} {
       allow read, write: if isAdmin();
     }
 
-    // ── NeighbourCoins ─────────────────────────────
-
-    // Coin ledger — immutable append-only entries
+    // ── NeighbourCoins ──────────────────────────────────
+    // SECURITY: Ledger entries MUST only be written via admin SDK (Cloud Functions).
+    // Client-side create is blocked to prevent coin fabrication.
     match /coinLedger/{uid}/entries/{entryId} {
-      allow read:          if isSignedIn() && (isOwner(uid) || isAdmin());
-      allow create:        if isSignedIn();
-      allow update, delete: if false;
+      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create, update, delete: if false;
     }
-
-    // Support collectionGroup queries for Admin Dashboard
     match /{path=**}/entries/{entryId} {
       allow read: if isAdmin();
+      allow write: if false;
     }
-
-    // Coin purchases — admin list for wallet dashboard
     match /coinPurchases/{purchaseId} {
-      allow list:          if isAdmin();
-      allow get:           if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow create:        if isSignedIn();
+      allow list: if isAdmin();
+      allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
-
-    // Coin payouts — admin list + owner create
     match /coinPayouts/{payoutId} {
-      allow list:   if isAdmin();
-      allow get:    if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+      allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if false;
     }
 
-    // ── Messages ───────────────────────────────────
+    // ── Referrals ────────────────────────────────────────
+    match /referrals/{uid} {
+      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create: if isSignedIn() && isOwner(uid);
+      allow update: if isAdmin();
+    }
+
+    // ── Messages ─────────────────────────────────────────
     match /messages/{convId} {
-      allow read:   if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn();
       allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
-
       match /chats/{msgId} {
-        allow read, create: if isSignedIn() &&
-          request.auth.uid in
-            get(/databases/$(database)/documents/messages/$(convId)).data.participants;
+        allow read, create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
       }
     }
 
-    // Support tickets
-    match /supportTickets/{ticketId} {
-      allow read, update: if isSignedIn() &&
-        (ticketId == "support_" + request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && ticketId == "support_" + request.auth.uid;
-
-      match /messages/{messageId} {
-        allow read, create: if isSignedIn() &&
-          (ticketId == "support_" + request.auth.uid || isAdmin());
+    // ── Support tickets (new collection) ─────────────────
+    match /tickets/{ticketId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      match /messages/{msgId} {
+        allow read, create: if isSignedIn() && (get(/databases/$(database)/documents/tickets/$(ticketId)).data.uid == request.auth.uid || isAdmin());
         allow update, delete: if isAdmin();
       }
     }
 
-    // Local Feed
-    match /localFeed/{postId} {
+    // ── Disputes ─────────────────────────────────────────
+    match /disputes/{disputeId} {
+      allow read: if isSignedIn() && (resource.data.raisedByUid == request.auth.uid || resource.data.againstUid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.raisedByUid == request.auth.uid;
+      allow update: if isAdmin();
+    }
+
+    // ── FAQs ─────────────────────────────────────────────
+    match /faqs/{faqId} {
       allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── App Settings ──────────────────────────────────────
+    match /appSettings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── Legacy support tickets ────────────────────────────
+    match /supportTickets/{ticketId} {
+      allow read, update: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && ticketId == "support_" + request.auth.uid;
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /localFeed/{postId} {
+      // Locality-based visibility: only users in the same locality can read posts.
+      // Posts without a locality field are visible to all signed-in users.
+      allow read: if isSignedIn() && (
+        !resource.data.keys().hasAny(['locality']) ||
+        resource.data.locality == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.locality
+      );
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
       allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
       allow update: if isAdmin();
     }
 
-    // Announcements
     match /announcements/{annId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Audit Log
     match /auditLog/{logId} {
       allow read: if isAdmin();
       allow create: if isAdmin();
+    }
+
+    match /proAvailability/{proId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isOwner(proId);
     }
   }
 }

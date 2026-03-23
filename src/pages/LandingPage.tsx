@@ -34,7 +34,7 @@ const ST: React.CSSProperties = {
 };
 const SS: React.CSSProperties = {
   fontSize: "clamp(0.85rem,3vw,1rem)", color: "#5C6E84",
-  lineHeight: 1.65, maxWidth: 540, marginBottom: 36,
+  lineHeight: 1.6, maxWidth: 540, marginBottom: 24,
 };
 
 export default function LandingPage() {
@@ -79,16 +79,16 @@ export default function LandingPage() {
       <nav style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: `0 ${px}`, height: isMobile ? 60 : 70,
+        padding: `0 ${px}`, height: isMobile ? 52 : 62,
         background: "rgba(255,255,255,0.95)", backdropFilter: "blur(16px)",
         borderBottom: "1px solid rgba(0,0,0,0.06)",
         boxShadow: scrolled ? "0 2px 24px rgba(0,0,0,0.08)" : "none",
         transition: "box-shadow 0.3s",
       }}>
         <a href="#" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <img src="/images/logo.png" alt="PN" style={{ height: isMobile ? 30 : 36, borderRadius: 6 }} />
+          <img src="/images/logo_new.png" alt="PN" style={{ height: isMobile ? 32 : 38, borderRadius: 6 }} />
           <span style={{ fontFamily: "'Syne','DM Sans',sans-serif", fontWeight: 800, fontSize: isMobile ? "1rem" : "1.1rem", color: "#0C1B2E", letterSpacing: -0.5 }}>
-            Pro<span style={{ color: "#F5692C" }}>Neighbour</span>
+            Pro<span style={{ color: "#F5692C" }}>Neighbor</span>
           </span>
         </a>
 
@@ -131,7 +131,7 @@ export default function LandingPage() {
         minHeight: isMobile ? "100dvh" : "100vh",
         background: `linear-gradient(to bottom right, rgba(11,27,46,0.85) 0%, rgba(15,78,104,0.65) 60%, rgba(0,0,0,0.3) 100%), url('/images/hero-bg.jpg') center/cover no-repeat`,
         display: "flex", alignItems: isMobile ? "flex-end" : "center",
-        padding: isMobile ? `${60+20}px ${px} 48px` : `110px ${px} 80px`,
+        padding: isMobile ? `${52+20}px ${px} 36px` : `90px ${px} 60px`,
         position: "relative",
       }}>
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: isMobile ? 60 : 100, background: "linear-gradient(to top,#fff,transparent)" }} />
@@ -164,7 +164,7 @@ export default function LandingPage() {
                 How It Works
               </button>
             </div>
-            <div style={{ display: "flex", gap: isMobile ? 24 : 36, marginTop: 36 }}>
+            <div style={{ display: "flex", gap: isMobile ? 20 : 32, marginTop: 24 }}>
               {[["500+","Pros Registered"],["20+","Categories"]].map(([val,lbl]) => (
                 <div key={lbl}>
                   <strong style={{ display: "block", fontFamily: "'Syne',sans-serif", fontSize: "clamp(1.2rem,4vw,1.6rem)", fontWeight: 800, color: "#fff" }}>{val}</strong>
@@ -206,18 +206,18 @@ export default function LandingPage() {
       </div>
 
       {/* ── HOW IT WORKS ── */}
-      <section id="how" style={{ padding: `clamp(48px,8vw,90px) ${px}` }}>
+      <section id="how" style={{ padding: `clamp(40px,6vw,72px) ${px}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Tag>How It Works</Tag>
           <h2 style={ST}>From need to booking<br />in under 3 minutes.</h2>
           <p style={SS}>No cold calls. No WhatsApp forwards. A clean, trusted marketplace inside your gates.</p>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 16 : 32 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 12 : 24 }}>
             {[
               ["01","🏠","Join Your Society","Sign up with your society code. Only genuine residents and pros get in."],
               ["02","🔍","Browse & Filter","Search by category, rating, price, or availability. See neighbour endorsements."],
               ["03","✅","Book Instantly","Pick a real-time slot. Group sessions, recurring bookings — all supported."],
             ].map(([num,icon,title,desc]) => (
-              <div key={num as string} className="lp-reveal" style={{ textAlign: "center", padding: isMobile ? "24px 16px" : "40px 24px", opacity: 0, transform: "translateY(20px)", transition: "opacity 0.6s ease, transform 0.6s ease", background: isMobile ? "var(--surface,#fff)" : "transparent", border: isMobile ? "1px solid #E8E4DC" : "none", borderRadius: 16 }}>
+              <div key={num as string} className="lp-reveal" style={{ textAlign: "center", padding: isMobile ? "20px 14px" : "32px 20px", opacity: 0, transform: "translateY(20px)", transition: "opacity 0.6s ease, transform 0.6s ease", background: isMobile ? "var(--surface,#fff)" : "transparent", border: isMobile ? "1px solid #E8E4DC" : "none", borderRadius: 16 }}>
                 <div style={{ fontFamily: "'Syne',sans-serif", fontSize: isMobile ? "2.5rem" : "4rem", fontWeight: 800, color: "rgba(27,107,138,0.07)", lineHeight: 1, marginBottom: -6 }}>{num}</div>
                 <div style={{ width: 64, height: 64, borderRadius: 18, background: "linear-gradient(135deg,rgba(27,107,138,0.12),rgba(27,107,138,0.05))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem", margin: "0 auto 16px", border: "1px solid rgba(27,107,138,0.1)" }}>{icon}</div>
                 <h3 style={{ fontSize: "clamp(0.95rem,3vw,1.1rem)", fontWeight: 700, marginBottom: 8, color: "#0C1B2E" }}>{title}</h3>
@@ -229,7 +229,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── CATEGORIES ── */}
-      <section id="categories" style={{ background: "#F4F7FB", padding: `clamp(48px,8vw,80px) ${px}` }}>
+      <section id="categories" style={{ background: "#F4F7FB", padding: `clamp(40px,6vw,64px) ${px}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Tag>Service Categories</Tag>
           <h2 style={ST}>20+ categories, all inside your gates.</h2>
@@ -246,11 +246,11 @@ export default function LandingPage() {
       </section>
 
       {/* ── FEATURES ── */}
-      <section id="features" style={{ background: "#0C1B2E", padding: `clamp(48px,8vw,90px) ${px}` }}>
+      <section id="features" style={{ background: "#0C1B2E", padding: `clamp(40px,6vw,72px) ${px}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Tag dark>Features</Tag>
           <h2 style={{ ...ST, color: "#fff" }}>Built for how gated communities <em style={{ color: "#F5692C", fontStyle: "normal" }}>actually</em> work.</h2>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 12 : 22, marginTop: 32 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 10 : 20, marginTop: 24 }}>
             {[
               ["⚡",null,"Instant Slot Booking","Real-time availability. Pick a slot, confirm instantly."],
               ["👥","Phase 2","Group Sessions","8 households book one yoga class at ₹150/head."],
@@ -270,35 +270,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── TESTIMONIALS ── */}
-      <section style={{ padding: `clamp(48px,8vw,90px) ${px}` }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <Tag>Beta Feedback</Tag>
-          <h2 style={ST}>What our pilot community is saying.</h2>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 14 : 24, marginTop: 32 }}>
-            {[
-              ["RA","Rahul Agarwal","Magarpatta City","I found a CA in my own tower. Filed my ITR for ₹800 and I could walk over with questions. This is how it should always work."],
-              ["PS","Priya Sharma","Yoga Instructor · Wakad","Listed my sessions and had 6 bookings in the first week — neighbours I already knew. Zero marketing spend."],
-              ["NK","Neha Kulkarni","Prestige Bella Vista","My daughter gets math tutoring from the IIT engineer in Block D. ₹300/hr vs ₹900 on other platforms."],
-            ].map(([init,name,loc,quote]) => (
-              <div key={name as string} className="lp-reveal" style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.07)", borderRadius: 16, padding: isMobile ? 20 : 28, boxShadow: "0 4px 24px rgba(0,0,0,0.06)", opacity: 0, transform: "translateY(16px)", transition: "opacity 0.6s ease, transform 0.6s ease" }}>
-                <div style={{ color: "#F5692C", fontSize: "1rem", marginBottom: 12 }}>★★★★★</div>
-                <p style={{ fontSize: "clamp(0.84rem,3vw,0.93rem)", color: "#5C6E84", lineHeight: 1.7, marginBottom: 16, fontStyle: "italic" }}>"{quote}"</p>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#1B6B8A,#F5692C)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: "0.88rem", flexShrink: 0 }}>{init}</div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: "0.86rem", color: "#0C1B2E" }}>{name}</div>
-                    <div style={{ fontSize: "0.74rem", color: "#5C6E84" }}>{loc}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── EARLY ACCESS ── */}
-      <section id="early" style={{ background: "linear-gradient(135deg,#FFF8F5,#F0F8FC)", padding: `clamp(48px,8vw,90px) ${px}` }}>
+      <section id="early" style={{ background: "linear-gradient(135deg,#FFF8F5,#F0F8FC)", padding: `clamp(40px,6vw,72px) ${px}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 32 : 64, alignItems: "center" }}>
           {!isMobile && (
             <div style={{ borderRadius: 24, overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.12)", position: "relative" }}>
@@ -333,7 +306,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── CTA BAND ── */}
-      <section style={{ background: "linear-gradient(to right, rgba(11,27,46,0.92), rgba(15,78,104,0.8)), url('/images/cta-bg.jpg') center/cover", textAlign: "center", padding: `clamp(48px,8vw,80px) ${px}`, color: "#fff" }}>
+      <section style={{ background: "linear-gradient(to right, rgba(11,27,46,0.92), rgba(15,78,104,0.8)), url('/images/cta-bg.jpg') center/cover", textAlign: "center", padding: `clamp(40px,6vw,64px) ${px}`, color: "#fff" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
           <Tag dark orange>Register as Expert</Tag>
           <h2 style={{ ...ST, color: "#fff", fontSize: "clamp(1.5rem,5vw,2.4rem)" }}>The professional network for <span style={{ color: "#F5692C" }}>Park Street residents.</span></h2>
@@ -349,9 +322,9 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "2fr 1fr 1fr 1fr", gap: isMobile ? 28 : 40, paddingBottom: 32, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <img src="/images/logo.png" alt="PN" style={{ height: 32 }} />
-                <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, color: "#fff", fontSize: "1rem" }}>ProNeighbour</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <img src="/images/logo_new.png" alt="PN" style={{ height: 32 }} />
+                <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, color: "#fff", fontSize: "1rem" }}>ProNeighbor</span>
               </div>
               <p style={{ fontSize: "0.84rem", lineHeight: 1.7, maxWidth: 260 }}>The professional services marketplace for gated communities.</p>
               <p style={{ marginTop: 10, fontSize: "0.76rem" }}>📍 Park Street, Wakad, Pune · May 2026</p>
@@ -359,7 +332,7 @@ export default function LandingPage() {
             {[
               ["Product",[["How it Works","#how"],["Features","#features"],["Categories","#categories"],["Early Access","#early"]]],
               ["For Pros",[["Register","#"],["Founder Perks","#early"]]],
-              ["Company",[["Privacy","/privacy"],["Terms","/terms"],["Contact","mailto:hello@proneighbour.in"]]],
+              ["Company",[["Privacy","/privacy"],["Terms","/terms"],["Contact","mailto:hello@ProNeighbor.in"]]],
             ].map(([heading, links]) => (
               <div key={heading as string}>
                 <h4 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, color: "#fff", marginBottom: 14, fontSize: "0.9rem" }}>{heading as string}</h4>
@@ -370,7 +343,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 20, fontSize: "0.78rem", flexWrap: "wrap", gap: 8 }}>
-            <span>© 2026 ProNeighbour. All rights reserved.</span>
+            <span>© 2026 ProNeighbor. All rights reserved.</span>
             <span>Made with ❤️ in Pune 🇮🇳</span>
           </div>
         </div>
@@ -387,3 +360,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
+

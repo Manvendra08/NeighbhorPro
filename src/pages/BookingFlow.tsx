@@ -28,6 +28,7 @@ export default function BookingFlow() {
   const [availableSlots, setAvailSlots] = useState<string[]>([]);
   const [checkingAvail, setCA]    = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [selectedCat, setCat]     = useState<string>("All");
 
   useEffect(() => {
     if (!proId) return;
@@ -177,9 +178,32 @@ export default function BookingFlow() {
 
           {services.length > 0 && (
             <div className="form-group">
-              <label className="form-label">Service</label>
+              <label className="form-label">Service Category</label>
+              <select 
+                className="form-input" 
+                value={selectedCat} 
+                onChange={(e) => {
+                  setCat(e.target.value);
+                  // Auto-select first service of this category
+                  const filtered = e.target.value === "All" ? services : services.filter(s => s.category === e.target.value);
+                  if (filtered.length > 0) setSvc(filtered[0]);
+                }}
+              >
+                <option value="All">All Categories</option>
+                {[...new Set(services.map(s => (s.category as string) || "Other"))].map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {services.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Select Service</label>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {services.map(svc => (
+                {services
+                  .filter(svc => selectedCat === "All" || svc.category === selectedCat)
+                  .map(svc => (
                   <div key={svc.id as string} onClick={() => setSvc(svc)} style={{ padding: "12px 16px", border: `2px solid ${selectedSvc?.id === svc.id ? "var(--accent)" : "var(--border)"}`, background: selectedSvc?.id === svc.id ? "rgba(13,107,107,0.04)" : "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
@@ -194,26 +218,23 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {selectedSvc && (
-            <div className="form-group">
-              <label className="form-label">Service Category</label>
-              <input type="text" className="form-input" disabled value={(selectedSvc.category as string) || "Other"} />
+
+
+          <div style={{ display: "flex", gap: 16 }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Date <span style={{ color: "var(--error)" }}>*</span></label>
+              <input type="date" className="form-input" value={date} onChange={e => { setDate(e.target.value); setTS(""); }} min={new Date().toISOString().split("T")[0]} required />
             </div>
-          )}
 
-          <div className="form-group">
-            <label className="form-label">Date <span style={{ color: "var(--error)" }}>*</span></label>
-            <input type="date" className="form-input" value={date} onChange={e => { setDate(e.target.value); setTS(""); }} min={new Date().toISOString().split("T")[0]} required />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Start Time <span style={{ color: "var(--error)" }}>*</span> {checkingAvail && <span style={{ fontSize: 12, color: "var(--accent)", marginLeft: 8 }}>Checking availability...</span>}</label>
-            <select className="form-input" value={timeSlot} onChange={e => setTS(e.target.value)} required disabled={!date || checkingAvail}>
-              <option value="">{date ? (!checkingAvail && availableSlots.length === 0 ? "No slots available" : "Select a time...") : "Select a date first..."}</option>
-              {availableSlots.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Start Time <span style={{ color: "var(--error)" }}>*</span> {checkingAvail && <span style={{ fontSize: 10, color: "var(--accent)", marginLeft: 8 }}>Checking…</span>}</label>
+              <select className="form-input" value={timeSlot} onChange={e => setTS(e.target.value)} required disabled={!date || checkingAvail}>
+                <option value="">{date ? (!checkingAvail && availableSlots.length === 0 ? "None" : "Select…") : "Pick date…"}</option>
+                {availableSlots.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="form-group">
@@ -356,3 +377,4 @@ export default function BookingFlow() {
     </div>
   );
 }
+

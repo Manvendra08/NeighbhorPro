@@ -232,3 +232,4 @@ function BrandPanel({ register }: { register?: boolean }) {
     </div>
   );
 }
+

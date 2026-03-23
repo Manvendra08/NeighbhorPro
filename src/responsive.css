@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE FLUID SYSTEM — ProNeighbour
+   RESPONSIVE FLUID SYSTEM — ProNeighbor
    Covers 320px (small Android) → 430px (iPhone Pro Max) → 768px+
    Uses clamp() for fluid scaling — no hard breakpoint jumps.
    
@@ -147,3 +147,5 @@ html {
   .grid-3          { grid-template-columns: repeat(2, 1fr); }
   .chat-layout     { grid-template-columns: 280px 1fr; }
 }
+
+

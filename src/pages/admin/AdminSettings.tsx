@@ -137,15 +137,17 @@ export default function AdminSettings() {
         <div>
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 20 }}>⚙️ Core Configuration</h3>
-            {[
-              { label: "Platform Name", k: "platformName" as const, type: "text", placeholder: "ProNeighbor" },
-              { label: "Support Email", k: "supportEmail" as const, type: "email", placeholder: "support@pro-neighbor.in" },
-            ].map(f => (
-              <div className="form-group" key={f.k}>
-                <label className="form-label">{f.label}</label>
-                <input className="form-input" type={f.type} placeholder={f.placeholder} value={settings[f.k] as string} onChange={e => set(f.k, e.target.value as never)} />
-              </div>
-            ))}
+            <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+              {[
+                { label: "Platform Name", k: "platformName" as const, type: "text", placeholder: "ProNeighbor" },
+                { label: "Support Email", k: "supportEmail" as const, type: "email", placeholder: "support@pro-neighbor.in" },
+              ].map(f => (
+                <div className="form-group" key={f.k} style={{ flex: 1, marginBottom: 0 }}>
+                  <label className="form-label">{f.label}</label>
+                  <input className="form-input" type={f.type} placeholder={f.placeholder} value={settings[f.k] as string} onChange={e => set(f.k, e.target.value as never)} />
+                </div>
+              ))}
+            </div>
 
             <div className="form-group">
               <label className="form-label">Commission Rate (%)</label>
@@ -217,3 +219,4 @@ export default function AdminSettings() {
     </div>
   );
 }
+

@@ -15,11 +15,11 @@ export default function PrivacyPolicy() {
         ["4. Third-Party Services", "We use: Firebase (Google) for authentication and database; Razorpay for payment processing; Cloudinary for profile photo storage. Each has its own privacy policy and handles data per their terms."],
         ["5. NeighbourCoins & Financial Data", "All NC transactions are logged in an immutable ledger. Payment data (card/UPI details) is handled entirely by Razorpay and never stored on ProNeighbor servers. We store only the Razorpay payment ID as reference."],
         ["6. Data Retention", "Your profile data is retained as long as your account is active. Booking and transaction records are retained for 7 years for regulatory compliance. You may request account deletion by contacting support — this will anonymise your booking history but ledger records are retained."],
-        ["7. Your Rights", "You have the right to: access your personal data; correct inaccurate data; request deletion of your account; opt out of non-essential communications. Contact privacy@proneighbour.in to exercise these rights."],
+        ["7. Your Rights", "You have the right to: access your personal data; correct inaccurate data; request deletion of your account; opt out of non-essential communications. Contact privacy@ProNeighbor.in to exercise these rights."],
         ["8. Children's Privacy", "ProNeighbor is not intended for users under 18. We do not knowingly collect data from minors."],
         ["9. Security", "We use Firebase security rules to restrict data access, HTTPS for all communications, and Firestore transactions for financial operations. No security system is 100% foolproof — please use strong passwords and report suspicious activity immediately."],
         ["10. Changes to This Policy", "We will notify users of material changes via email or in-app notification at least 7 days before they take effect."],
-        ["11. Contact", "Privacy questions: privacy@proneighbour.in · ProNeighbor, Pune, Maharashtra, India"],
+        ["11. Contact", "Privacy questions: privacy@ProNeighbor.in · ProNeighbor, Pune, Maharashtra, India"],
       ].map(([heading, body]) => (
         <div key={heading as string} style={{ marginBottom: 28 }}>
           <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "1.05rem", marginBottom: 8 }}>{heading}</h3>
@@ -29,3 +29,5 @@ export default function PrivacyPolicy() {
     </div>
   );
 }
+
+

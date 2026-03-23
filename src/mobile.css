@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   MOBILE APP CSS — ProNeighbour
+   MOBILE APP CSS — ProNeighbor
    Completely separate mobile UI patterns.
    Appended to index.css
 ═══════════════════════════════════════════════════════════════ */
@@ -642,3 +642,5 @@
   .mobile-tab-bar { display: none !important; }
   .mobile-header { display: none !important; }
 }
+
+

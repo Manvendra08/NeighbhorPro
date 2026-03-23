@@ -72,7 +72,7 @@ function MobileHeader() {
   const location = useLocation();
 
   const routeTitles: Record<string, string> = {
-    "/dashboard": "ProNeighbour",
+    "/dashboard": "ProNeighbor",
     "/browse": "Explore",
     "/bookings": "My Bookings",
     "/messages": "Messages",
@@ -82,7 +82,7 @@ function MobileHeader() {
   };
 
   const isDashboard = location.pathname === "/dashboard";
-  const title = routeTitles[location.pathname] || "ProNeighbour";
+  const title = routeTitles[location.pathname] || "ProNeighbor";
 
   return (
     <header className="mobile-header">
@@ -90,7 +90,7 @@ function MobileHeader() {
         {isDashboard ? (
           <div className="mobile-header-brand">
             <img src="/images/logo.png" alt="PN" className="mobile-header-logo" />
-            <span>ProNeighbour</span>
+            <span>ProNeighbor</span>
           </div>
         ) : (
           <h1 className="mobile-header-title">{title}</h1>
@@ -171,3 +171,5 @@ export default function Layout() {
     </div>
   );
 }
+
+

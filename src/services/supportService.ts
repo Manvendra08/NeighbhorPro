@@ -153,3 +153,4 @@ export async function getFAQs(): Promise<FAQ[]> {
 export async function saveFCMToken(uid: string, token: string): Promise<void> {
   await updateDoc(doc(db, "users", uid), { fcmToken: token, updatedAt: serverTimestamp() });
 }
+

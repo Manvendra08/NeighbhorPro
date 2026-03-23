@@ -1,194 +1,254 @@
-import { useState, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { collection, doc, setDoc, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
-import { useEffect } from "react";
+import {
+  createTicket, sendTicketMessage, subscribeTicketMessages,
+  getUserTickets, getFAQs, getSLAHours,
+  type SupportTicket, type TicketMessage, type FAQ,
+} from "../services/supportService";
 
-interface SupportMessage {
-  id: string;
-  text: string;
-  senderRole: "user" | "admin";
-  senderName?: string;
-  timestamp: any;
-}
+type Tab = "faq" | "tickets" | "new";
 
-export default function Support() {
-  const { user, userProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState<"chat" | "email" | "faq">("faq");
-  const [chatMsg, setChatMsg] = useState("");
-  const [messages, setMessages] = useState<SupportMessage[]>([]);
-  const [sending, setSending] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+const CATEGORIES = ["general", "booking", "payment", "account", "dispute", "other"] as const;
+const CATEGORY_LABELS: Record<string, string> = {
+  general: "General", booking: "Booking Issue", payment: "Payment / NC",
+  account: "Account", dispute: "Dispute", other: "Other",
+};
 
-  const [ticketId, setTicketId] = useState<string | null>(null);
+// ── Active ticket chat ────────────────────────────────────────────────────
+function TicketChat({ ticket, onBack }: { ticket: SupportTicket; onBack: () => void }) {
+  const { userProfile } = useAuth();
+  const [messages, setMessages] = useState<TicketMessage[]>([]);
+  const [text, setText]         = useState("");
+  const [sending, setSending]   = useState(false);
+  const bottomRef               = useRef<HTMLDivElement>(null);
 
-  // Listen for support chat messages
   useEffect(() => {
-    if (!user) return;
-    const tid = `support_${user.uid}`;
-    setTicketId(tid);
-
-    const q = query(
-      collection(db, `supportTickets/${tid}/messages`),
-      orderBy("timestamp", "asc")
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as SupportMessage)));
+    if (!ticket.id) return;
+    const unsub = subscribeTicketMessages(ticket.id, msgs => {
+      setMessages(msgs);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     });
     return unsub;
-  }, [user]);
+  }, [ticket.id]);
 
-  const sendChat = async (e: FormEvent) => {
+  const send = async (e: FormEvent) => {
     e.preventDefault();
-    if (!chatMsg.trim() || !user || !ticketId) return;
+    if (!text.trim() || !ticket.id) return;
     setSending(true);
-
-    const ticketRef = doc(db, "supportTickets", ticketId);
-    
-    // Update or create the parent ticket
-    await setDoc(ticketRef, {
-      subject: "Support Chat",
-      userId: user.uid,
-      userName: userProfile?.displayName || "User",
-      userEmail: userProfile?.email || "",
-      status: "open",
-      priority: "normal",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-
-    await addDoc(collection(db, `supportTickets/${ticketId}/messages`), {
-      text: chatMsg.trim(),
-      senderRole: "user",
-      senderName: userProfile?.displayName || "User",
-      timestamp: serverTimestamp(),
-    });
-
-    setChatMsg("");
-    setSending(false);
+    await sendTicketMessage(ticket.id, { text: text.trim(), senderRole: "user", senderName: userProfile?.displayName || "User" });
+    setText(""); setSending(false);
   };
 
-  const faqs = [
-    { q: "How do I find a professional?", a: "Go to 'Browse Pros' from the sidebar. You can filter by skill, society, and rating to find the best match." },
-    { q: "Is the platform free to use?", a: "Yes! Browsing, messaging, and booking professionals is completely free for residents." },
-    { q: "How are professionals verified?", a: "All service providers go through community verification. Their identity is confirmed and they must be a registered resident of a listed society." },
-    { q: "How do I become a service provider?", a: "Go to your Profile, toggle 'I offer professional services', add your skills and pricing. You'll appear in the browse directory." },
-    { q: "Can I change my society after registration?", a: "Yes, you can update your society from your Profile page at any time." },
-    { q: "How do reviews work?", a: "Residents can leave reviews after a booking is completed. All reviews are tied to verified bookings to prevent fake ratings." },
-  ];
+  const statusColors: Record<string, string> = { open: "#C4882A", in_progress: "#1B6B8A", resolved: "#16a34a", closed: "var(--muted)" };
 
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>← Back</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700 }}>{ticket.subject}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>#{ticket.id?.slice(0, 8)} · SLA: {ticket.slaHours}h response</div>
+        </div>
+        <span className="badge" style={{ background: statusColors[ticket.status] + "18", color: statusColors[ticket.status], border: `1px solid ${statusColors[ticket.status]}40` }}>
+          {ticket.status.replace("_", " ")}
+        </span>
+      </div>
+      <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: 16, height: 340, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {messages.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", paddingTop: 40 }}>No messages yet. We'll reply within {ticket.slaHours}h.</div>}
+        {messages.map(m => (
+          <div key={m.id} style={{ alignSelf: m.senderRole === "user" ? "flex-end" : "flex-start", background: m.senderRole === "user" ? "var(--accent)" : "var(--surface)", color: m.senderRole === "user" ? "#fff" : "var(--text)", padding: "10px 16px", borderRadius: 14, maxWidth: "75%", fontSize: 14, border: m.senderRole === "admin" ? "1px solid var(--border)" : "none" }}>
+            {m.senderRole === "admin" && <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, opacity: 0.7 }}>Support Team</div>}
+            {m.text}
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+      {ticket.status !== "resolved" && ticket.status !== "closed" && (
+        <form onSubmit={send} style={{ display: "flex", gap: 10 }}>
+          <input className="form-input" placeholder="Type your message…" value={text} onChange={e => setText(e.target.value)} style={{ flex: 1 }} />
+          <button type="submit" className="btn btn-primary" disabled={sending || !text.trim()}>{sending ? "…" : "Send"}</button>
+        </form>
+      )}
+      {(ticket.status === "resolved" || ticket.status === "closed") && (
+        <div style={{ textAlign: "center", padding: "12px 0", color: "var(--muted)", fontSize: 13 }}>This ticket is {ticket.status}. <button className="btn btn-ghost btn-sm" onClick={onBack}>Open a new ticket</button></div>
+      )}
+    </div>
+  );
+}
+
+// ── New ticket form ───────────────────────────────────────────────────────
+function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void }) {
+  const { user, userProfile } = useAuth();
+  const [subject, setSubject]     = useState("");
+  const [category, setCategory]   = useState<typeof CATEGORIES[number]>("general");
+  const [description, setDesc]    = useState("");
+  const [bookingId, setBookingId] = useState("");
+  const [slaHours, setSla]        = useState<number | null>(null);
+  const [submitting, setSub]      = useState(false);
+  const [error, setError]         = useState("");
+
+  useEffect(() => { getSLAHours("normal").then(setSla); }, []);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!user || !userProfile) return;
+    if (!subject.trim() || !description.trim()) { setError("Please fill all required fields."); return; }
+    setSub(true); setError("");
+    const id = await createTicket({
+      uid: user.uid, displayName: userProfile.displayName, email: userProfile.email,
+      subject: subject.trim(), category, priority: "normal",
+      ...(bookingId.trim() ? { bookingId: bookingId.trim() } : {}),
+    });
+    // Send first message as description
+    await sendTicketMessage(id, { text: description.trim(), senderRole: "user", senderName: userProfile.displayName });
+    onCreated({ id, uid: user.uid, displayName: userProfile.displayName, email: userProfile.email, subject: subject.trim(), category, priority: "normal", status: "open", slaHours: slaHours ?? 24, createdAt: null, updatedAt: null });
+    setSub(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ maxWidth: 560 }}>
+      <div className="card">
+        <h3 className="card-title" style={{ marginBottom: 4 }}>Open a Support Ticket</h3>
+        {slaHours && <p className="text-muted text-sm" style={{ marginBottom: 20 }}>We respond within {slaHours} hours for standard tickets.</p>}
+        {error && <div className="error-box" style={{ marginBottom: 16 }}>{error}</div>}
+        <div style={{ display: "flex", gap: 16 }}>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label className="form-label">Category *</label>
+            <select className="form-input" value={category} onChange={e => setCategory(e.target.value as typeof CATEGORIES[number])}>
+              {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label className="form-label">Booking ID (optional)</label>
+            <input className="form-input" placeholder="e.g. #BK123" value={bookingId} onChange={e => setBookingId(e.target.value)} />
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Subject *</label>
+          <input className="form-input" placeholder="Brief description of your issue" value={subject} onChange={e => setSubject(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Description *</label>
+          <textarea className="form-input" placeholder="Please describe your issue in detail…" value={description} onChange={e => setDesc(e.target.value)} style={{ minHeight: 120 }} />
+        </div>
+        <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? "Submitting…" : "Submit Ticket"}</button>
+      </div>
+    </form>
+  );
+}
+
+// ── Main Support page ─────────────────────────────────────────────────────
+export default function Support() {
+  const { user } = useAuth();
+  const [tab, setTab]                 = useState<Tab>("faq");
+  const [faqs, setFaqs]               = useState<FAQ[]>([]);
+  const [faqCat, setFaqCat]           = useState("All");
+  const [openFaq, setOpenFaq]         = useState<number | null>(null);
+  const [tickets, setTickets]         = useState<SupportTicket[]>([]);
+  const [activeTicket, setActive]     = useState<SupportTicket | null>(null);
+  const [ticketsLoaded, setTL]        = useState(false);
+
+  useEffect(() => { getFAQs().then(setFaqs); }, []);
+
+  const loadTickets = async () => {
+    if (!user || ticketsLoaded) return;
+    const t = await getUserTickets(user.uid);
+    setTickets(t); setTL(true);
+  };
+
+  const faqCategories = ["All", ...Array.from(new Set(faqs.map(f => f.category)))];
+  const visibleFaqs   = faqCat === "All" ? faqs : faqs.filter(f => f.category === faqCat);
+
+  const statusColors: Record<string, string> = { open: "#C4882A", in_progress: "#1B6B8A", resolved: "#16a34a", closed: "var(--muted)" };
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Support</h1>
-          <p className="page-subtitle">Get help via chat, email, or browse FAQs</p>
+          <p className="page-subtitle">Browse FAQs or open a ticket — we respond within 24 hours.</p>
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="tabs">
-        <button className={`tab${activeTab === "faq" ? " active" : ""}`} onClick={() => setActiveTab("faq")}>FAQ</button>
-        <button className={`tab${activeTab === "chat" ? " active" : ""}`} onClick={() => setActiveTab("chat")}>Chat Support</button>
-        <button className={`tab${activeTab === "email" ? " active" : ""}`} onClick={() => setActiveTab("email")}>Email Support</button>
+        <button className={`tab${tab === "faq" ? " active" : ""}`} onClick={() => setTab("faq")}>FAQ</button>
+        <button className={`tab${tab === "tickets" ? " active" : ""}`} onClick={() => { setTab("tickets"); loadTickets(); }}>My Tickets</button>
+        <button className={`tab${tab === "new" ? " active" : ""}`} onClick={() => setTab("new")}>+ New Ticket</button>
       </div>
 
-      {/* FAQ Tab */}
-      {activeTab === "faq" && (
-        <div className="card" style={{ padding: 0 }}>
-          {faqs.map((f, i) => (
-            <div key={i} style={{ borderBottom: i < faqs.length - 1 ? "1px solid var(--border)" : "none" }}>
-              <button
-                onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                style={{
-                  width: "100%", textAlign: "left", padding: "18px 22px", background: "none",
-                  border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, fontFamily: "var(--font-body)",
-                  color: "var(--text)", display: "flex", justifyContent: "space-between", alignItems: "center"
-                }}
-              >
-                {f.q}
-                <span style={{ color: "var(--muted)", fontSize: 18, transform: openFaq === i ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▼</span>
-              </button>
-              {openFaq === i && (
-                <div style={{ padding: "0 22px 18px", fontSize: 14, color: "var(--muted)", lineHeight: 1.7 }}>
-                  {f.a}
-                </div>
-              )}
+      {/* ── FAQ ── */}
+      {tab === "faq" && (
+        <div>
+          {faqCategories.length > 1 && (
+            <div className="filter-chips" style={{ marginBottom: 20 }}>
+              {faqCategories.map(c => (
+                <button key={c} className={`chip${faqCat === c ? " active" : ""}`} onClick={() => setFaqCat(c)}>
+                  {c.charAt(0).toUpperCase() + c.slice(1)}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Chat Tab */}
-      {activeTab === "chat" && (
-        <div className="card">
-          <div style={{ marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, marginBottom: 4 }}>💬 Live Chat with Support</h3>
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>Messages are sent directly to the admin team. Replies will appear here.</p>
-          </div>
-          <div style={{
-            background: "var(--surface-2)", borderRadius: "var(--radius)", padding: 16,
-            minHeight: 260, maxHeight: 360, overflowY: "auto", marginBottom: 16,
-            display: "flex", flexDirection: "column", gap: 10
-          }}>
-            {messages.length === 0 && (
-              <div style={{ textAlign: "center", color: "var(--muted)", padding: "40px 0", fontSize: 14 }}>
-                No messages yet. Send a message to start a conversation.
-              </div>
-            )}
-            {messages.map(m => (
-              <div key={m.id} style={{
-                alignSelf: m.senderRole === "user" ? "flex-end" : "flex-start",
-                background: m.senderRole === "user" ? "var(--accent)" : "var(--surface)",
-                color: m.senderRole === "user" ? "#fff" : "var(--text)",
-                padding: "10px 16px", borderRadius: 14, maxWidth: "75%", fontSize: 14,
-                border: m.senderRole === "admin" ? "1px solid var(--border)" : "none"
-              }}>
-                {m.text}
+          )}
+          <div className="card" style={{ padding: 0 }}>
+            {visibleFaqs.length === 0 && <div className="empty-state"><div className="empty-state-icon">🔍</div><div className="empty-state-title">No FAQs in this category</div></div>}
+            {visibleFaqs.map((f, i) => (
+              <div key={f.id ?? i} style={{ borderBottom: i < visibleFaqs.length - 1 ? "1px solid var(--border)" : "none" }}>
+                <button onClick={() => setOpenFaq(openFaq === i ? null : i)} style={{ width: "100%", textAlign: "left", padding: "18px 22px", background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, fontFamily: "var(--font-body)", color: "var(--text)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  {f.question}
+                  <span style={{ color: "var(--muted)", fontSize: 18, transform: openFaq === i ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0, marginLeft: 12 }}>▼</span>
+                </button>
+                {openFaq === i && <div style={{ padding: "0 22px 18px", fontSize: 14, color: "var(--muted)", lineHeight: 1.7 }}>{f.answer}</div>}
               </div>
             ))}
           </div>
-          <form onSubmit={sendChat} style={{ display: "flex", gap: 10 }}>
-            <input
-              className="form-input"
-              placeholder="Type your message..."
-              value={chatMsg}
-              onChange={e => setChatMsg(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <button type="submit" className="btn btn-primary" disabled={sending || !chatMsg.trim()}>
-              {sending ? "..." : "Send"}
-            </button>
-          </form>
+          <div style={{ marginTop: 24, textAlign: "center" }}>
+            <p className="text-muted text-sm" style={{ marginBottom: 12 }}>Didn't find your answer?</p>
+            <button className="btn btn-primary" onClick={() => setTab("new")}>Open a Support Ticket</button>
+          </div>
         </div>
       )}
 
-      {/* Email Tab */}
-      {activeTab === "email" && (
-        <div className="card" style={{ textAlign: "center", padding: 48 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
-          <h3 style={{ marginBottom: 8 }}>Email Support</h3>
-          <p style={{ color: "var(--muted)", marginBottom: 24, fontSize: 14 }}>
-            Send us an email and we'll get back to you within 24 hours.
-          </p>
-          {emailSent ? (
-            <div style={{ color: "var(--success)", fontWeight: 600 }}>✅ Email client opened!</div>
+      {/* ── TICKETS ── */}
+      {tab === "tickets" && (
+        <div>
+          {activeTicket ? (
+            <TicketChat ticket={activeTicket} onBack={() => setActive(null)} />
           ) : (
-            <a
-              href={`mailto:support@pro-neighbor.in?subject=Support Request from ${userProfile?.displayName || "User"}&body=Hi ProNeighbor team,%0A%0A`}
-              className="btn btn-primary"
-              onClick={() => setEmailSent(true)}
-            >
-              Open Email Client
-            </a>
+            <>
+              {tickets.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">🎫</div>
+                  <div className="empty-state-title">No tickets yet</div>
+                  <div className="empty-state-desc">Open a ticket if you need help with a booking, payment, or anything else.</div>
+                  <button className="btn btn-primary btn-sm" onClick={() => setTab("new")} style={{ marginTop: 12 }}>Open a Ticket</button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {tickets.map(t => (
+                    <div key={t.id} className="card" style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer", padding: "16px 20px" }} onClick={() => setActive(t)}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{t.subject}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                          {CATEGORY_LABELS[t.category]} · #{t.id?.slice(0, 8)} · SLA {t.slaHours}h
+                        </div>
+                      </div>
+                      <span className="badge" style={{ background: statusColors[t.status] + "18", color: statusColors[t.status], border: `1px solid ${statusColors[t.status]}40` }}>
+                        {t.status.replace("_", " ")}
+                      </span>
+                      <span style={{ color: "var(--muted)" }}>›</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
-          <p style={{ marginTop: 24, fontSize: 13, color: "var(--muted)" }}>
-            Or write to us at: <a href="mailto:support@pro-neighbor.in">support@pro-neighbor.in</a>
-          </p>
         </div>
+      )}
+
+      {/* ── NEW TICKET ── */}
+      {tab === "new" && (
+        <NewTicketForm onCreated={t => { setTickets(prev => [t, ...prev]); setActive(t); setTab("tickets"); setTL(true); }} />
       )}
     </div>
   );
 }
+

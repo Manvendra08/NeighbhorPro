@@ -58,11 +58,11 @@ export default function PWAInstallBanner() {
       // Safe area for iPhone notch
       paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
     }}>
-      <img src="/images/logo.png" alt="ProNeighbour" style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0 }} />
+      <img src="/images/logo.png" alt="ProNeighbor" style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0 }} />
 
       <div style={{ flex: 1 }}>
         <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "0.9rem" }}>
-          Add ProNeighbour to Home Screen
+          Add ProNeighbor to Home Screen
         </div>
         <div style={{ fontSize: "0.75rem", opacity: 0.7, marginTop: 2 }}>
           {isIOS
@@ -84,3 +84,5 @@ export default function PWAInstallBanner() {
     </div>
   );
 }
+
+

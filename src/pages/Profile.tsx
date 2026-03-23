@@ -113,7 +113,7 @@ export default function Profile() {
   const [priceAfterQuote, setPriceAfterQuote] = useState(false);
   const [society, setSociety] = useState("");
   const [societies, setSocieties] = useState<Record<string, unknown>[]>([]);
-  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string; locality?: string }>({});
+  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string; tower?: string }>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -186,7 +186,10 @@ export default function Profile() {
       nextErrors.bio = "Bio is required.";
     }
     if (!society.trim()) {
-      nextErrors.society = "Society / Community is required.";
+      nextErrors.society = "Society is required.";
+    }
+    if (!tower.trim()) {
+      nextErrors.tower = "Tower / Wing is required.";
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
@@ -339,29 +342,7 @@ export default function Profile() {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">
-              Society / Community <span style={{ color: "var(--error)" }}>*</span>
-            </label>
-            <select
-              className="form-input"
-              value={society}
-              onChange={(e) => setSociety(e.target.value)}
-              id="profile-society-input"
-            >
-              <option value="">Select your society…</option>
-              {societies.map((s) => (
-                <option key={s.id as string} value={s.name as string}>
-                  {s.name as string}
-                </option>
-              ))}
-            </select>
-            {errors.society && (
-              <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>
-                {errors.society}
-              </div>
-            )}
-          </div>
+
         </div>
 
         {/* Residence Information */}
@@ -370,23 +351,33 @@ export default function Profile() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div className="form-group" style={{ gridColumn: "1 / -1" }}>
               <label className="form-label">
-                Locality <span style={{ color: "var(--error)" }}>*</span>
+                Society <span style={{ color: "var(--error)" }}>*</span>
               </label>
-              <input
+              <select
                 className="form-input"
-                value={locality}
-                onChange={(e) => setLocality(e.target.value)}
-                placeholder="e.g., Gates Community, Wakad"
-                id="profile-locality-input"
-              />
-              {errors.locality && (
+                value={society}
+                onChange={(e) => {
+                  setSociety(e.target.value);
+                  const selected = societies.find(s => s.name === e.target.value);
+                  if (selected) setLocality((selected.locality as string) || "");
+                }}
+                id="profile-society-select"
+              >
+                <option value="">Select your society…</option>
+                {societies.map((s) => (
+                  <option key={s.id as string} value={s.name as string}>
+                    {s.name as string}
+                  </option>
+                ))}
+              </select>
+              {errors.society && (
                 <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>
-                  {errors.locality}
+                  {errors.society}
                 </div>
               )}
             </div>
             <div className="form-group">
-              <label className="form-label">Tower / Wing</label>
+              <label className="form-label">Tower / Wing <span style={{ color: "var(--error)" }}>*</span></label>
               <input
                 className="form-input"
                 value={tower}
@@ -394,6 +385,11 @@ export default function Profile() {
                 placeholder="e.g., Tower A"
                 id="profile-tower-input"
               />
+              {errors.tower && (
+                <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>
+                  {errors.tower}
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Flat Number</label>
@@ -581,34 +577,30 @@ export default function Profile() {
                 <label className="form-label">Description</label>
                 <textarea className="form-input" value={svcDesc} onChange={(e) => setSvcDesc(e.target.value)} placeholder="What does this service include?" id="svc-desc-input" />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div className="form-group">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
                     Price (₹)
                     <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontWeight: "normal", color: "var(--success)" }}>
                       <input type="checkbox" checked={svcIsFree} onChange={(e) => setSvcIsFree(e.target.checked)} />
-                      Free Service
+                      Free
                     </label>
                   </label>
                   <input type="number" className="form-input" value={svcIsFree ? 0 : svcPrice} onChange={(e) => setSvcPrice(Number(e.target.value))} min={0} disabled={svcIsFree} id="svc-price-input" />
                 </div>
-                <div className="form-group">
+                <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Duration</label>
                   <select className="form-input" value={svcDuration} onChange={(e) => setSvcDuration(e.target.value)} id="svc-duration-select">
-                    <option>15 min</option>
-                    <option>30 min</option>
-                    <option>45 min</option>
-                    <option>1 hour</option>
-                    <option>2 hours</option>
+                    <option>15 min</option><option>30 min</option><option>45 min</option><option>1 hour</option><option>2 hours</option>
                   </select>
                 </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Category</label>
-                <select className="form-input" value={svcCategory} onChange={(e) => setSvcCategory(e.target.value)} id="svc-category-select">
-                  <option value="">Select…</option>
-                  {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Category</label>
+                  <select className="form-input" value={svcCategory} onChange={(e) => setSvcCategory(e.target.value)} id="svc-category-select">
+                    <option value="">Select…</option>
+                    {SERVICE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
               </div>
               <button className="btn btn-success" onClick={handleAddService} disabled={!svcTitle.trim()}>
                 Save Service
@@ -655,3 +647,4 @@ export default function Profile() {
     </div>
   );
 }
+

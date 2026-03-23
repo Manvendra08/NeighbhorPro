@@ -12,15 +12,8 @@ import {
   markConversationRead,
 } from "../services/firestoreService";
 import { Timestamp } from "firebase/firestore";
+import { relativeTime } from "../utils/time";
 
-function relativeTime(ts: unknown): string {
-  if (!ts || !(ts instanceof Timestamp)) return "";
-  const diff = (Date.now() - ts.toDate().getTime()) / 1000;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return ts.toDate().toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-}
 
 export default function Messages() {
   const { user } = useAuth();
@@ -92,7 +85,7 @@ export default function Messages() {
     markConversationRead(activeConv, user.uid).catch(() => {});
     setUnreadCounts(prev => ({ ...prev, [activeConv]: 0 }));
     return unsub;
-  }, [activeConv]);
+  }, [activeConv, user]);
 
   const handleSend = async () => {
     if (!newMsg.trim() || !activeConv || !user) return;
@@ -366,3 +359,4 @@ export default function Messages() {
     </div>
   );
 }
+

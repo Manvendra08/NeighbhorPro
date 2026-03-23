@@ -24,3 +24,4 @@ export async function getMessagingInstance() {
   if (!supported) return null;
   return getMessaging(app);
 }
+

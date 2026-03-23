@@ -247,8 +247,8 @@ export default function Wallet() {
               <button className="btn btn-secondary btn-sm" onClick={copyCode}>{copied ? "✓ Copied!" : "Copy"}</button>
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <a href={`whatsapp://send?text=Join ProNeighbour — your society's expert network! Use my referral code *${myCode}* and we both earn 100 NeighbourCoins 🎉 https://neighbhorpro.web.app/register`} className="btn btn-secondary btn-sm">📱 Share on WhatsApp</a>
-              <button className="btn btn-secondary btn-sm" onClick={() => { navigator.share?.({ title: "ProNeighbour Referral", text: `Join with my code ${myCode}`, url: "https://neighbhorpro.web.app/register" }); }}>↗ Share</button>
+              <a href={`whatsapp://send?text=Join ProNeighbor — your society's expert network! Use my referral code *${myCode}* and we both earn 100 NeighbourCoins 🎉 https://neighbhorpro.web.app/register`} className="btn btn-secondary btn-sm">📱 Share on WhatsApp</a>
+              <button className="btn btn-secondary btn-sm" onClick={() => { navigator.share?.({ title: "ProNeighbor Referral", text: `Join with my code ${myCode}`, url: "https://neighbhorpro.web.app/register" }); }}>↗ Share</button>
             </div>
           </div>
           {/* Apply a code */}
@@ -274,14 +274,16 @@ export default function Wallet() {
               <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Available to withdraw</div>
               <div style={{ fontWeight: 800, fontSize: "1.4rem", color: "#1B6B8A" }}>{formatNC(balance)} = ₹{balance.toLocaleString("en-IN")}</div>
             </div>
-            <div className="form-group">
-              <label className="form-label">Amount (NC)</label>
-              <input className="form-input" type="number" placeholder={`Min ${MIN_PAYOUT_COINS}`} value={payoutCoins} onChange={e => setPC(e.target.value)} min={MIN_PAYOUT_COINS} max={balance} />
-              {payoutCoins && !isNaN(parseInt(payoutCoins)) && <div className="form-hint">You'll receive ₹{parseInt(payoutCoins).toLocaleString("en-IN")} via UPI</div>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">UPI ID</label>
-              <input className="form-input" type="text" placeholder="yourname@upi" value={upiId} onChange={e => setUpi(e.target.value)} />
+            <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label className="form-label">Amount (NC)</label>
+                <input className="form-input" type="number" placeholder={`Min ${MIN_PAYOUT_COINS}`} value={payoutCoins} onChange={e => setPC(e.target.value)} min={MIN_PAYOUT_COINS} max={balance} />
+                {payoutCoins && !isNaN(parseInt(payoutCoins)) && <div className="form-hint">You'll receive ₹{parseInt(payoutCoins).toLocaleString("en-IN")} via UPI</div>}
+              </div>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label className="form-label">UPI ID</label>
+                <input className="form-input" type="text" placeholder="yourname@upi" value={upiId} onChange={e => setUpi(e.target.value)} />
+              </div>
             </div>
             <Msg m={payoutMsg} />
             <button className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={handlePayout} disabled={payoutLoading || balance < MIN_PAYOUT_COINS}>
@@ -358,3 +360,5 @@ export default function Wallet() {
     </div>
   );
 }
+
+

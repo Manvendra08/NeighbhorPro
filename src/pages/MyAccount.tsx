@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { updateUserProfile, uploadProfilePhoto } from "../services/firestoreService";
+import { updateUserProfile } from "../services/firestoreService";
 import Profile from "./Profile";
 import ProAvailabilityEditor from "../components/ProAvailabilityEditor";
 import { getLedger, ledgerColor, ledgerSign } from "../services/coinService";
@@ -28,7 +28,7 @@ function profileCompleteness(p: Record<string, unknown> | null): { pct: number; 
 
 // ── Phone OTP sub-component ────────────────────────────────────────────────
 function PhoneVerifier() {
-  const { user, sendPhoneOTP, verifyPhoneOTP } = useAuth();
+  const { sendPhoneOTP, verifyPhoneOTP } = useAuth();
   const [phone, setPhone]         = useState("");
   const [otp, setOtp]             = useState("");
   const [step, setStep]           = useState<"input"|"otp"|"done">("input");
@@ -315,3 +315,4 @@ export default function MyAccount() {
     </div>
   );
 }
+

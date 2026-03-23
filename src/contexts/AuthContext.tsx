@@ -1,12 +1,12 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import {
   User, onAuthStateChanged, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, signInWithPopup, signOut,
   updateProfile, sendPasswordResetEmail, sendEmailVerification,
-  PhoneAuthProvider, signInWithPhoneNumber, RecaptchaVerifier,
+  signInWithPhoneNumber, RecaptchaVerifier,
   reauthenticateWithCredential, EmailAuthProvider, deleteUser,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
 import { earnCoins } from "../services/coinService";
 
@@ -82,13 +82,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
+  /** Tracks whether the one-time profile-complete bonus has been claimed this session.
+   * Prevents earnCoins from firing on every Firestore snapshot update. */
+  const profileBonusClaimedRef = useRef(false);
+
+  // OTP confirmation stored in a ref to avoid polluting window global
+  type ConfirmationResult = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
+
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      profileBonusClaimedRef.current = false; // Reset on logout
+      return;
+    }
     const unsub = onSnapshot(doc(db, "users", user.uid), snap => {
       if (snap.exists()) {
         const data = snap.data() as UserProfile;
         setUserProfile(data);
-        if (isProfileComplete(data)) earnCoins(user.uid, "earn_profile", user.uid).catch(() => {});
+        // Only attempt to credit the profile-complete bonus once per session
+        if (!profileBonusClaimedRef.current && isProfileComplete(data)) {
+          profileBonusClaimedRef.current = true;
+          earnCoins(user.uid, "earn_profile", user.uid).catch(() => {
+            // Reset so it can retry on next load if it failed transiently
+            profileBonusClaimedRef.current = false;
+          });
+        }
       }
       setLoading(false);
     }, () => setLoading(false));
@@ -132,14 +150,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendPhoneOTP = async (phone: string, containerId: string): Promise<string> => {
     const recaptcha = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
     const result    = await signInWithPhoneNumber(auth, phone, recaptcha);
-    // Store confirmationResult on window for verifyPhoneOTP
-    (window as unknown as Record<string, unknown>)["_phoneConfirmation"] = result;
+    // Stored in a React ref — safe across re-renders, no global pollution
+    confirmationRef.current = result;
     return result.verificationId;
   };
 
   const verifyPhoneOTP = async (_verificationId: string, otp: string): Promise<void> => {
-    const confirmation = (window as unknown as Record<string, unknown>)["_phoneConfirmation"] as { confirm: (otp: string) => Promise<unknown> };
-    if (!confirmation) throw new Error("No pending OTP");
+    const confirmation = confirmationRef.current;
+    if (!confirmation) throw new Error("No pending OTP. Please request a new code.");
     await confirmation.confirm(otp);
     // Update Firestore with phone number
     if (auth.currentUser?.phoneNumber) {
@@ -147,11 +165,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneNumber: auth.currentUser.phoneNumber, updatedAt: serverTimestamp(),
       });
     }
+    confirmationRef.current = null; // Clear after successful verification
   };
 
-  // ── Delete account (soft-delete, DPDP compliant) ─────────────────────
+  // ── Delete account (soft-delete then hard-delete, with rollback on failure) ─
   const deleteAccount = async (password?: string): Promise<{ success: boolean; reason?: string }> => {
     if (!auth.currentUser) return { success: false, reason: "Not logged in" };
+    const userRef = doc(db, "users", auth.currentUser.uid);
     try {
       // Re-authenticate for email/password users
       const isEmailProvider = auth.currentUser.providerData.some(p => p.providerId === "password");
@@ -159,16 +179,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const credential = EmailAuthProvider.credential(auth.currentUser.email!, password);
         await reauthenticateWithCredential(auth.currentUser, credential);
       }
-      // Soft-delete: anonymize profile, mark deleted, keep for 30 days
-      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+      // Snapshot original profile for rollback in case auth deletion fails
+      const originalSnap = await getDoc(userRef);
+      const originalData = originalSnap.data();
+
+      // Step 1: Soft-delete — anonymize personal data
+      await updateDoc(userRef, {
         displayName: "Deleted User",
-        email: `deleted_${auth.currentUser.uid}@proneighbour.in`,
+        email: `deleted_${auth.currentUser.uid}@ProNeighbor.in`,
         bio: "", photoURL: "", skills: [], society: "", flatNumber: "",
         phoneNumber: null, fcmToken: null,
         deleted: true, deletedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      await deleteUser(auth.currentUser);
+
+      // Step 2: Hard-delete Firebase Auth — if this fails, roll back the Firestore anonymization
+      try {
+        await deleteUser(auth.currentUser);
+      } catch (authErr: unknown) {
+        // Rollback: restore original profile so user account is not corrupted
+        if (originalData) {
+          await updateDoc(userRef, { ...originalData, deleted: false, deletedAt: null });
+        }
+        const code = (authErr as { code?: string }).code;
+        if (code === "auth/requires-recent-login") return { success: false, reason: "Please sign out and sign in again before deleting." };
+        throw authErr;
+      }
+
       return { success: true };
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;
@@ -194,3 +231,5 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
+
+

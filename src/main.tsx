@@ -4,6 +4,7 @@ import "./index.css";
 import "./responsive.css";
 import "./mobile.css";
 import "./pwa.css";
+import "./darkmode.css";
 import App from "./App.tsx";
 
 createRoot(document.getElementById("root")!).render(
@@ -11,3 +12,4 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </StrictMode>
 );
+

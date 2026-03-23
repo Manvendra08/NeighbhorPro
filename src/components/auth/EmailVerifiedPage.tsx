@@ -130,7 +130,7 @@ export function EmailVerifiedPage() {
 
         {/* Footer */}
         <p style={{ marginTop: 28, fontSize: "0.78rem", color: "#9AABB8" }}>
-          Need help? <a href="mailto:support@proneighbour.in" style={{ color: "#1B6B8A", textDecoration: "none" }}>support@proneighbour.in</a>
+          Need help? <a href="mailto:support@ProNeighbor.in" style={{ color: "#1B6B8A", textDecoration: "none" }}>support@ProNeighbor.in</a>
         </p>
 
         <style>{`
@@ -141,3 +141,5 @@ export function EmailVerifiedPage() {
     </div>
   );
 }
+
+

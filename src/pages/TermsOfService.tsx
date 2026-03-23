@@ -20,7 +20,7 @@ export default function TermsOfService() {
         ["9. Limitation of Liability", "ProNeighbor is not liable for any indirect, incidental, or consequential damages arising from use of the platform, including disputes between residents and professionals."],
         ["10. Governing Law", "These Terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of courts in Pune, Maharashtra."],
         ["11. Changes to Terms", "We may update these Terms from time to time. Continued use of the platform after changes constitutes acceptance of the updated Terms."],
-        ["12. Contact", "For questions about these Terms, contact us at legal@proneighbour.in"],
+        ["12. Contact", "For questions about these Terms, contact us at legal@ProNeighbor.in"],
       ].map(([heading, body]) => (
         <div key={heading as string} style={{ marginBottom: 28 }}>
           <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "1.05rem", marginBottom: 8 }}>{heading}</h3>
@@ -30,3 +30,5 @@ export default function TermsOfService() {
     </div>
   );
 }
+
+

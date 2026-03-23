@@ -1,0 +1,74 @@
+/* ═══════════════════════════════════════════
+   DARK MODE — ProNeighbor
+   Activated via [data-theme="dark"] on <html>
+═══════════════════════════════════════════ */
+
+[data-theme="dark"] {
+  --bg:           #0F1117;
+  --bg-elevated:  #161B25;
+  --surface:      #1E2535;
+  --surface-2:    #252D3F;
+  --surface-3:    #2D3750;
+  --border:       #2E3A50;
+  --border-hover: #3D4F6A;
+  --accent:       #2A8FAD;
+  --accent-dim:   rgba(42,143,173,0.15);
+  --accent2:      #E86B48;
+  --accent2-dim:  rgba(232,107,72,0.15);
+  --text:         #E8EBF0;
+  --text-2:       #B0BAC8;
+  --muted:        #6B7A90;
+  --error:        #FF6B6B;
+  --warning:      #E0A830;
+  --success:      #52A87C;
+  --shadow:       0 2px 12px rgba(0,0,0,0.3);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* Cards in dark mode */
+[data-theme="dark"] .card { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .stat-card { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .topbar { background: var(--bg-elevated); border-color: var(--border); }
+[data-theme="dark"] .sidebar { background: var(--bg-elevated); border-color: var(--border); }
+[data-theme="dark"] .mobile-header { background: var(--bg-elevated); border-color: var(--border); }
+[data-theme="dark"] .mobile-tab-bar { background: var(--bg-elevated); border-color: var(--border); }
+[data-theme="dark"] .form-input { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+[data-theme="dark"] .form-input:focus { border-color: var(--accent); }
+[data-theme="dark"] .table-wrap { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .table th { background: var(--surface-2); color: var(--muted); border-color: var(--border); }
+[data-theme="dark"] .table td { border-color: var(--border); }
+[data-theme="dark"] .table tr:hover td { background: rgba(255,255,255,0.02); }
+[data-theme="dark"] .modal { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .user-dropdown { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .user-dropdown-item:hover { background: var(--surface-2); }
+[data-theme="dark"] .pro-card { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .pro-card-list { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .m-pro-card { border-color: var(--border); }
+[data-theme="dark"] .m-quick-item { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .m-stats-strip { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .m-action-card { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .chat-list { background: var(--bg-elevated); }
+[data-theme="dark"] .chat-input-bar { background: var(--bg-elevated); border-color: var(--border); }
+[data-theme="dark"] .chat-input-bar input { background: var(--surface); border-color: var(--border); color: var(--text); }
+[data-theme="dark"] .badge-muted { background: rgba(255,255,255,0.07); }
+[data-theme="dark"] .skill-tag { background: var(--surface-2); border-color: var(--border); color: var(--text-2); }
+[data-theme="dark"] .chip { background: var(--surface); border-color: var(--border); color: var(--text-2); }
+[data-theme="dark"] .m-category-pill { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .m-search-bar { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .m-search-input { color: var(--text); }
+[data-theme="dark"] .tabs { border-color: var(--border); }
+[data-theme="dark"] .nav-link { color: var(--text-2); }
+[data-theme="dark"] .nav-link:hover { background: rgba(255,255,255,0.05); }
+[data-theme="dark"] .topbar-search input { background: var(--surface); border-color: var(--border); color: var(--text); }
+[data-theme="dark"] .btn-secondary { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+[data-theme="dark"] .btn-ghost { color: var(--text-2); }
+[data-theme="dark"] .btn-ghost:hover { background: rgba(255,255,255,0.05); }
+[data-theme="dark"] .error-box { background: rgba(255,92,92,0.1); }
+
+/* Smooth theme transition */
+body, .card, .stat-card, .topbar, .sidebar, .mobile-header, .mobile-tab-bar,
+.form-input, .table-wrap, .modal, .user-dropdown, .pro-card, .btn {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.1s ease;
+}
+
+

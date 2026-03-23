@@ -18,9 +18,11 @@ import {
   onSnapshot,
   Unsubscribe,
   Timestamp,
+  runTransaction,
 } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { db, auth } from "../firebase";
+import { validateUpload } from "../utils/cloudinary";
 
 /* ═══════════════════════════════════════════
    USERS
@@ -35,13 +37,14 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
 }
 
 export async function uploadProfilePhoto(uid: string, file: File) {
+  validateUpload(file, "profilePhoto"); // throws if invalid
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName || !uploadPreset) throw new Error("Cloudinary configuration is missing.");
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", uploadPreset);
-  formData.append("folder", "neighborpro/profiles");
+  formData.append("folder", "ProNeighbor/profiles");
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: "POST", body: formData });
   if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
   const data = await response.json();
@@ -52,13 +55,14 @@ export async function uploadProfilePhoto(uid: string, file: File) {
 }
 
 export async function uploadResidencyProof(uid: string, file: File) {
+  validateUpload(file, "residencyProof"); // throws if invalid
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName || !uploadPreset) throw new Error("Cloudinary configuration is missing.");
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", uploadPreset);
-  formData.append("folder", "neighborpro/residency-proofs");
+  formData.append("folder", "ProNeighbor/residency-proofs");
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
   if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
   const data = await response.json();
@@ -87,25 +91,22 @@ export const BROWSE_PAGE_SIZE = 20;
 
 /**
  * Paginated professional listing ordered by createdAt desc.
- * NOTE: Previously ordered by `rating` which excluded docs missing that field.
- * createdAt is guaranteed on every user doc so no results are silently dropped.
+ * Server-side locality/tower filtering uses Firestore where() clauses
+ * to prevent the empty-page problem of client-side post-pagination filtering.
+ * Composite indexes required: locality+createdAt and tower+createdAt.
  */
 export async function listProfessionals(
   cursor?: QueryDocumentSnapshot<DocumentData> | null,
   filters?: { locality?: string; tower?: string }
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot<DocumentData> | null }> {
-  const q = cursor
-    ? query(collection(db, "users"), orderBy("createdAt", "desc"), startAfter(cursor), limit(BROWSE_PAGE_SIZE))
-    : query(collection(db, "users"), orderBy("createdAt", "desc"), limit(BROWSE_PAGE_SIZE));
+  const constraints: Parameters<typeof query>[1][] = [orderBy("createdAt", "desc"), limit(BROWSE_PAGE_SIZE)];
+  if (filters?.locality) constraints.unshift(where("locality", "==", filters.locality));
+  if (filters?.tower)    constraints.unshift(where("tower",    "==", filters.tower));
+  if (cursor)            constraints.push(startAfter(cursor));
+
+  const q = query(collection(db, "users"), ...constraints);
   const snap = await getDocs(q);
-  let data: Record<string, unknown>[] = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-  // Client-side locality/tower filtering (Firestore composite index not needed)
-  if (filters?.locality) {
-    data = data.filter(u => ((u.locality as string) || "").toLowerCase() === filters.locality!.toLowerCase());
-  }
-  if (filters?.tower) {
-    data = data.filter(u => ((u.tower as string) || "").toLowerCase() === filters.tower!.toLowerCase());
-  }
+  const data = snap.docs.map(d => ({ uid: d.id, ...d.data() } as Record<string, unknown>));
   const nextCursor = snap.docs.length === BROWSE_PAGE_SIZE ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
 }
@@ -172,6 +173,7 @@ export async function getBookingsForProOnDate(proId: string, date: string) {
 
 // upload booking attachment
 export async function uploadBookingAttachment(bookingId: string | null, file: File) {
+  validateUpload(file, "bookingAttachment"); // throws if invalid
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName || !uploadPreset) throw new Error("Cloudinary missing");
@@ -314,14 +316,28 @@ export async function getTransactionsForPro(proId: string) {
 /* ═══════════════════════════════════════════
    MESSAGES
 ═══════════════════════════════════════════ */
+/**
+ * Returns a deterministic conversation ID for a pair of users (sorted UIDs joined by '_').
+ * This is idempotent and eliminates duplicate conversation documents.
+ */
+export function getConversationId(uid1: string, uid2: string): string {
+  return [uid1, uid2].sort().join("_");
+}
+
 export async function getOrCreateConversation(uid1: string, uid2: string) {
-  const q = query(collection(db, "messages"), where("participants", "array-contains", uid1));
-  const snap = await getDocs(q);
-  for (const d of snap.docs) {
-    if ((d.data().participants as string[]).includes(uid2)) return d.id;
-  }
-  const ref = await addDoc(collection(db, "messages"), { participants: [uid1, uid2], lastMessage: "", lastMessageAt: serverTimestamp() });
-  return ref.id;
+  const convId  = getConversationId(uid1, uid2);
+  const convRef = doc(db, "messages", convId);
+  await runTransaction(db, async tx => {
+    const snap = await tx.get(convRef);
+    if (!snap.exists()) {
+      tx.set(convRef, {
+        participants: [uid1, uid2].sort(),
+        lastMessage: "",
+        lastMessageAt: serverTimestamp(),
+      });
+    }
+  });
+  return convId;
 }
 export async function sendMessage(conversationId: string, senderId: string, text: string, attachment?: { url: string; type: string; name: string }) {
   const payload: Record<string, unknown> = { senderId, text, timestamp: serverTimestamp(), read: false };
@@ -337,13 +353,14 @@ export async function sendMessage(conversationId: string, senderId: string, text
 }
 
 export async function uploadAttachment(conversationId: string, file: File) {
+  validateUpload(file, "chatAttachment"); // throws if invalid
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName || !uploadPreset) throw new Error("Cloudinary configuration is missing.");
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", uploadPreset);
-  formData.append("folder", `neighborpro/messages/${conversationId}`);
+  formData.append("folder", `ProNeighbor/messages/${conversationId}`);
   
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
   if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
@@ -471,3 +488,5 @@ export async function getUnreadCount(convId: string, uid: string): Promise<numbe
   const snap = await getDocs(q);
   return snap.size;
 }
+
+

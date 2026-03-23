@@ -55,7 +55,7 @@ export default function PWASplashScreen() {
         }} />
         <img
           src="/images/logo.png"
-          alt="ProNeighbour"
+          alt="ProNeighbor"
           style={{
             width: 88, height: 88,
             borderRadius: 22,
@@ -111,3 +111,5 @@ export default function PWASplashScreen() {
     </div>
   );
 }
+
+

@@ -100,7 +100,7 @@ export async function initiateTopUp(params: {
         key:         keyId,
         amount:      pack.priceRs * 100,
         currency:    "INR",
-        name:        "ProNeighbour",
+        name:        "ProNeighbor",
         description: `${pack.label} Coin Pack - ${pack.coins + pack.bonus} NC`,
         image:       "/images/logo.png",
         prefill:     { name: userName, email: userEmail },
@@ -142,3 +142,5 @@ export async function initiateTopUp(params: {
     onStatusChange("failed");
   }
 }
+
+

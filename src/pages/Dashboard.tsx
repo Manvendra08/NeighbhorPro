@@ -16,6 +16,7 @@ import {
 } from "../services/firestoreService";
 import { Timestamp } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
+import { relativeTime, greetingByTime } from "../utils/time";
 
 const ICON = {
   bookings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>,
@@ -51,14 +52,7 @@ function LocalFeedWidget({ uid, displayName, locality }: { uid: string; displayN
     await deleteFeedPost(postId);
   };
 
-  function relTime(ts: unknown) {
-    if (!ts || !(ts instanceof Timestamp)) return "";
-    const diff = (Date.now() - ts.toDate().getTime()) / 1000;
-    if (diff < 60) return "just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-    return ts.toDate().toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-  }
+  // relTime is now imported from ../utils/time as relativeTime
 
   return (
     <div className="card" style={{ marginBottom: 24 }}>
@@ -87,10 +81,10 @@ function LocalFeedWidget({ uid, displayName, locality }: { uid: string; displayN
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {posts.map(p => (
             <div key={p.id as string} style={{ padding: "12px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <span style={{ fontWeight: 600, fontSize: 13 }}>{(p.authorName as string) || "Neighbor"}</span>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: "var(--muted)" }}>{relTime(p.createdAt)}</span>
+                  <span style={{ fontSize: 11, color: "var(--muted)" }}>{relativeTime(p.createdAt)}</span>
                   {(p.authorId as string) === uid && (
                     <button onClick={() => handleDelete(p.id as string)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", fontSize: 12 }}>✕</button>
                   )}
@@ -177,7 +171,7 @@ function MobileDashboard({
       {/* ── Hero greeting ── */}
       <div className="m-hero">
         <div className="m-hero-text">
-          <p className="m-hero-greeting">Good morning 👋</p>
+          <p className="m-hero-greeting">{greetingByTime()} 👋</p>
           <h2 className="m-hero-name">{firstName}</h2>
         </div>
         <Link to="/wallet" className="m-coin-chip">
@@ -563,3 +557,4 @@ export default function Dashboard() {
     </>
   );
 }
+
