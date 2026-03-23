@@ -128,7 +128,8 @@ export default function Profile() {
   const [svcTitle, setSvcTitle] = useState("");
   const [svcDesc, setSvcDesc] = useState("");
   const [svcIsFree, setSvcIsFree] = useState(false);
-  const [svcPrice, setSvcPrice] = useState(0);
+  const [svcPrice, setSvcPrice] = useState("");
+  const [svcQuote, setSvcQuote] = useState(false);
   const [svcDuration, setSvcDuration] = useState("30 min");
   const [svcCategory, setSvcCategory] = useState("");
 
@@ -229,21 +230,24 @@ export default function Profile() {
 
   const handleAddService = async () => {
     if (!user || !svcTitle.trim()) return;
-    await createService({
+    const payload = {
       userId: user.uid,
       title: svcTitle,
       description: svcDesc,
-      price: svcIsFree ? 0 : svcPrice,
-      isFree: svcIsFree,
+      price: svcQuote ? 0 : Number(svcPrice),
+      isFree: svcIsFree, // Keep this if it's still relevant, otherwise remove.
+      quoteBased: svcQuote,
       duration: svcDuration,
       category: svcCategory,
-    });
+    };
+    await createService(payload);
     const updated = await getServicesByUser(user.uid);
     setServices(updated);
     setSvcTitle("");
     setSvcDesc("");
-    setSvcPrice(0);
+    setSvcPrice("");
     setSvcIsFree(false);
+    setSvcQuote(false);
     setSvcDuration("30 min");
     setSvcCategory("");
     setShowServiceForm(false);
@@ -502,38 +506,6 @@ export default function Profile() {
                 ))}
               </div>
             </div>
-
-            {/* Pricing */}
-            <div className="card" style={{ marginBottom: 24 }}>
-              <h3 className="card-title" style={{ marginBottom: 16 }}>Consultation Pricing</h3>
-
-              <div className="form-group">
-                <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={priceAfterQuote}
-                    onChange={(e) => setPriceAfterQuote(e.target.checked)}
-                    style={{ width: 18, height: 18, accentColor: "var(--accent)" }}
-                  />
-                  <span style={{ fontWeight: 500 }}>💬 Price after understanding the work (Quote-based)</span>
-                </label>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Base Hourly Rate (₹)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={hourlyRate}
-                  onChange={(e) => setHourlyRate(Number(e.target.value))}
-                  min={0}
-                  placeholder="500"
-                  style={{ maxWidth: 200 }}
-                  id="profile-rate-input"
-                  disabled={priceAfterQuote}
-                />
-              </div>
-            </div>
           </>
         )}
 
@@ -580,13 +552,19 @@ export default function Profile() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
-                    Price (₹)
-                    <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontWeight: "normal", color: "var(--success)" }}>
-                      <input type="checkbox" checked={svcIsFree} onChange={(e) => setSvcIsFree(e.target.checked)} />
-                      Free
-                    </label>
+                    Price (NC)
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontWeight: "normal", color: "var(--success)" }}>
+                        <input type="checkbox" checked={svcIsFree} onChange={(e) => { setSvcIsFree(e.target.checked); if (e.target.checked) setSvcQuote(false); }} />
+                        Free
+                      </label>
+                    </div>
                   </label>
-                  <input type="number" className="form-input" value={svcIsFree ? 0 : svcPrice} onChange={(e) => setSvcPrice(Number(e.target.value))} min={0} disabled={svcIsFree} id="svc-price-input" />
+                  <input type="number" className="form-input" value={(svcIsFree || svcQuote) ? 0 : svcPrice} onChange={(e) => setSvcPrice(e.target.value)} min={0} disabled={svcIsFree || svcQuote} id="svc-price-input" />
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: "normal", fontSize: "0.75rem", color: "var(--muted)", marginTop: 6 }}>
+                    <input type="checkbox" checked={svcQuote} onChange={(e) => { setSvcQuote(e.target.checked); if (e.target.checked) setSvcIsFree(false); }} />
+                    Fee after understanding the work (Quote-based)
+                  </label>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Duration</label>
@@ -627,7 +605,7 @@ export default function Profile() {
                   <div>
                     <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
                     <div className="text-muted text-sm">
-                      {(svc.price as number) === 0 ? "Free" : `₹${svc.price}`} · {svc.duration as string}
+                      {svc.quoteBased ? "Quote-based" : (svc.isFree || (svc.price as number) === 0) ? "Free" : `${svc.price} NC`} · {svc.duration as string}
                       {svc.category ? <span style={{ marginLeft: 8 }} className="badge badge-muted">{svc.category as string}</span> : null}
                     </div>
                   </div>

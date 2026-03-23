@@ -98,7 +98,7 @@ export default function LandingPage() {
             {navLinks.map(([label, id]) => (
               <button key={id} onClick={() => scrollTo(id)} style={{ background: "none", border: "none", color: "#5C6E84", fontWeight: 500, fontSize: "0.88rem", cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
             ))}
-            <button onClick={() => navigate("/register")} style={{ background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: "9px 20px", borderRadius: 50, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer", boxShadow: "0 4px 12px rgba(245,105,44,0.3)" }}>Register as Expert</button>
+            <button onClick={() => navigate("/register")} style={{ background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: "9px 20px", borderRadius: 50, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer", boxShadow: "0 4px 12px rgba(245,105,44,0.3)" }}>Join Waitlist</button>
             <button onClick={() => navigate("/login")} style={{ background: "none", border: "1.5px solid rgba(27,107,138,0.3)", color: "#1B6B8A", padding: "8px 18px", borderRadius: 50, fontWeight: 600, fontSize: "0.85rem", cursor: "pointer" }}>Sign In</button>
           </div>
         )}
@@ -122,7 +122,7 @@ export default function LandingPage() {
           {navLinks.map(([label, id]) => (
             <button key={id} onClick={() => scrollTo(id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "#0C1B2E", fontWeight: 600, fontSize: "1rem", cursor: "pointer", fontFamily: "inherit", padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>{label}</button>
           ))}
-          <button onClick={() => { setMobileMenuOpen(false); navigate("/register"); }} style={{ display: "block", width: "100%", marginTop: 16, background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: "14px", borderRadius: 50, fontWeight: 700, fontSize: "1rem", cursor: "pointer" }}>Register as Expert</button>
+          <button onClick={() => { setMobileMenuOpen(false); navigate("/register"); }} style={{ display: "block", width: "100%", marginTop: 16, background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: "14px", borderRadius: 50, fontWeight: 700, fontSize: "1rem", cursor: "pointer" }}>Join Waitlist</button>
         </div>
       )}
 
@@ -158,20 +158,13 @@ export default function LandingPage() {
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button onClick={() => navigate("/register")} style={{ background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: isMobile ? "12px 24px" : "14px 32px", borderRadius: 50, fontWeight: 700, fontSize: "clamp(0.88rem,3vw,1rem)", cursor: "pointer", boxShadow: "0 6px 24px rgba(245,105,44,0.45)" }}>
-                Register as Expert
+                Join Waitlist
               </button>
               <button onClick={() => scrollTo("how")} style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "1.5px solid rgba(255,255,255,0.4)", padding: isMobile ? "12px 22px" : "14px 32px", borderRadius: 50, fontWeight: 600, fontSize: "clamp(0.88rem,3vw,1rem)", cursor: "pointer", backdropFilter: "blur(8px)" }}>
                 How It Works
               </button>
             </div>
-            <div style={{ display: "flex", gap: isMobile ? 20 : 32, marginTop: 24 }}>
-              {[["500+","Pros Registered"],["20+","Categories"]].map(([val,lbl]) => (
-                <div key={lbl}>
-                  <strong style={{ display: "block", fontFamily: "'Syne',sans-serif", fontSize: "clamp(1.2rem,4vw,1.6rem)", fontWeight: 800, color: "#fff" }}>{val}</strong>
-                  <span style={{ fontSize: "clamp(0.68rem,2.5vw,0.78rem)", color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 0.5 }}>{lbl}</span>
-                </div>
-              ))}
-            </div>
+
           </div>
 
           {/* Image panel — hidden on mobile (hero bg is enough) */}
@@ -308,11 +301,11 @@ export default function LandingPage() {
       {/* ── CTA BAND ── */}
       <section style={{ background: "linear-gradient(to right, rgba(11,27,46,0.92), rgba(15,78,104,0.8)), url('/images/cta-bg.jpg') center/cover", textAlign: "center", padding: `clamp(40px,6vw,64px) ${px}`, color: "#fff" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <Tag dark orange>Register as Expert</Tag>
+          <Tag dark orange>Join Waitlist</Tag>
           <h2 style={{ ...ST, color: "#fff", fontSize: "clamp(1.5rem,5vw,2.4rem)" }}>The professional network for <span style={{ color: "#F5692C" }}>Park Street residents.</span></h2>
           <p style={{ ...SS, color: "rgba(255,255,255,0.72)", marginBottom: 28 }}>Join 847 experts. List your services and start earning locally.</p>
           <button onClick={() => navigate("/register")} style={{ background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: isMobile ? "14px 32px" : "16px 44px", borderRadius: 50, fontWeight: 700, fontSize: "clamp(0.92rem,3vw,1.1rem)", cursor: "pointer", boxShadow: "0 6px 24px rgba(245,105,44,0.45)", width: isMobile ? "100%" : "auto" }}>
-            Register as Expert
+            Join Waitlist
           </button>
         </div>
       </section>
@@ -331,7 +324,7 @@ export default function LandingPage() {
             </div>
             {[
               ["Product",[["How it Works","#how"],["Features","#features"],["Categories","#categories"],["Early Access","#early"]]],
-              ["For Pros",[["Register","#"],["Founder Perks","#early"]]],
+              ["For Pros",[["Join Waitlist","#"],["Founder Perks","#early"]]],
               ["Company",[["Privacy","/privacy"],["Terms","/terms"],["Contact","mailto:hello@ProNeighbor.in"]]],
             ].map(([heading, links]) => (
               <div key={heading as string}>

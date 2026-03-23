@@ -164,8 +164,6 @@ export default function MyAccount() {
     { key: "profile",      label: "Profile" },
     ...(userProfile?.isServiceProvider ? [{ key: "availability" as Tab, label: "Availability" }] : []),
     { key: "privacy",      label: "Privacy" },
-    { key: "history",      label: "Transactions" },
-    { key: "activity",     label: "Activity" },
     { key: "danger",       label: "⚠️ Account" },
   ];
 

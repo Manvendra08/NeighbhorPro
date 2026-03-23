@@ -20,7 +20,21 @@ export default function ProAvailabilityEditor() {
   useEffect(() => {
     if (user) {
       getProAvailability(user.uid).then(data => {
-        setAvail(data);
+        if (!data) {
+          const defaultSlots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"];
+          const defaultAvail: Record<string, any> = {
+            monday: { active: true, slots: defaultSlots },
+            tuesday: { active: true, slots: defaultSlots },
+            wednesday: { active: true, slots: defaultSlots },
+            thursday: { active: true, slots: defaultSlots },
+            friday: { active: true, slots: defaultSlots },
+            saturday: { active: false, slots: [] },
+            sunday: { active: false, slots: [] },
+          };
+          setAvail(defaultAvail);
+        } else {
+          setAvail(data);
+        }
         setLoading(false);
       });
     }

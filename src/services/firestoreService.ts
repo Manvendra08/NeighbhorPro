@@ -199,19 +199,7 @@ export async function uploadBookingAttachment(bookingId: string | null, file: Fi
 export async function getProAvailability(proId: string) {
   const snap = await getDoc(doc(db, "proAvailability", proId));
   if (snap.exists()) return snap.data() as Record<string, unknown>;
-  
-  // Default availability
-  const defaultSlots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"];
-  const defaultAvail = {
-    monday: { active: true, slots: defaultSlots },
-    tuesday: { active: true, slots: defaultSlots },
-    wednesday: { active: true, slots: defaultSlots },
-    thursday: { active: true, slots: defaultSlots },
-    friday: { active: true, slots: defaultSlots },
-    saturday: { active: false, slots: [] },
-    sunday: { active: false, slots: [] },
-  };
-  return defaultAvail;
+  return null;
 }
 
 export async function updateProAvailability(proId: string, availabilityData: Record<string, unknown>) {
