@@ -9,6 +9,8 @@ import {
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
 import { earnCoins } from "../services/coinService";
+import { logActivity } from "../services/activityService";
+import type { FirestoreTimestamp } from "../types/firestore";
 
 export interface UserProfile {
   uid: string;
@@ -35,13 +37,11 @@ export interface UserProfile {
   coinBalance: number;
   referralCode?: string;
   emailVerified?: boolean;
-  // Privacy controls
   phoneVisible?: boolean;
   flatVisible?: boolean;
-  // Account state
   deleted?: boolean;
   fcmToken?: string;
-  createdAt: unknown;
+  createdAt: FirestoreTimestamp;
 }
 
 interface AuthContextType {
@@ -54,7 +54,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   logout: () => Promise<void>;
-  sendPhoneOTP: (phone: string, containerId: string) => Promise<string>; // returns verificationId
+  sendPhoneOTP: (phone: string, containerId: string) => Promise<string>;
   verifyPhoneOTP: (verificationId: string, otp: string) => Promise<void>;
   deleteAccount: (password?: string) => Promise<{ success: boolean; reason?: string }>;
 }
@@ -82,28 +82,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
-  /** Tracks whether the one-time profile-complete bonus has been claimed this session.
-   * Prevents earnCoins from firing on every Firestore snapshot update. */
+  /** Session guard: prevents earn_profile firing on every snapshot update. */
   const profileBonusClaimedRef = useRef(false);
 
-  // OTP confirmation stored in a ref to avoid polluting window global
   type ConfirmationResult = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
-  const confirmationRef = useRef<ConfirmationResult | null>(null);
+  const confirmationRef  = useRef<ConfirmationResult | null>(null);
+  // FIX 3: Store the RecaptchaVerifier in a ref so it can be cleared before
+  // re-instantiation, preventing verifier accumulation on the same DOM element.
+  const recaptchaRef     = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
     if (!user) {
-      profileBonusClaimedRef.current = false; // Reset on logout
+      profileBonusClaimedRef.current = false;
       return;
     }
     const unsub = onSnapshot(doc(db, "users", user.uid), snap => {
       if (snap.exists()) {
         const data = snap.data() as UserProfile;
         setUserProfile(data);
-        // Only attempt to credit the profile-complete bonus once per session
         if (!profileBonusClaimedRef.current && isProfileComplete(data)) {
           profileBonusClaimedRef.current = true;
           earnCoins(user.uid, "earn_profile", user.uid).catch(() => {
-            // Reset so it can retry on next load if it failed transiently
             profileBonusClaimedRef.current = false;
           });
         }
@@ -134,70 +133,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signIn    = async (email: string, password: string) => { await signInWithEmailAndPassword(auth, email, password); };
-  const signUp    = async (email: string, password: string, displayName: string) => {
+  const signIn = async (email: string, password: string) => {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    logActivity(cred.user.uid, "user.login", `Signed in via email`);
+  };
+  const signUp = async (email: string, password: string, displayName: string) => {
     const { user: u } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(u, { displayName });
     await createUserProfile({ ...u, displayName });
     await sendEmailVerification(u);
+    logActivity(u.uid, "user.signup", `New account created: ${displayName} (${email})`);
   };
-  const signInWithGoogle     = async () => { const { user: u } = await signInWithPopup(auth, googleProvider); await createUserProfile(u); };
-  const resetPassword        = async (email: string) => { await sendPasswordResetEmail(auth, email); };
+  const signInWithGoogle = async () => {
+    const { user: u } = await signInWithPopup(auth, googleProvider);
+    await createUserProfile(u);
+    logActivity(u.uid, "user.login", `Signed in via Google`);
+  };
+  const resetPassword           = async (email: string) => { await sendPasswordResetEmail(auth, email); };
   const resendVerificationEmail = async () => { if (auth.currentUser && !auth.currentUser.emailVerified) await sendEmailVerification(auth.currentUser); };
-  const logout               = async () => { await signOut(auth); };
+  const logout = async () => {
+    if (auth.currentUser?.uid) {
+      await logActivity(auth.currentUser.uid, "user.logout", `Signed out`);
+    }
+    await signOut(auth);
+  };
 
-  // ── Phone OTP ────────────────────────────────────────────────────────
+  // ── Phone OTP ─────────────────────────────────────────────────────────
   const sendPhoneOTP = async (phone: string, containerId: string): Promise<string> => {
-    const recaptcha = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
-    const result    = await signInWithPhoneNumber(auth, phone, recaptcha);
-    // Stored in a React ref — safe across re-renders, no global pollution
-    confirmationRef.current = result;
-    return result.verificationId;
+    try {
+      // Ensure E.164 format. If no '+', assume +91 (India) if 10 digits.
+      let formattedPhone = phone.replace(/\s+/g, "");
+      if (!formattedPhone.startsWith("+")) {
+        if (formattedPhone.length === 10) {
+          formattedPhone = "+91" + formattedPhone;
+        } else {
+          throw new Error("Phone number must include country code (e.g., +91).");
+        }
+      }
+
+      // FIX 3: Destroy any existing verifier before creating a new one.
+      recaptchaRef.current?.clear();
+      recaptchaRef.current = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
+      
+      const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaRef.current);
+      confirmationRef.current = result;
+      return result.verificationId;
+    } catch (error: any) {
+      const code = error.code;
+      if (code === "auth/invalid-phone-number") throw new Error("The phone number provided is invalid.");
+      if (code === "auth/too-many-requests") throw new Error("Too many attempts. Please try again later.");
+      if (code === "auth/operation-not-allowed") throw new Error("Phone authentication is not enabled in Firebase.");
+      throw error;
+    }
   };
 
   const verifyPhoneOTP = async (_verificationId: string, otp: string): Promise<void> => {
     const confirmation = confirmationRef.current;
     if (!confirmation) throw new Error("No pending OTP. Please request a new code.");
     await confirmation.confirm(otp);
-    // Update Firestore with phone number
     if (auth.currentUser?.phoneNumber) {
       await updateDoc(doc(db, "users", auth.currentUser.uid), {
         phoneNumber: auth.currentUser.phoneNumber, updatedAt: serverTimestamp(),
       });
     }
-    confirmationRef.current = null; // Clear after successful verification
+    confirmationRef.current = null;
+    recaptchaRef.current?.clear();
+    recaptchaRef.current = null;
   };
 
-  // ── Delete account (soft-delete then hard-delete, with rollback on failure) ─
+  // ── Delete account (soft-delete → hard-delete, with rollback) ────────
   const deleteAccount = async (password?: string): Promise<{ success: boolean; reason?: string }> => {
     if (!auth.currentUser) return { success: false, reason: "Not logged in" };
     const userRef = doc(db, "users", auth.currentUser.uid);
     try {
-      // Re-authenticate for email/password users
       const isEmailProvider = auth.currentUser.providerData.some(p => p.providerId === "password");
       if (isEmailProvider && password) {
         const credential = EmailAuthProvider.credential(auth.currentUser.email!, password);
         await reauthenticateWithCredential(auth.currentUser, credential);
       }
-      // Snapshot original profile for rollback in case auth deletion fails
       const originalSnap = await getDoc(userRef);
       const originalData = originalSnap.data();
 
-      // Step 1: Soft-delete — anonymize personal data
       await updateDoc(userRef, {
         displayName: "Deleted User",
         email: `deleted_${auth.currentUser.uid}@ProNeighbor.in`,
         bio: "", photoURL: "", skills: [], society: "", flatNumber: "",
         phoneNumber: null, fcmToken: null,
-        deleted: true, deletedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        deleted: true, deletedAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
 
-      // Step 2: Hard-delete Firebase Auth — if this fails, roll back the Firestore anonymization
       try {
         await deleteUser(auth.currentUser);
       } catch (authErr: unknown) {
-        // Rollback: restore original profile so user account is not corrupted
         if (originalData) {
           await updateDoc(userRef, { ...originalData, deleted: false, deletedAt: null });
         }
@@ -205,11 +232,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (code === "auth/requires-recent-login") return { success: false, reason: "Please sign out and sign in again before deleting." };
         throw authErr;
       }
-
       return { success: true };
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;
-      if (code === "auth/wrong-password") return { success: false, reason: "Incorrect password." };
+      if (code === "auth/wrong-password")       return { success: false, reason: "Incorrect password." };
       if (code === "auth/requires-recent-login") return { success: false, reason: "Please sign out and sign in again before deleting." };
       return { success: false, reason: "Deletion failed. Try again." };
     }
@@ -231,5 +257,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-
-

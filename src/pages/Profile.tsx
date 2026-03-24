@@ -1,6 +1,7 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { updateUserProfile, createService, getServicesByUser, deleteService, uploadProfilePhoto, getAllSocieties, uploadResidencyProof } from "../services/firestoreService";
+import { logActivity } from "../services/activityService";
 
 // ── White-collar skills for gated-society professionals — Park Street, Wakad, Pune
 // Grouped by domain for the suggestion pills (shown 8 at a time, filtered by what's not already added)
@@ -120,6 +121,7 @@ export default function Profile() {
   const [locality, setLocality] = useState("");
   const [tower, setTower] = useState("");
   const [flatNumber, setFlatNumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("+91-");
   const [uploadingProof, setUploadingProof] = useState(false);
 
   // Services
@@ -145,6 +147,7 @@ export default function Profile() {
       setLocality(userProfile.locality || "");
       setTower(userProfile.tower || "");
       setFlatNumber(userProfile.flatNumber || "");
+      setPhoneNumber(userProfile.phoneNumber || "+91-");
     }
   }, [userProfile]);
 
@@ -192,6 +195,11 @@ export default function Profile() {
     if (!tower.trim()) {
       nextErrors.tower = "Tower / Wing is required.";
     }
+    // Indian phone validation: +91- followed by 10 digits starting with 6-9
+    const phoneRegex = /^\+91-[6-9]\d{9}$/;
+    if (phoneNumber && phoneNumber !== "+91-" && !phoneRegex.test(phoneNumber.replace(/\s/g, ""))) {
+      (nextErrors as any).phoneNumber = "Invalid Indian mobile number. Format: +91-9876543210";
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       return;
@@ -199,17 +207,10 @@ export default function Profile() {
     setSaving(true);
     try {
       await updateUserProfile(user.uid, {
-        displayName,
-        bio,
-        skills,
-        hourlyRate,
-        isServiceProvider,
-        priceAfterQuote,
-        society,
-        locality,
-        tower,
-        flatNumber,
+        displayName, bio, skills, hourlyRate, isServiceProvider,
+        priceAfterQuote, society, locality, tower, flatNumber, phoneNumber,
       });
+      logActivity(user.uid, "user.profile_update", `Profile updated: ${displayName}`, { isServiceProvider, skillCount: skills.length, society });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch { /* ignore */ }
@@ -346,6 +347,34 @@ export default function Profile() {
             />
           </div>
 
+          <div className="form-group">
+            <label className="form-label">
+              Phone Number <span style={{ color: "var(--muted)", fontSize: "0.75rem", fontWeight: "normal" }}>(Indian Carriers)</span>
+            </label>
+            <input
+              className="form-input"
+              value={phoneNumber}
+              onChange={(e) => {
+                let val = e.target.value;
+                // Enforce +91- prefix and allow only numbers after it
+                if (!val.startsWith("+91-")) {
+                  val = "+91-" + val.replace(/^\+?91?-?/, "");
+                }
+                const suffix = val.slice(4).replace(/\D/g, "").slice(0, 10);
+                setPhoneNumber("+91-" + suffix);
+              }}
+              placeholder="+91-9876543210"
+              id="profile-phone-input"
+              maxLength={14}
+            />
+            <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: 4 }}>Make sure your enter correct mobile number. You can Hide / Unhide mobile number in Privacy setting.</p>
+            {(errors as any).phoneNumber && (
+              <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>
+                {(errors as any).phoneNumber}
+              </div>
+            )}
+          </div>
+
 
         </div>
 
@@ -436,7 +465,10 @@ export default function Profile() {
                 onChange={async (e) => {
                   if (!e.target.files?.[0] || !user) return;
                   setUploadingProof(true);
-                  try { await uploadResidencyProof(user.uid, e.target.files[0]); } catch { /* ignore */ }
+                  try {
+                    await uploadResidencyProof(user.uid, e.target.files[0]);
+                    logActivity(user.uid, "verification.submitted", `Residency proof uploaded: ${e.target.files[0].name}`, { fileName: e.target.files[0].name, fileSize: e.target.files[0].size });
+                  } catch { /* ignore */ }
                   setUploadingProof(false);
                 }}
               />

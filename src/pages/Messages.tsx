@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { logActivity } from "../services/activityService";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import {
   subscribeToConversations,
@@ -30,6 +31,7 @@ export default function Messages() {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const loggedConvsRef = useRef<Set<string>>(new Set()); // throttle: log once per conv per session
 
   // Subscribe to conversations
   useEffect(() => {
@@ -94,6 +96,11 @@ export default function Messages() {
     setShowEmojiPicker(false);
     await sendMessage(activeConv, user.uid, text);
     markConversationRead(activeConv, user.uid).catch(() => {});
+    // Log once per conversation per session (throttle to avoid per-message writes)
+    if (!loggedConvsRef.current.has(activeConv)) {
+      loggedConvsRef.current.add(activeConv);
+      logActivity(user.uid, "message.sent", `Sent message in conversation ${activeConv}`, { convId: activeConv });
+    }
   };
 
   const onEmojiClick = (emojiData: EmojiClickData) => {

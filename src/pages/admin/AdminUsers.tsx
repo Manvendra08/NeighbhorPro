@@ -4,6 +4,8 @@ import { deleteDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
+import { getUserActivityLogs } from "../../services/activityService";
+import type { ActivityLog } from "../../services/activityService";
 
 type UserRow = Record<string, unknown>;
 type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verification";
@@ -19,6 +21,9 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<UserRow | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -148,7 +153,38 @@ export default function AdminUsers() {
     { key: "pros", label: "Service Pros" }, { key: "verification", label: "📋 Verification" },
   ];
 
+  const openUserModal = async (u: UserRow) => {
+    setSelectedUser(u);
+    setShowActivity(false);
+    setActivityLogs([]);
+  };
+
+  const loadActivityLogs = async (uid: string) => {
+    setActivityLoading(true);
+    try {
+      const logs = await getUserActivityLogs(uid, 30);
+      setActivityLogs(logs);
+    } catch { /* ignore */ }
+    setActivityLoading(false);
+  };
+
   const initials = (u: UserRow) => ((u.displayName as string) || (u.email as string) || "?").slice(0, 2).toUpperCase();
+
+  const eventIcon: Record<string, string> = {
+    "user.login": "🔑", "user.logout": "🚪", "user.signup": "🎉", "user.profile_update": "✏️",
+    "booking.created": "📅", "booking.cancelled": "❌", "booking.completed": "✅",
+    "payment.initiated": "💳", "payment.success": "💰", "message.sent": "💬",
+    "review.submitted": "⭐", "wallet.topup": "⬆️", "wallet.withdrawal": "⬇️",
+    "support.ticket_created": "🎫", "verification.submitted": "📋", "verification.approved": "✔️",
+    "admin.action": "🛡",
+  };
+
+  const formatTs = (ts: unknown): string => {
+    if (!ts) return "—";
+    const d = (ts as { toDate?: () => Date }).toDate?.();
+    if (!d) return "—";
+    return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
 
   return (
     <div>
@@ -229,7 +265,7 @@ export default function AdminUsers() {
                 return (
                   <tr key={uid} style={{ opacity: busy ? 0.5 : 1, verticalAlign: "middle" }}>
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => setSelectedUser(u)}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => openUserModal(u)}>
                         <div className="avatar avatar-sm" style={{ background: u.disabled ? "rgba(255,92,92,0.1)" : "var(--accent-dim)", color: u.disabled ? "var(--error)" : "var(--accent)" }}>
                           {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" /> : initials(u)}
                         </div>
@@ -278,43 +314,93 @@ export default function AdminUsers() {
 
       {selectedUser && (
         <div className="modal-overlay" onClick={() => setSelectedUser(null)}>
-          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">User Profile</h3>
               <button className="modal-close" onClick={() => setSelectedUser(null)}>✕</button>
             </div>
-            <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-              <div className="avatar avatar-xl">{(selectedUser.photoURL as string) ? <img src={selectedUser.photoURL as string} alt="" /> : initials(selectedUser)}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-heading)", marginBottom: 4 }}>{(selectedUser.displayName as string) || "—"}</div>
-                <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>{selectedUser.email as string}</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-                  <span className={`badge ${selectedUser.role === "admin" ? "badge-warning" : "badge-muted"}`}>{selectedUser.role as string || "user"}</span>
-                  <span className={`badge ${selectedUser.disabled ? "badge-error" : "badge-success"}`}>{selectedUser.disabled ? "Disabled" : "Active"}</span>
-                  {!!selectedUser.isServiceProvider && <span className="badge badge-accent">Service Pro</span>}
-                </div>
-                {[
-                  { label: "Locality", val: (selectedUser.locality as string) || (selectedUser.society as string) || "—" },
-                  { label: "Tower/Flat", val: [(selectedUser.tower as string), (selectedUser.flatNumber as string)].filter(Boolean).join(", ") || "—" },
-                  { label: "Verification", val: (selectedUser.residentVerificationStatus as string) || "none" },
-                  { label: "Rating", val: `★ ${(selectedUser.rating as number) || 0} (${(selectedUser.reviewCount as number) || 0} reviews)` },
-                  { label: "Hourly Rate", val: (selectedUser.hourlyRate as number) ? `₹${selectedUser.hourlyRate}` : "Free consultation" },
-                  { label: "Skills", val: ((selectedUser.skills as string[]) || []).join(", ") || "—" },
-                ].map(r => (
-                  <div key={r.label} style={{ display: "flex", gap: 12, marginBottom: 6, fontSize: 13 }}>
-                    <span style={{ color: "var(--muted)", minWidth: 90 }}>{r.label}</span>
-                    <span style={{ fontWeight: 500 }}>{r.val}</span>
+
+            {/* Tab switcher */}
+            <div className="tabs" style={{ marginBottom: 16, borderBottom: "1px solid var(--border)" }}>
+              <button className={`tab${!showActivity ? " active" : ""}`} onClick={() => setShowActivity(false)}>Profile</button>
+              <button
+                className={`tab${showActivity ? " active" : ""}`}
+                onClick={() => {
+                  setShowActivity(true);
+                  if (activityLogs.length === 0) loadActivityLogs(selectedUser.uid as string);
+                }}
+              >📋 Activity Log</button>
+            </div>
+
+            {!showActivity ? (
+              <>
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                  <div className="avatar avatar-xl">{(selectedUser.photoURL as string) ? <img src={selectedUser.photoURL as string} alt="" /> : initials(selectedUser)}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-heading)", marginBottom: 4 }}>{(selectedUser.displayName as string) || "—"}</div>
+                    <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>{selectedUser.email as string}</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                      <span className={`badge ${selectedUser.role === "admin" ? "badge-warning" : "badge-muted"}`}>{selectedUser.role as string || "user"}</span>
+                      <span className={`badge ${selectedUser.disabled ? "badge-error" : "badge-success"}`}>{selectedUser.disabled ? "Disabled" : "Active"}</span>
+                      {!!selectedUser.isServiceProvider && <span className="badge badge-accent">Service Pro</span>}
+                    </div>
+                    {[
+                      { label: "Locality", val: (selectedUser.locality as string) || (selectedUser.society as string) || "—" },
+                      { label: "Tower/Flat", val: [(selectedUser.tower as string), (selectedUser.flatNumber as string)].filter(Boolean).join(", ") || "—" },
+                      { label: "Verification", val: (selectedUser.residentVerificationStatus as string) || "none" },
+                      { label: "Rating", val: `★ ${(selectedUser.rating as number) || 0} (${(selectedUser.reviewCount as number) || 0} reviews)` },
+                      { label: "Hourly Rate", val: (selectedUser.hourlyRate as number) ? `₹${selectedUser.hourlyRate}` : "Free consultation" },
+                      { label: "Skills", val: ((selectedUser.skills as string[]) || []).join(", ") || "—" },
+                    ].map(r => (
+                      <div key={r.label} style={{ display: "flex", gap: 12, marginBottom: 6, fontSize: 13 }}>
+                        <span style={{ color: "var(--muted)", minWidth: 90 }}>{r.label}</span>
+                        <span style={{ fontWeight: 500 }}>{r.val}</span>
+                      </div>
+                    ))}
+                    {(selectedUser.bio as string) && <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 10 }}>{selectedUser.bio as string}</div>}
                   </div>
-                ))}
-                {(selectedUser.bio as string) && <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 10 }}>{selectedUser.bio as string}</div>}
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button className={`btn ${selectedUser.disabled ? "btn-success" : "btn-danger"} btn-sm`} onClick={() => { handleToggleDisable(selectedUser); setSelectedUser(null); }}>
-                {selectedUser.disabled ? "Enable User" : "Disable User"}
-              </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(null)}>Close</button>
-            </div>
+                </div>
+                <div className="modal-actions">
+                  <button className={`btn ${selectedUser.disabled ? "btn-success" : "btn-danger"} btn-sm`} onClick={() => { handleToggleDisable(selectedUser); setSelectedUser(null); }}>
+                    {selectedUser.disabled ? "Enable User" : "Disable User"}
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(null)}>Close</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ maxHeight: 380, overflowY: "auto" }}>
+                  {activityLoading ? (
+                    <div style={{ textAlign: "center", padding: 40 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
+                  ) : activityLogs.length === 0 ? (
+                    <div className="empty-state" style={{ padding: "30px 20px" }}>
+                      <div className="empty-state-icon">📋</div>
+                      <div className="empty-state-title">No activity recorded yet</div>
+                    </div>
+                  ) : (
+                    <table className="table" style={{ fontSize: 12 }}>
+                      <thead>
+                        <tr><th style={{ width: 28 }}></th><th>Event</th><th>Details</th><th>When</th></tr>
+                      </thead>
+                      <tbody>
+                        {activityLogs.map(log => (
+                          <tr key={log.id}>
+                            <td style={{ fontSize: 16, textAlign: "center" }}>{eventIcon[log.event] ?? "📌"}</td>
+                            <td><span className="badge badge-muted" style={{ fontSize: 10, fontFamily: "monospace" }}>{log.event}</span></td>
+                            <td style={{ color: "var(--muted)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.details}</td>
+                            <td style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{formatTs(log.timestamp)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <div className="modal-actions">
+                  <button className="btn btn-ghost btn-sm" onClick={() => loadActivityLogs(selectedUser.uid as string)} disabled={activityLoading}>↻ Refresh</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(null)}>Close</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

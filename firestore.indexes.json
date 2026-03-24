@@ -14,7 +14,9 @@
     { "collectionGroup": "disputes",    "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status",   "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },
     { "collectionGroup": "referrals",   "queryScope": "COLLECTION", "fields": [{ "fieldPath": "referrerUid","order": "ASCENDING" },{ "fieldPath": "createdAt", "order": "DESCENDING" }] },
     { "collectionGroup": "faqs",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "active",   "order": "ASCENDING" }, { "fieldPath": "order",     "order": "ASCENDING"  }] },
-    { "collectionGroup": "users",       "queryScope": "COLLECTION", "fields": [{ "fieldPath": "isServiceProvider","order": "ASCENDING" },{ "fieldPath": "reviewCount","order": "DESCENDING" }] }
+    { "collectionGroup": "users",        "queryScope": "COLLECTION", "fields": [{ "fieldPath": "isServiceProvider","order": "ASCENDING" },{ "fieldPath": "reviewCount","order": "DESCENDING" }] },
+    { "collectionGroup": "activityLogs", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "timestamp", "order": "DESCENDING" }] },
+    { "collectionGroup": "announcements","queryScope": "COLLECTION", "fields": [{ "fieldPath": "status",  "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] }
   ],
   "fieldOverrides": []
 }

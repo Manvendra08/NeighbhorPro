@@ -3,6 +3,7 @@ import {
   serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import type { FirestoreTimestamp } from "../types/firestore";
 
 export type LedgerType =
   | "topup" | "booking_debit" | "booking_refund" | "booking_escrow"
@@ -19,7 +20,7 @@ export interface LedgerEntry {
   balanceAfter: number;
   description: string;
   refId?: string;
-  createdAt: unknown;
+  createdAt: FirestoreTimestamp;
 }
 
 export interface CoinPurchase {
@@ -31,8 +32,8 @@ export interface CoinPurchase {
   status: "pending" | "completed" | "failed";
   razorpayOrderId?: string;
   paymentId?: string;
-  createdAt: unknown;
-  completedAt?: unknown;
+  createdAt: FirestoreTimestamp;
+  completedAt?: FirestoreTimestamp;
 }
 
 export interface CoinPayout {
@@ -44,8 +45,8 @@ export interface CoinPayout {
   upiId: string;
   status: "pending" | "processed" | "failed";
   processedBy?: string;
-  processedAt?: unknown;
-  createdAt: unknown;
+  processedAt?: FirestoreTimestamp;
+  createdAt: FirestoreTimestamp;
 }
 
 export const COIN_PACKS = [
@@ -356,9 +357,16 @@ export async function adminAdjustCoins(uid: string, amount: number, reason: stri
   }
 }
 export async function getCoinEconomySummary() {
+  // NOTE: This fetches up to 1000 earn entries client-side (admin-only).
+  // TODO: Move to a Cloud Function with Firestore aggregation queries
+  // once the project is on the Blaze plan.
   const [purchases, payouts, earnedSnap] = await Promise.all([
     getAllCoinPurchases(500), getAllPayouts(500),
-    getDocs(query(collectionGroup(db, "entries"), where("type", "in", ["earn_signup_bonus","earn_profile","earn_review","earn_referral","earn_free_consult","earn_groupsession","earn_ondemand","earn_milestone"]))),
+    getDocs(query(
+      collectionGroup(db, "entries"),
+      where("type", "in", ["earn_signup_bonus","earn_profile","earn_review","earn_referral","earn_free_consult","earn_groupsession","earn_ondemand","earn_milestone"]),
+      limit(1000),
+    )),
   ]);
   const totalPurchasedNC     = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.coinsGranted, 0);
   const totalPurchaseRevenue = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.amountPaid, 0);

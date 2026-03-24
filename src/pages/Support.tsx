@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, FormEvent } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createTicket, sendTicketMessage, subscribeTicketMessages,
-  getUserTickets, getFAQs, getSLAHours,
+  getUserTickets, getFAQs, getSLAHours, generateBookingId, updateTicketStatus,
   type SupportTicket, type TicketMessage, type FAQ,
 } from "../services/supportService";
 
@@ -14,12 +14,12 @@ const CATEGORY_LABELS: Record<string, string> = {
   account: "Account", dispute: "Dispute", other: "Other",
 };
 
-// ── Active ticket chat ────────────────────────────────────────────────────
-function TicketChat({ ticket, onBack }: { ticket: SupportTicket; onBack: () => void }) {
+function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket; onBack: () => void; onStatusChange?: (status: SupportTicket["status"]) => void }) {
   const { userProfile } = useAuth();
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [text, setText]         = useState("");
   const [sending, setSending]   = useState(false);
+  const [localStatus, setLocalStatus] = useState(ticket.status);
   const bottomRef               = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,6 +39,13 @@ function TicketChat({ ticket, onBack }: { ticket: SupportTicket; onBack: () => v
     setText(""); setSending(false);
   };
 
+  const toggleStatus = async (newStatus: "open" | "closed") => {
+    if (!ticket.id) return;
+    await updateTicketStatus(ticket.id, newStatus);
+    setLocalStatus(newStatus);
+    onStatusChange?.(newStatus);
+  };
+
   const statusColors: Record<string, string> = { open: "#C4882A", in_progress: "#1B6B8A", resolved: "#16a34a", closed: "var(--muted)" };
 
   return (
@@ -49,8 +56,8 @@ function TicketChat({ ticket, onBack }: { ticket: SupportTicket; onBack: () => v
           <div style={{ fontWeight: 700 }}>{ticket.subject}</div>
           <div style={{ fontSize: 12, color: "var(--muted)" }}>#{ticket.id?.slice(0, 8)} · SLA: {ticket.slaHours}h response</div>
         </div>
-        <span className="badge" style={{ background: statusColors[ticket.status] + "18", color: statusColors[ticket.status], border: `1px solid ${statusColors[ticket.status]}40` }}>
-          {ticket.status.replace("_", " ")}
+        <span className="badge" style={{ background: statusColors[localStatus] + "18", color: statusColors[localStatus], border: `1px solid ${statusColors[localStatus]}40` }}>
+          {localStatus.replace("_", " ")}
         </span>
       </div>
       <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: 16, height: 340, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
@@ -63,15 +70,24 @@ function TicketChat({ ticket, onBack }: { ticket: SupportTicket; onBack: () => v
         ))}
         <div ref={bottomRef} />
       </div>
-      {ticket.status !== "resolved" && ticket.status !== "closed" && (
-        <form onSubmit={send} style={{ display: "flex", gap: 10 }}>
+      {/* Non-admin: can only open or close. In-progress/resolved are admin-managed. */}
+      {localStatus !== "resolved" && localStatus !== "in_progress" && (
+        <form onSubmit={send} style={{ display: "flex", gap: 10, marginBottom: 12 }}>
           <input className="form-input" placeholder="Type your message…" value={text} onChange={e => setText(e.target.value)} style={{ flex: 1 }} />
           <button type="submit" className="btn btn-primary" disabled={sending || !text.trim()}>{sending ? "…" : "Send"}</button>
         </form>
       )}
-      {(ticket.status === "resolved" || ticket.status === "closed") && (
-        <div style={{ textAlign: "center", padding: "12px 0", color: "var(--muted)", fontSize: 13 }}>This ticket is {ticket.status}. <button className="btn btn-ghost btn-sm" onClick={onBack}>Open a new ticket</button></div>
-      )}
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        {localStatus === "open" && (
+          <button className="btn btn-secondary btn-sm" onClick={() => toggleStatus("closed")}>✕ Close Ticket</button>
+        )}
+        {localStatus === "closed" && (
+          <button className="btn btn-primary btn-sm" onClick={() => toggleStatus("open")}>↺ Reopen Ticket</button>
+        )}
+        {(localStatus === "in_progress" || localStatus === "resolved") && (
+          <span style={{ fontSize: 13, color: "var(--muted)" }}>This ticket is being handled by our support team.</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -87,7 +103,10 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
   const [submitting, setSub]      = useState(false);
   const [error, setError]         = useState("");
 
-  useEffect(() => { getSLAHours("normal").then(setSla); }, []);
+  useEffect(() => {
+    getSLAHours("normal").then(setSla);
+    generateBookingId().then(setBookingId);
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -97,9 +116,8 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
     const id = await createTicket({
       uid: user.uid, displayName: userProfile.displayName, email: userProfile.email,
       subject: subject.trim(), category, priority: "normal",
-      ...(bookingId.trim() ? { bookingId: bookingId.trim() } : {}),
+      bookingId: bookingId.trim(),
     });
-    // Send first message as description
     await sendTicketMessage(id, { text: description.trim(), senderRole: "user", senderName: userProfile.displayName });
     onCreated({ id, uid: user.uid, displayName: userProfile.displayName, email: userProfile.email, subject: subject.trim(), category, priority: "normal", status: "open", slaHours: slaHours ?? 24, createdAt: null, updatedAt: null });
     setSub(false);
@@ -119,8 +137,15 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
             </select>
           </div>
           <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">Booking ID (optional)</label>
-            <input className="form-input" placeholder="e.g. #BK123" value={bookingId} onChange={e => setBookingId(e.target.value)} />
+            <label className="form-label">Booking ID</label>
+            <input
+              className="form-input"
+              value={bookingId || "Generating…"}
+              readOnly
+              disabled
+              style={{ background: "var(--surface-2)", color: "var(--muted)", cursor: "not-allowed", fontFamily: "monospace", letterSpacing: 1 }}
+            />
+            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Auto-assigned. Cannot be changed.</p>
           </div>
         </div>
         <div className="form-group">
@@ -131,7 +156,7 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
           <label className="form-label">Description *</label>
           <textarea className="form-input" placeholder="Please describe your issue in detail…" value={description} onChange={e => setDesc(e.target.value)} style={{ minHeight: 120 }} />
         </div>
-        <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? "Submitting…" : "Submit Ticket"}</button>
+        <button type="submit" className="btn btn-primary" disabled={submitting || !bookingId}>{submitting ? "Submitting…" : "Submit Ticket"}</button>
       </div>
     </form>
   );
@@ -211,7 +236,14 @@ export default function Support() {
       {tab === "tickets" && (
         <div>
           {activeTicket ? (
-            <TicketChat ticket={activeTicket} onBack={() => setActive(null)} />
+            <TicketChat
+              ticket={activeTicket}
+              onBack={() => setActive(null)}
+              onStatusChange={status => {
+                setTickets(prev => prev.map(t => t.id === activeTicket.id ? { ...t, status } : t));
+                setActive(prev => prev ? { ...prev, status } : null);
+              }}
+            />
           ) : (
             <>
               {tickets.length === 0 ? (

@@ -57,6 +57,10 @@ export function LoginPage() {
       <BrandPanel />
       <div className="auth-form-panel">
         <div className="auth-card">
+          <Link to="/" className="auth-logo-link">
+            <img src="/images/logo.png" alt="Logo" />
+            ProNeighbor
+          </Link>
           <h1 className="auth-title">Welcome back</h1>
           <p className="auth-sub">Sign in to your ProNeighbor account</p>
 
@@ -141,6 +145,10 @@ export function RegisterPage() {
       <BrandPanel register />
       <div className="auth-form-panel">
         <div className="auth-card">
+          <Link to="/" className="auth-logo-link">
+            <img src="/images/logo.png" alt="Logo" />
+            ProNeighbor
+          </Link>
           <h1 className="auth-title">Create account</h1>
           <p className="auth-sub">Join your neighborhood network</p>
 

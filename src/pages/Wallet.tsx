@@ -5,6 +5,7 @@ import {
   formatNC, ledgerColor, ledgerSign, getNCTerms, applyReferralCode,
   type LedgerEntry, type NCTerms,
 } from "../services/coinService";
+import { logActivity } from "../services/activityService";
 import { initiateTopUp, type PaymentStatus } from "../services/razorpayService";
 import { formatTimestamp } from "../services/firestoreService";
 
@@ -43,6 +44,10 @@ export default function Wallet() {
 
   useEffect(() => {
     if (payStatus !== "success") return;
+    if (user) {
+      const pack = COIN_PACKS[selectedPack];
+      logActivity(user.uid, "payment.success", `Wallet top-up: ${pack.coins + pack.bonus} NC (₹${pack.priceRs} ${pack.label} pack)`, { pack: pack.label, coins: pack.coins + pack.bonus, priceRs: pack.priceRs });
+    }
     const t = setTimeout(() => { setPayStatus("idle"); setTab("overview"); }, 3000);
     return () => clearTimeout(t);
   }, [payStatus]);
@@ -81,8 +86,11 @@ export default function Wallet() {
     setPayoutMsg(res.success
       ? { type: "success", text: `Payout of ₹${coins} requested! Processed within 48 hrs.` }
       : { type: "error",   text: res.reason ?? "Failed. Try again." });
+    if (res.success) {
+      logActivity(user.uid, "wallet.withdrawal", `Payout requested: ${coins} NC (₹${coins}) to UPI ${upiId}`, { coins, upiId });
+      setPC(""); setUpi("");
+    }
     setPL(false);
-    if (res.success) { setPC(""); setUpi(""); }
   };
 
   const handleApplyReferral = async () => {

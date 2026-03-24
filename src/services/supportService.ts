@@ -3,6 +3,7 @@ import {
   query, where, orderBy, limit, onSnapshot, serverTimestamp, Unsubscribe,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import type { FirestoreTimestamp } from "../types/firestore";
 
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 export type TicketPriority = "low" | "normal" | "high" | "urgent";
@@ -19,9 +20,9 @@ export interface SupportTicket {
   status: TicketStatus;
   priority: TicketPriority;
   slaHours: number;
-  createdAt: unknown;
-  updatedAt: unknown;
-  resolvedAt?: unknown;
+  createdAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
+  resolvedAt?: FirestoreTimestamp;
 }
 
 export interface TicketMessage {
@@ -29,7 +30,7 @@ export interface TicketMessage {
   text: string;
   senderRole: "user" | "admin";
   senderName: string;
-  timestamp: unknown;
+  timestamp: FirestoreTimestamp;
 }
 
 export interface Dispute {
@@ -42,8 +43,8 @@ export interface Dispute {
   description: string;
   status: DisputeStatus;
   adminNote?: string;
-  createdAt: unknown;
-  updatedAt: unknown;
+  createdAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
 }
 
 export interface FAQ {
@@ -58,12 +59,54 @@ export interface FAQ {
 // SLA from appSettings (fallback)
 const DEFAULT_SLA: Record<TicketPriority, number> = { low: 72, normal: 24, high: 8, urgent: 2 };
 
+/** Session-scoped cache — SLA config changes rarely, no need for a Firestore read per ticket. */
+let _slaCache: Record<TicketPriority, number> | null = null;
+
 export async function getSLAHours(priority: TicketPriority): Promise<number> {
+  if (!_slaCache) {
+    try {
+      const snap = await getDoc(doc(db, "appSettings", "support"));
+      if (snap.exists()) {
+        _slaCache = {
+          low:    snap.data()?.["sla_low"]    ?? DEFAULT_SLA.low,
+          normal: snap.data()?.["sla_normal"] ?? DEFAULT_SLA.normal,
+          high:   snap.data()?.["sla_high"]   ?? DEFAULT_SLA.high,
+          urgent: snap.data()?.["sla_urgent"] ?? DEFAULT_SLA.urgent,
+        };
+      } else {
+        _slaCache = DEFAULT_SLA;
+      }
+    } catch {
+      _slaCache = DEFAULT_SLA;
+    }
+  }
+  return _slaCache[priority];
+}
+
+/** Generates a booking ID in the format NP<ddmmyyyy><3-digit-sequence> */
+export async function generateBookingId(): Promise<string> {
+  const now = new Date();
+  const dd   = String(now.getDate()).padStart(2, "0");
+  const mm   = String(now.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(now.getFullYear());
+  const dateStr = `${dd}${mm}${yyyy}`;
+
+  // Count tickets created today to get sequence number
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay   = new Date(startOfDay.getTime() + 86_400_000);
   try {
-    const snap = await getDoc(doc(db, "appSettings", "support"));
-    if (snap.exists()) return snap.data()?.[`sla_${priority}`] ?? DEFAULT_SLA[priority];
-  } catch { /* fallback */ }
-  return DEFAULT_SLA[priority];
+    const { Timestamp } = await import("firebase/firestore");
+    const snap = await getDocs(query(
+      collection(db, "tickets"),
+      where("createdAt", ">=", Timestamp.fromDate(startOfDay)),
+      where("createdAt", "<",  Timestamp.fromDate(endOfDay))
+    ));
+    const seq = String(snap.size + 1).padStart(3, "0");
+    return `NP${dateStr}${seq}`;
+  } catch {
+    const seq = String(Math.floor(Math.random() * 900) + 100);
+    return `NP${dateStr}${seq}`;
+  }
 }
 
 // ── Tickets ──────────────────────────────────────────────────────────────
@@ -124,8 +167,8 @@ export async function updateDisputeStatus(disputeId: string, status: DisputeStat
   });
 }
 
-export async function getAllDisputes(): Promise<Dispute[]> {
-  const snap = await getDocs(query(collection(db, "disputes"), orderBy("createdAt", "desc")));
+export async function getAllDisputes(pageLimit = 200): Promise<Dispute[]> {
+  const snap = await getDocs(query(collection(db, "disputes"), orderBy("createdAt", "desc"), limit(pageLimit)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Dispute));
 }
 

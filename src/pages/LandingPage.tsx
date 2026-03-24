@@ -98,7 +98,7 @@ export default function LandingPage() {
             {navLinks.map(([label, id]) => (
               <button key={id} onClick={() => scrollTo(id)} style={{ background: "none", border: "none", color: "#5C6E84", fontWeight: 500, fontSize: "0.88rem", cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
             ))}
-            <button onClick={() => navigate("/register")} style={{ background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: "9px 20px", borderRadius: 50, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer", boxShadow: "0 4px 12px rgba(245,105,44,0.3)" }}>Join Waitlist</button>
+            <button onClick={() => navigate("/register")} style={{ background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: "9px 20px", borderRadius: 50, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer", boxShadow: "0 4px 12px rgba(245,105,44,0.3)" }}>Register as Expert</button>
             <button onClick={() => navigate("/login")} style={{ background: "none", border: "1.5px solid rgba(27,107,138,0.3)", color: "#1B6B8A", padding: "8px 18px", borderRadius: 50, fontWeight: 600, fontSize: "0.85rem", cursor: "pointer" }}>Sign In</button>
           </div>
         )}
@@ -122,7 +122,7 @@ export default function LandingPage() {
           {navLinks.map(([label, id]) => (
             <button key={id} onClick={() => scrollTo(id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "#0C1B2E", fontWeight: 600, fontSize: "1rem", cursor: "pointer", fontFamily: "inherit", padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>{label}</button>
           ))}
-          <button onClick={() => { setMobileMenuOpen(false); navigate("/register"); }} style={{ display: "block", width: "100%", marginTop: 16, background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: "14px", borderRadius: 50, fontWeight: 700, fontSize: "1rem", cursor: "pointer" }}>Join Waitlist</button>
+          <button onClick={() => { setMobileMenuOpen(false); navigate("/register"); }} style={{ display: "block", width: "100%", marginTop: 16, background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: "14px", borderRadius: 50, fontWeight: 700, fontSize: "1rem", cursor: "pointer" }}>Register as Expert</button>
         </div>
       )}
 
@@ -227,7 +227,7 @@ export default function LandingPage() {
           <Tag>Service Categories</Tag>
           <h2 style={ST}>20+ categories, all inside your gates.</h2>
           <p style={SS}>From tax filing to yoga — your society has more talent than you think.</p>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: isMobile ? 10 : 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 8 : 14 }}>
             {[["📊","Tax & CA"],["💹","Investment"],["⚖️","Legal"],["🏥","Health"],["🧠","Mental Health"],["🧘","Fitness & Yoga"],["🥗","Nutrition"],["📚","Tutoring"],["💻","IT & Tech"],["🎨","Design"],["📷","Photography"],["🎵","Music & Arts"],["💼","Career Coaching"],["🎉","Event Planning"],["🐾","Pet Care"],["✨","Beauty"]].map(([icon,name]) => (
               <div key={name as string} className="lp-reveal" style={{ background: "#fff", border: "1.5px solid rgba(27,107,138,0.1)", borderRadius: isMobile ? 12 : 16, padding: isMobile ? "14px 12px" : "18px 16px", display: "flex", alignItems: "center", gap: 10, opacity: 0, transform: "translateY(12px)", transition: "opacity 0.5s ease, transform 0.5s ease" }}>
                 <span style={{ fontSize: isMobile ? "1.2rem" : "1.4rem" }}>{icon}</span>
@@ -243,7 +243,7 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Tag dark>Features</Tag>
           <h2 style={{ ...ST, color: "#fff" }}>Built for how gated communities <em style={{ color: "#F5692C", fontStyle: "normal" }}>actually</em> work.</h2>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 10 : 20, marginTop: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: isMobile ? 8 : 20, marginTop: 24 }}>
             {[
               ["⚡",null,"Instant Slot Booking","Real-time availability. Pick a slot, confirm instantly."],
               ["👥","Phase 2","Group Sessions","8 households book one yoga class at ₹150/head."],
@@ -252,7 +252,7 @@ export default function LandingPage() {
               ["📹","Phase 2","Video Consultations","Built-in video for CA, legal, mental health."],
               ["🔐",null,"Verified Pro Badges","🎓 Degree · 🪪 ID · ✅ Background checks."],
             ].map(([icon,phase,title,desc]) => (
-              <div key={title as string} className="lp-reveal" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: isMobile ? 20 : 28, opacity: 0, transform: "translateY(16px)", transition: "opacity 0.6s ease, transform 0.6s ease" }}>
+              <div key={title as string} className="lp-reveal" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: isMobile ? 12 : 28, opacity: 0, transform: "translateY(16px)", transition: "opacity 0.6s ease, transform 0.6s ease" }}>
                 <div style={{ fontSize: isMobile ? "1.5rem" : "1.8rem", marginBottom: 12 }}>{icon}</div>
                 {phase && <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "#F5692C", background: "rgba(245,105,44,0.15)", borderRadius: 50, padding: "2px 10px", display: "inline-block", marginBottom: 8 }}>{phase}</div>}
                 <h3 style={{ fontSize: "clamp(0.9rem,3vw,1rem)", fontWeight: 700, marginBottom: 8, color: "#fff" }}>{title}</h3>
@@ -301,11 +301,11 @@ export default function LandingPage() {
       {/* ── CTA BAND ── */}
       <section style={{ background: "linear-gradient(to right, rgba(11,27,46,0.92), rgba(15,78,104,0.8)), url('/images/cta-bg.jpg') center/cover", textAlign: "center", padding: `clamp(40px,6vw,64px) ${px}`, color: "#fff" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
-          <Tag dark orange>Join Waitlist</Tag>
+          <Tag dark orange>Register as Expert</Tag>
           <h2 style={{ ...ST, color: "#fff", fontSize: "clamp(1.5rem,5vw,2.4rem)" }}>The professional network for <span style={{ color: "#F5692C" }}>Park Street residents.</span></h2>
           <p style={{ ...SS, color: "rgba(255,255,255,0.72)", marginBottom: 28 }}>Join 847 experts. List your services and start earning locally.</p>
           <button onClick={() => navigate("/register")} style={{ background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", border: "none", padding: isMobile ? "14px 32px" : "16px 44px", borderRadius: 50, fontWeight: 700, fontSize: "clamp(0.92rem,3vw,1.1rem)", cursor: "pointer", boxShadow: "0 6px 24px rgba(245,105,44,0.45)", width: isMobile ? "100%" : "auto" }}>
-            Join Waitlist
+            Register as Expert
           </button>
         </div>
       </section>
@@ -324,7 +324,7 @@ export default function LandingPage() {
             </div>
             {[
               ["Product",[["How it Works","#how"],["Features","#features"],["Categories","#categories"],["Early Access","#early"]]],
-              ["For Pros",[["Join Waitlist","#"],["Founder Perks","#early"]]],
+              ["For Pros",[["Register as Expert","#"],["Founder Perks","#early"]]],
               ["Company",[["Privacy","/privacy"],["Terms","/terms"],["Contact","mailto:hello@ProNeighbor.in"]]],
             ].map(([heading, links]) => (
               <div key={heading as string}>

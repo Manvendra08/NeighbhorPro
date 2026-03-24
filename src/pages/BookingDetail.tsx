@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview } from "../services/firestoreService";
 import { releaseEscrow, refundEscrow, earnCoins } from "../services/coinService";
+import { logActivity } from "../services/activityService";
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -53,9 +54,11 @@ export default function BookingDetail() {
       if (escrowCoins > 0 && isClient) {
         await refundEscrow(user!.uid, id!, (booking.serviceName as string) || "Booking");
       } else if (escrowCoins > 0 && isPro) {
-        // If pro declines, refund the client
         await refundEscrow(booking.clientId as string, id!, (booking.serviceName as string) || "Booking");
       }
+      const role = isClient ? "client" : "pro";
+      const counterparty = isClient ? (booking.proName as string) || booking.proId : (booking.clientName as string) || booking.clientId;
+      logActivity(user!.uid, "booking.cancelled", `${isClient ? "Cancelled" : "Declined"} booking: ${(booking.serviceName as string) || id} ${isClient ? "with" : "from"} ${counterparty}`, { bookingId: id, role, escrowRefunded: escrowCoins });
       await load();
     } catch { setError("Failed to cancel."); }
     setAL(null);
@@ -74,6 +77,7 @@ export default function BookingDetail() {
       const result = await releaseEscrow(user!.uid, id!, (booking.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
       await updateBookingStatus(id!, "completed");
+      logActivity(user!.uid, "booking.completed", `Completed booking: ${(booking.serviceName as string) || id} for ${(booking.clientName as string) || booking.clientId}`, { bookingId: id, role: "pro", escrowReleased: escrowCoins });
       await load();
     } catch { setError("Failed to complete booking."); }
     setAL(null);

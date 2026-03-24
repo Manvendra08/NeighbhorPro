@@ -6,6 +6,7 @@ import {
   getOrCreateConversation, formatTimestamp,
 } from "../services/firestoreService";
 import { releaseEscrow, refundEscrow, earnCoins } from "../services/coinService";
+import { logActivity } from "../services/activityService";
 
 export default function MyBookings() {
   const { user, userProfile } = useAuth();
@@ -48,6 +49,7 @@ export default function MyBookings() {
     try {
       await updateBookingStatus(id, "cancelled");
       await refundEscrow(user!.uid, id, (b.serviceName as string) || "Booking");
+      logActivity(user!.uid, "booking.cancelled", `Cancelled booking: ${(b.serviceName as string) || id} with ${(b.proName as string) || b.proId}`, { bookingId: id, role: "client", escrowRefunded: (b.escrowCoins as number) || 0 });
     } catch { setError("Failed to cancel. Please try again."); }
     setAL(null); load();
   };
@@ -67,6 +69,7 @@ export default function MyBookings() {
     try {
       await updateBookingStatus(id, "cancelled");
       await refundEscrow(b.clientId as string, id, (b.serviceName as string) || "Booking");
+      logActivity(user!.uid, "booking.cancelled", `Declined booking: ${(b.serviceName as string) || id} from ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowRefunded: (b.escrowCoins as number) || 0 });
     } catch { setError("Failed to decline booking."); }
     setAL(null); load();
   };
@@ -80,6 +83,7 @@ export default function MyBookings() {
       const result = await releaseEscrow(user!.uid, id, (b.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
       await updateBookingStatus(id, "completed");
+      logActivity(user!.uid, "booking.completed", `Completed booking: ${(b.serviceName as string) || id} for ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowReleased: (b.escrowCoins as number) || 0 });
     } catch { setError("Failed to complete booking."); }
     setAL(null); load();
   };

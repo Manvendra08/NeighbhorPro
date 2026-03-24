@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getAllUsers, getAllSocieties } from "../../services/firestoreService";
@@ -43,6 +43,14 @@ export default function AdminBroadcast() {
     setLoading(false);
   };
 
+  const handleDeactivate = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "announcements", id), { status: "inactive" });
+      await logAudit("broadcast.deactivate", adminId, adminName, `Deactivated broadcast ${id}`, id);
+      load();
+    } catch { /* ignore */ }
+  };
+
   useEffect(() => { load(); }, []);
 
   const estimateReach = () => {
@@ -63,7 +71,7 @@ export default function AdminBroadcast() {
       const ref = await addDoc(collection(db, "announcements"), {
         title: form.title.trim(), body: form.body.trim(), type: form.type,
         target: form.target, targetSociety: form.targetSociety || null,
-        priority: form.priority, sentAt: serverTimestamp(), createdAt: serverTimestamp(), status: "sent",
+        priority: form.priority, sentAt: serverTimestamp(), createdAt: serverTimestamp(), status: "active",
       });
       await logAudit(
         "broadcast.send", adminId, adminName,
@@ -194,10 +202,19 @@ export default function AdminBroadcast() {
                     <span className={`badge ${typeColors[a.type as string] || "badge-muted"}`} style={{ fontSize: 10, flexShrink: 0, marginLeft: 8 }}>{a.type as string}</span>
                   </div>
                   <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 8 }}>{a.body as string}</div>
-                  <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--muted)" }}>
+                  <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--muted)", alignItems: "center" }}>
                     <span>→ {a.target as string}</span>
                     <span>{priorityIcon(a.priority as string)}</span>
-                    <span className="badge badge-success" style={{ fontSize: 10 }}>Sent</span>
+                    <span className={`badge ${a.status === "active" ? "badge-success" : "badge-muted"}`} style={{ fontSize: 10 }}>
+                      {a.status === "active" ? "Active" : "Inactive"}
+                    </span>
+                    {a.status === "active" && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: 10, padding: "2px 8px", color: "var(--error)" }}
+                        onClick={() => handleDeactivate(a.id as string)}
+                      >Stop</button>
+                    )}
                   </div>
                 </div>
               ))}

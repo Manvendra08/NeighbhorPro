@@ -26,59 +26,6 @@ function profileCompleteness(p: Record<string, unknown> | null): { pct: number; 
   return { pct: Math.round(((checks.length - missing.length) / checks.length) * 100), missing };
 }
 
-// ── Phone OTP sub-component ────────────────────────────────────────────────
-function PhoneVerifier() {
-  const { sendPhoneOTP, verifyPhoneOTP } = useAuth();
-  const [phone, setPhone]         = useState("");
-  const [otp, setOtp]             = useState("");
-  const [step, setStep]           = useState<"input"|"otp"|"done">("input");
-  const [vId, setVId]             = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState("");
-
-  const handleSend = async () => {
-    setError(""); setLoading(true);
-    try {
-      const id = await sendPhoneOTP(phone.trim(), "recaptcha-container");
-      setVId(id); setStep("otp");
-    } catch (e: unknown) { setError((e as Error).message ?? "Failed to send OTP"); }
-    setLoading(false);
-  };
-
-  const handleVerify = async () => {
-    setError(""); setLoading(true);
-    try {
-      await verifyPhoneOTP(vId, otp.trim());
-      setStep("done");
-    } catch { setError("Invalid OTP. Please try again."); }
-    setLoading(false);
-  };
-
-  if (step === "done") return <div style={{ color: "#16a34a", fontWeight: 600 }}>✅ Phone number verified!</div>;
-
-  return (
-    <div>
-      <div id="recaptcha-container" />
-      {step === "input" && (
-        <div style={{ display: "flex", gap: 10 }}>
-          <input className="form-input" placeholder="+91 98765 43210" value={phone} onChange={e => setPhone(e.target.value)} style={{ flex: 1 }} />
-          <button className="btn btn-primary" onClick={handleSend} disabled={loading || !phone.trim()}>{loading ? "Sending…" : "Send OTP"}</button>
-        </div>
-      )}
-      {step === "otp" && (
-        <div>
-          <p className="text-muted text-sm" style={{ marginBottom: 10 }}>OTP sent to {phone}.</p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <input className="form-input" placeholder="6-digit OTP" value={otp} onChange={e => setOtp(e.target.value)} maxLength={6} style={{ flex: 1, letterSpacing: 4, fontFamily: "monospace" }} />
-            <button className="btn btn-primary" onClick={handleVerify} disabled={loading || otp.length < 6}>{loading ? "Verifying…" : "Verify"}</button>
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => setStep("input")} style={{ marginTop: 8 }}>← Change number</button>
-        </div>
-      )}
-      {error && <div className="error-box" style={{ marginTop: 10 }}>{error}</div>}
-    </div>
-  );
-}
 
 // ── Delete account sub-component ──────────────────────────────────────────
 function DeleteAccountPanel() {
@@ -225,16 +172,6 @@ export default function MyAccount() {
             </div>
           </div>
 
-          {/* Phone number */}
-          <div className="card">
-            <h3 className="card-title" style={{ marginBottom: 4 }}>Phone Number</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>
-              {userProfile?.phoneNumber
-                ? <span style={{ color: "#16a34a" }}>✅ Verified: {userProfile.phoneNumber}</span>
-                : "Add a verified phone number for trusted bookings."}
-            </p>
-            {!userProfile?.phoneNumber && <PhoneVerifier />}
-          </div>
         </div>
       )}
 

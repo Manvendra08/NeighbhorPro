@@ -6,6 +6,7 @@ import {
   getProAvailability, getBookingsForProOnDate, uploadBookingAttachment
 } from "../services/firestoreService";
 import { holdEscrow, earnCoins } from "../services/coinService";
+import { logActivity } from "../services/activityService";
 
 export default function BookingFlow() {
   const { id: proId } = useParams<{ id: string }>();
@@ -126,6 +127,12 @@ export default function BookingFlow() {
       // 4. Auto-create conversation so client and pro can chat immediately
       const cid = await getOrCreateConversation(user!.uid, proId!);
       setConvId(cid);
+
+      // 5. Log activity
+      logActivity(user!.uid, "booking.created", `Booked ${selectedSvc?.title as string} with ${(pro?.displayName as string) || proId} on ${date} at ${timeSlot}`, { bookingId, proId, serviceId: selectedSvc?.id, amount: feeCoins, isFree });
+      if (!isFree && feeCoins > 0) {
+        logActivity(user!.uid, "payment.initiated", `Escrow held: ${feeCoins} NC for booking ${bookingId}`, { bookingId, amount: feeCoins });
+      }
 
       setStep(3);
     } catch {
