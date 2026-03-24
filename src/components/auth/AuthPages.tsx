@@ -57,9 +57,8 @@ export function LoginPage() {
       <BrandPanel />
       <div className="auth-form-panel">
         <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
-            <img src="/images/logo.png" alt="Logo" />
-            ProNeighbor
+          <Link to="/" className="auth-logo-link" title="Go to Home">
+            <img src="/images/logo.png" alt="Logo" style={{ width: 32, height: 32 }} />
           </Link>
           <h1 className="auth-title">Welcome back</h1>
           <p className="auth-sub">Sign in to your ProNeighbor account</p>
@@ -112,6 +111,7 @@ export function RegisterPage() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -145,9 +145,8 @@ export function RegisterPage() {
       <BrandPanel register />
       <div className="auth-form-panel">
         <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
-            <img src="/images/logo.png" alt="Logo" />
-            ProNeighbor
+          <Link to="/" className="auth-logo-link" title="Go to Home">
+            <img src="/images/logo.png" alt="Logo" style={{ width: 32, height: 32 }} />
           </Link>
           <h1 className="auth-title">Create account</h1>
           <p className="auth-sub">Join your neighborhood network</p>
@@ -181,7 +180,19 @@ export function RegisterPage() {
               <input type="password" placeholder="••••••••" value={confirm}
                 onChange={e => setConfirm(e.target.value)} required />
             </div>
-            <button className="btn-primary" type="submit" disabled={loading}>
+            <div className="field check-field" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '4px' }}>
+              <input 
+                type="checkbox" 
+                id="terms" 
+                checked={acceptedTerms} 
+                onChange={e => setAcceptedTerms(e.target.checked)}
+                style={{ width: 'auto', marginTop: '3px' }}
+              />
+              <label htmlFor="terms" style={{ fontSize: '13px', lineHeight: '1.4', color: 'var(--muted)', cursor: 'pointer' }}>
+                I have read and agree to the <Link to="/terms" target="_blank" style={{ color: 'var(--accent)', fontWeight: 600 }}>Terms of Service</Link> and <Link to="/privacy" target="_blank" style={{ color: 'var(--accent)', fontWeight: 600 }}>Privacy Policy</Link>.
+              </label>
+            </div>
+            <button className="btn-primary" type="submit" disabled={loading || !acceptedTerms} style={{ width: '100%', marginTop: '12px' }}>
               {loading ? "Creating account…" : "Create Account"}
             </button>
           </form>
