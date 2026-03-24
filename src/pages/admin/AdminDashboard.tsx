@@ -10,12 +10,17 @@ export default function AdminDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [users, bookings, txns, societies] = await Promise.all([
+        const [usersRes, bookingsRes, txnsRes, societiesRes] = await Promise.all([
           getAllUsers(),
           getAllBookings(),
           getTransactions(),
           getAllSocieties(),
         ]);
+        const users = usersRes.data;
+        const bookings = bookingsRes.data;
+        const txns = txnsRes.data;
+        const societies = societiesRes.data;
+
         const totalRevenue = txns.reduce((s, t) => s + ((t.amount as number) || 0), 0);
         const totalCommission = txns.reduce((s, t) => s + ((t.commission as number) || 0), 0);
         const totalProEarnings = txns.reduce((s, t) => s + ((t.proEarning as number) || 0), 0);

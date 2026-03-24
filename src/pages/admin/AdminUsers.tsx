@@ -35,7 +35,10 @@ export default function AdminUsers() {
 
   const load = async () => {
     setLoading(true);
-    try { setUsers(await getAllUsers()); } catch { /* ignore */ }
+    try {
+      const res = await getAllUsers();
+      setUsers(res.data);
+    } catch { /* ignore */ }
     setLoading(false);
   };
 

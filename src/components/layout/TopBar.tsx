@@ -231,12 +231,12 @@ function MessageTicker() {
       try {
         const msgs: string[] = [];
 
-        const users = await getAllUsers();
-        if (users.length > 0) msgs.push(`${users.length} neighbors are using ProNeighbor right now!`);
+        const userRes = await getAllUsers();
+        if (userRes.data.length > 0) msgs.push(`${userRes.data.length} neighbors are using ProNeighbor right now!`);
 
-        const services = await getAllServices();
-        if (services.length > 0) {
-          const hot = services.slice(0, 3).map((s: Record<string, unknown>) => s.name as string).join(", ");
+        const svcRes = await getAllServices();
+        if (svcRes.data.length > 0) {
+          const hot = svcRes.data.slice(0, 3).map((s: Record<string, unknown>) => (s.title || s.name) as string).join(", ");
           msgs.push(`🔥 Hot Services: ${hot}`);
         }
 

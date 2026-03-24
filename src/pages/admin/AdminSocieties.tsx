@@ -24,7 +24,10 @@ export default function AdminSocieties() {
 
   const load = async () => {
     setLoading(true);
-    try { setSocieties(await getAllSocieties()); } catch { /* ignore */ }
+    try {
+      const res = await getAllSocieties();
+      setSocieties(res.data);
+    } catch { /* ignore */ }
     setLoading(false);
   };
 

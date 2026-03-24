@@ -117,19 +117,22 @@ export default function AdminWallet() {
 
   const loadPurchases = async () => {
     setPurchasesLoading(true);
-    setPurchases(await getAllCoinPurchases(200));
+    const res = await getAllCoinPurchases(200);
+    setPurchases(res.data);
     setPurchasesLoading(false);
   };
 
   const loadPayouts = async () => {
     setPayoutsLoading(true);
-    setPayouts(await getAllPayouts(200));
+    const res = await getAllPayouts(200);
+    setPayouts(res.data);
     setPayoutsLoading(false);
   };
 
   const loadUsers = async () => {
     if (users.length) return;
-    setUsers(await getAllUsers());
+    const res = await getAllUsers();
+    setUsers(res.data);
   };
 
   const loadLedger = async (uid: string) => {

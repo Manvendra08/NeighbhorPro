@@ -32,12 +32,12 @@ export default function AdminBroadcast() {
 
   const load = async () => {
     try {
-      const [users, socs, snap] = await Promise.all([
+      const [userRes, socRes, snap] = await Promise.all([
         getAllUsers(), getAllSocieties(),
         getDocs(query(collection(db, "announcements"), orderBy("createdAt", "desc"))),
       ]);
-      setUserCount(users.length);
-      setSocieties(socs);
+      setUserCount(userRes.data.length);
+      setSocieties(socRes.data);
       setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch { /* ignore */ }
     setLoading(false);

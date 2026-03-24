@@ -154,8 +154,8 @@ export default function Profile() {
   useEffect(() => {
     const loadSocieties = async () => {
       try {
-        const data = await getAllSocieties();
-        setSocieties(data);
+        const res = await getAllSocieties();
+        setSocieties(res.data);
       } catch {
         // ignore
       }

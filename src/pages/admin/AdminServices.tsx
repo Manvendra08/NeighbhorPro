@@ -27,9 +27,9 @@ export default function AdminServices() {
   const load = async () => {
     setLoading(true);
     try { 
-      const [svcData, userData] = await Promise.all([getAllServices(), getAllUsers()]);
-      setServices(svcData);
-      setUsers(userData);
+      const [svcRes, userRes] = await Promise.all([getAllServices(), getAllUsers()]);
+      setServices(svcRes.data);
+      setUsers(userRes.data);
     } catch { /* ignore */ }
     setLoading(false);
   };

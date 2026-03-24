@@ -108,7 +108,8 @@ export default function ProDetail() {
   async function computeResponseTime(proId: string): Promise<number | null> {
     try {
       const { getAllBookings } = await import("../services/firestoreService");
-      const bookings = await getAllBookings();
+      const res = await getAllBookings();
+      const bookings = res.data;
       const proBookings = bookings.filter(b => b.proId === proId && b.confirmedAt && b.createdAt);
       if (proBookings.length === 0) return null;
       const { Timestamp } = await import("firebase/firestore");
