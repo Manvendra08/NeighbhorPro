@@ -111,9 +111,16 @@ export async function listProfessionals(
   return { data, nextCursor };
 }
 
-export async function getAllUsers(): Promise<Record<string, unknown>[]> {
-  const snap = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc")));
-  return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+export async function getAllUsers(
+  limit_ = 50,
+  cursor?: QueryDocumentSnapshot | null
+): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
+  const constraints: any[] = [orderBy("createdAt", "desc"), limit(limit_)];
+  if (cursor) constraints.push(startAfter(cursor));
+  const snap = await getDocs(query(collection(db, "users"), ...(constraints as any[])));
+  const data = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
+  return { data, nextCursor };
 }
 
 /* ═══════════════════════════════════════════
@@ -128,9 +135,16 @@ export async function getServicesByUser(userId: string) {
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
 }
-export async function getAllServices() {
-  const snap = await getDocs(query(collection(db, "services"), orderBy("createdAt", "desc")));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+export async function getAllServices(
+  limit_ = 50,
+  cursor?: QueryDocumentSnapshot | null
+): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
+  const constraints: any[] = [orderBy("createdAt", "desc"), limit(limit_)];
+  if (cursor) constraints.push(startAfter(cursor));
+  const snap = await getDocs(query(collection(db, "services"), ...(constraints as any[])));
+  const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
+  return { data, nextCursor };
 }
 export async function deleteService(id: string) { await deleteDoc(doc(db, "services", id)); }
 
@@ -154,9 +168,16 @@ export async function getBookingsForPro(uid: string) {
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
 }
-export async function getAllBookings() {
-  const snap = await getDocs(query(collection(db, "bookings"), orderBy("createdAt", "desc")));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+export async function getAllBookings(
+  limit_ = 50,
+  cursor?: QueryDocumentSnapshot | null
+): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
+  const constraints: any[] = [orderBy("createdAt", "desc"), limit(limit_)];
+  if (cursor) constraints.push(startAfter(cursor));
+  const snap = await getDocs(query(collection(db, "bookings"), ...(constraints as any[])));
+  const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
+  return { data, nextCursor };
 }
 export async function getBookingById(bookingId: string) {
   const snap = await getDoc(doc(db, "bookings", bookingId));
@@ -277,9 +298,16 @@ export async function createSociety(data: Record<string, unknown>) {
   const ref = await addDoc(collection(db, "societies"), { ...data, memberCount: 0, subscription: "free", createdAt: serverTimestamp() });
   return ref.id;
 }
-export async function getAllSocieties() {
-  const snap = await getDocs(query(collection(db, "societies"), orderBy("name")));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+export async function getAllSocieties(
+  limit_ = 50,
+  cursor?: QueryDocumentSnapshot | null
+): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
+  const constraints: any[] = [orderBy("name"), limit(limit_)];
+  if (cursor) constraints.push(startAfter(cursor));
+  const snap = await getDocs(query(collection(db, "societies"), ...(constraints as any[])));
+  const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
+  return { data, nextCursor };
 }
 export async function updateSociety(id: string, data: Record<string, unknown>) { await updateDoc(doc(db, "societies", id), data); }
 export async function deleteSociety(id: string) { await deleteDoc(doc(db, "societies", id)); }
@@ -291,9 +319,16 @@ export async function recordTransaction(data: Record<string, unknown>) {
   const ref = await addDoc(collection(db, "transactions"), { ...data, createdAt: serverTimestamp() });
   return ref.id;
 }
-export async function getTransactions() {
-  const snap = await getDocs(query(collection(db, "transactions"), orderBy("createdAt", "desc")));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+export async function getTransactions(
+  limit_ = 50,
+  cursor?: QueryDocumentSnapshot | null
+): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
+  const constraints: any[] = [orderBy("createdAt", "desc"), limit(limit_)];
+  if (cursor) constraints.push(startAfter(cursor));
+  const snap = await getDocs(query(collection(db, "transactions"), ...(constraints as any[])));
+  const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
+  return { data, nextCursor };
 }
 export async function getTransactionsForPro(proId: string) {
   const q = query(collection(db, "transactions"), where("proId", "==", proId), orderBy("createdAt", "desc"));

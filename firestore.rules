@@ -25,7 +25,10 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && (isOwner(userId) || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coinBalance', 'updatedAt'])) && noSensitiveFieldChange();
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coinBalance', 'role', 'residentVerificationStatus', 'verificationMethod'])) || 
+        isAdmin()
+      ) && noSensitiveFieldChange();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

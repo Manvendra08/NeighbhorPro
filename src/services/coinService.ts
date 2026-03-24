@@ -1,6 +1,6 @@
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
-  serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc,
+  serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc, startAfter,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FirestoreTimestamp } from "../types/firestore";
@@ -321,13 +321,21 @@ export async function requestPayout(uid: string, displayName: string, coins: num
 }
 
 /* ── Admin ── */
-export async function getAllCoinPurchases(pageLimit = 100): Promise<CoinPurchase[]> {
-  const snap = await getDocs(query(collection(db, "coinPurchases"), orderBy("createdAt", "desc"), limit(pageLimit)));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinPurchase));
+export async function getAllCoinPurchases(pageLimit = 100, cursor?: any): Promise<{ data: CoinPurchase[]; nextCursor: any }> {
+  const constraints: any[] = [orderBy("createdAt", "desc"), limit(pageLimit)];
+  if (cursor) constraints.push(startAfter(cursor));
+  const snap = await getDocs(query(collection(db, "coinPurchases"), ...constraints));
+  const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinPurchase));
+  const nextCursor = snap.docs.length === pageLimit ? snap.docs[snap.docs.length - 1] : null;
+  return { data, nextCursor };
 }
-export async function getAllPayouts(pageLimit = 100): Promise<CoinPayout[]> {
-  const snap = await getDocs(query(collection(db, "coinPayouts"), orderBy("createdAt", "desc"), limit(pageLimit)));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinPayout));
+export async function getAllPayouts(pageLimit = 100, cursor?: any): Promise<{ data: CoinPayout[]; nextCursor: any }> {
+  const constraints: any[] = [orderBy("createdAt", "desc"), limit(pageLimit)];
+  if (cursor) constraints.push(startAfter(cursor));
+  const snap = await getDocs(query(collection(db, "coinPayouts"), ...constraints));
+  const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinPayout));
+  const nextCursor = snap.docs.length === pageLimit ? snap.docs[snap.docs.length - 1] : null;
+  return { data, nextCursor };
 }
 export async function getPendingPayouts(): Promise<CoinPayout[]> {
   const snap = await getDocs(query(collection(db, "coinPayouts"), where("status", "==", "pending"), orderBy("createdAt", "asc")));
@@ -360,7 +368,7 @@ export async function getCoinEconomySummary() {
   // NOTE: This fetches up to 1000 earn entries client-side (admin-only).
   // TODO: Move to a Cloud Function with Firestore aggregation queries
   // once the project is on the Blaze plan.
-  const [purchases, payouts, earnedSnap] = await Promise.all([
+  const [purchasesRes, payoutsRes, earnedSnap] = await Promise.all([
     getAllCoinPurchases(500), getAllPayouts(500),
     getDocs(query(
       collectionGroup(db, "entries"),
@@ -368,6 +376,8 @@ export async function getCoinEconomySummary() {
       limit(1000),
     )),
   ]);
+  const purchases = purchasesRes.data;
+  const payouts = payoutsRes.data;
   const totalPurchasedNC     = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.coinsGranted, 0);
   const totalPurchaseRevenue = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.amountPaid, 0);
   const totalPayoutNC        = payouts.filter(p => p.status === "processed").reduce((s, p) => s + p.coinsRedeemed, 0);

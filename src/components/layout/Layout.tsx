@@ -5,6 +5,7 @@ import TopBar from "./TopBar";
 import { ToastContainer } from "./Toast";
 import { useAuth } from "../../contexts/AuthContext";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import "./Layout.css";
 
 const NAV = [
   {
@@ -38,27 +39,33 @@ function EmailVerificationBanner() {
   const { user, resendVerificationEmail } = useAuth();
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
+  
+  // Checks both Firebase auth user and our profile for email presence
+  const userEmail = user?.email || "";
   const isEmailProvider = user?.providerData.some(p => p.providerId === "password");
-  if (!user || user.emailVerified || !isEmailProvider) return null;
+
+  if (!user || user.emailVerified || !isEmailProvider || !userEmail) return null;
+
   const handleResend = async () => {
     setSending(true);
-    await resendVerificationEmail();
-    setSent(true);
-    setSending(false);
+    try {
+      await resendVerificationEmail();
+      setSent(true);
+    } catch (err) {
+      console.error("Resend error:", err);
+    } finally {
+      setSending(false);
+    }
   };
+
   return (
-    <div style={{
-      background: "rgba(245,105,44,0.1)", borderBottom: "1px solid rgba(245,105,44,0.25)",
-      padding: "10px 20px", display: "flex", alignItems: "center",
-      justifyContent: "space-between", gap: 12, flexWrap: "wrap", fontSize: "0.83rem",
-    }}>
-      <span style={{ color: "#c2410c" }}>⚠️ Verify your email — <strong>{user.email}</strong></span>
-      <button onClick={handleResend} disabled={sending || sent} style={{
-        background: "none", border: "1px solid rgba(245,105,44,0.5)",
-        color: "#F5692C", borderRadius: 6, padding: "4px 12px",
-        fontSize: "0.82rem", fontWeight: 600, cursor: sending || sent ? "default" : "pointer",
-        opacity: sent ? 0.6 : 1, whiteSpace: "nowrap",
-      }}>
+    <div className="email-verification-banner">
+      <span className="email-verification-text">⚠️ Verify your email — <strong>{userEmail}</strong></span>
+      <button 
+        className="email-verification-btn"
+        onClick={handleResend} 
+        disabled={sending || sent}
+      >
         {sent ? "✓ Sent" : sending ? "Sending…" : "Resend"}
       </button>
     </div>

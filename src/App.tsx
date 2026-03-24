@@ -8,6 +8,7 @@ import PWAInstallBanner from "./components/PWAInstallBanner";
 import PWASplashScreen from "./components/PWASplashScreen";
 
 import LandingPage    from "./pages/LandingPage";
+import Contact        from "./pages/Contact";
 import Dashboard      from "./pages/Dashboard";
 import BrowsePros     from "./pages/BrowsePros";
 import ProDetail      from "./pages/ProDetail";
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/email-verified" element={<EmailVerifiedPage />} />
           <Route path="/terms"          element={<TermsOfService />} />
           <Route path="/privacy"        element={<PrivacyPolicy />} />
+          <Route path="/contact"        element={<Contact />} />
 
           <Route element={<Layout />}>
             <Route path="/dashboard"        element={<ProtectedRoute userOnly><Dashboard /></ProtectedRoute>} />

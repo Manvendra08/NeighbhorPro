@@ -93,7 +93,56 @@ export function LoginPage() {
           <p className="auth-footer">
             Don't have an account? <Link to="/register">Create one</Link>
           </p>
+          <p className="auth-footer" style={{ marginTop: '8px', fontSize: '13px' }}>
+            Need help? <Link to="/contact">Contact Support</Link>
+          </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   SHARED BRAND PANEL
+══════════════════════════════════════════ */
+function BrandPanel({ register }: { register?: boolean }) {
+  return (
+    <div className="auth-brand" style={{
+      backgroundImage: "linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.8)), url('/images/auth_bg.png')",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      color: "white"
+    }}>
+      <Link to="/" className="brand-logo" style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        gap: "12px", 
+        color: "white",
+        textShadow: "0 2px 8px rgba(0,0,0,0.3)",
+        textDecoration: "none"
+      }}>
+        <img src="/images/logo_new.png" alt="Logo" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
+        ProNeighbor
+      </Link>
+      <h2 className="brand-headline" style={{ 
+        color: "white",
+        textShadow: "0 2px 12px rgba(0,0,0,0.5)"
+      }}>
+        {register ? "Find trusted pros,\nnear you." : "Your community,\nyour experts."}
+      </h2>
+      <p className="brand-sub" style={{ 
+        color: "rgba(255, 255, 255, 0.95)",
+        textShadow: "0 1px 6px rgba(0,0,0,0.3)"
+      }}>
+        Connect with verified local professionals — CA, Tutor, Health experts, and more — within your neighborhood.
+      </p>
+      <div className="brand-pill" style={{
+        background: "rgba(255, 255, 255, 0.12)",
+        color: "white",
+        borderColor: "rgba(255, 255, 255, 0.25)",
+        textShadow: "0 1px 4px rgba(0,0,0,0.2)"
+      }}>
+        Launch in May 2026 for Park Street Residents
       </div>
     </div>
   );
@@ -200,55 +249,11 @@ export function RegisterPage() {
           <p className="auth-footer">
             Already have an account? <Link to="/login">Sign in</Link>
           </p>
+          <p className="auth-footer" style={{ marginTop: '8px', fontSize: '13px' }}>
+            Need help? <Link to="/contact">Contact Support</Link>
+          </p>
         </div>
       </div>
     </div>
   );
 }
-
-/* ══════════════════════════════════════════
-   SHARED BRAND PANEL
-══════════════════════════════════════════ */
-function BrandPanel({ register }: { register?: boolean }) {
-  return (
-    <div className="auth-brand" style={{
-      backgroundImage: "linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.8)), url('/images/auth_bg.png')",
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      color: "white"
-    }}>
-      <Link to="/" className="brand-logo" style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "12px", 
-        color: "white",
-        textShadow: "0 2px 8px rgba(0,0,0,0.3)",
-        textDecoration: "none"
-      }}>
-        <img src="/images/logo.png" alt="Logo" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
-        ProNeighbor
-      </Link>
-      <h2 className="brand-headline" style={{ 
-        color: "white",
-        textShadow: "0 2px 12px rgba(0,0,0,0.5)"
-      }}>
-        {register ? "Find trusted pros,\nnear you." : "Your community,\nyour experts."}
-      </h2>
-      <p className="brand-sub" style={{ 
-        color: "rgba(255, 255, 255, 0.95)",
-        textShadow: "0 1px 6px rgba(0,0,0,0.3)"
-      }}>
-        Connect with verified local professionals — CA, Tutor, Health experts, and more — within your neighborhood.
-      </p>
-      <div className="brand-pill" style={{
-        background: "rgba(255, 255, 255, 0.12)",
-        color: "white",
-        borderColor: "rgba(255, 255, 255, 0.25)",
-        textShadow: "0 1px 4px rgba(0,0,0,0.2)"
-      }}>
-        Launch in May 2026 for Park Street Residents
-      </div>
-    </div>
-  );
-}
-
