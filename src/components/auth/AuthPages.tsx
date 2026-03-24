@@ -192,7 +192,7 @@ export function RegisterPage() {
                 I have read and agree to the <Link to="/terms" target="_blank" style={{ color: 'var(--accent)', fontWeight: 600 }}>Terms of Service</Link> and <Link to="/privacy" target="_blank" style={{ color: 'var(--accent)', fontWeight: 600 }}>Privacy Policy</Link>.
               </label>
             </div>
-            <button className="btn-primary" type="submit" disabled={loading || !acceptedTerms} style={{ width: '100%', marginTop: '12px' }}>
+            <button className="btn-3d" type="submit" disabled={loading || !acceptedTerms || !name.trim() || !email.trim() || !password || !confirm} style={{ width: '100%', marginTop: '12px' }}>
               {loading ? "Creating account…" : "Create Account"}
             </button>
           </form>
