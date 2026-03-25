@@ -53,8 +53,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <div className="sidebar-header" style={{ padding: "0 16px" }}>
         {!collapsed && (
           <NavLink to="/" style={{ textDecoration: "none", color: "inherit" }}>
-            <div className="sidebar-logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <img src="/images/logo.png" alt="Logo" style={{ width: "24px", height: "24px", objectFit: "contain", borderRadius: "4px" }} />
+            <div className="sidebar-logo" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <img src="/images/logo.png" alt="Logo" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
               ProNeighbor
             </div>
           </NavLink>
@@ -89,9 +89,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
             <Label>Operations</Label>
             <SLink to="/admin/broadcast" icon="broadcast" label="Broadcast" />
-            <SLink to="/admin/support"   icon="support"   label="Legacy Support" />
             <SLink to="/admin/tickets"   icon="tickets"   label="Tickets" />
-            <SLink to="/admin/disputes"  icon="disputes"  label="Disputes" />
 
             <Label>Finance</Label>
             <SLink to="/admin/wallet"    icon="wallet"    label="Wallet Admin" />

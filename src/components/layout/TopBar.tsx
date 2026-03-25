@@ -158,7 +158,10 @@ export default function TopBar() {
 
           <button
             className="topbar-btn"
-            onClick={permission === "default" ? requestPermission : undefined}
+            onClick={() => {
+              if (permission === "default") requestPermission();
+              navigate("/messages");
+            }}
             title={permission === "default" ? "Enable notifications" : "Notifications"}
             aria-label="Notifications"
           >

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   COIN_PACKS, EARN_RULES, MIN_PAYOUT_COINS, getLedger, requestPayout,
@@ -21,6 +22,7 @@ const STATUS_UI: Partial<Record<PaymentStatus, { text: string; color: string }>>
 
 export default function Wallet() {
   const { user, userProfile } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab]             = useState<Tab>("overview");
   const [ledger, setLedger]       = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLL]    = useState(false);
@@ -40,7 +42,8 @@ export default function Wallet() {
   const balance = userProfile?.coinBalance ?? 0;
   const isPro   = userProfile?.isServiceProvider;
   const isBusy  = payStatus === "awaiting_payment" || payStatus === "crediting";
-  const myCode  = userProfile?.referralCode ?? "—";
+  const myCode  = userProfile?.referralCode;
+  const hasPhone = !!userProfile?.phoneNumber;
 
   useEffect(() => {
     if (payStatus !== "success") return;
@@ -50,7 +53,7 @@ export default function Wallet() {
     }
     const t = setTimeout(() => { setPayStatus("idle"); setTab("overview"); }, 3000);
     return () => clearTimeout(t);
-  }, [payStatus]);
+  }, [payStatus, user, selectedPack]);
 
   useEffect(() => {
     if (tab !== "history" || !user) return;
@@ -105,6 +108,7 @@ export default function Wallet() {
   };
 
   const copyCode = () => {
+    if (!myCode) return;
     navigator.clipboard.writeText(myCode).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
@@ -148,7 +152,7 @@ export default function Wallet() {
             {[
               { icon: "🪙", bg: "rgba(27,107,138,0.1)", color: "#1B6B8A", value: balance.toLocaleString("en-IN"), label: "Current Balance (NC)" },
               { icon: "📈", bg: "rgba(22,163,74,0.1)",  color: "#16a34a", value: `₹${balance.toLocaleString("en-IN")}`, label: "Equivalent Value" },
-              { icon: "🎯", bg: "rgba(245,105,44,0.1)", color: "#F5692C", value: myCode, label: "Your Referral Code" },
+              { icon: "🎯", bg: "rgba(245,105,44,0.1)", color: "#F5692C", value: hasPhone ? (myCode || "—") : "Pending", label: "Your Referral Code" },
             ].map(({ icon, bg, color, value, label }) => (
               <div key={label} className="stat-card">
                 <div className="stat-icon" style={{ background: bg, color }}>{icon}</div>
@@ -246,20 +250,35 @@ export default function Wallet() {
       {/* ── REFERRAL ── */}
       {tab === "referral" && (
         <div style={{ maxWidth: 560 }}>
-          {/* Share your code */}
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 4 }}>Your Referral Code</h3>
             <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Share with neighbours. You both earn 100 NC on their first completed booking.</p>
             <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface-2)", borderRadius: 12, padding: "16px 20px", marginBottom: 16 }}>
-              <div style={{ flex: 1, fontFamily: "monospace", fontSize: "1.4rem", fontWeight: 800, letterSpacing: 2, color: "#1B6B8A" }}>{myCode}</div>
-              <button className="btn btn-secondary btn-sm" onClick={copyCode}>{copied ? "✓ Copied!" : "Copy"}</button>
+              <div style={{ flex: 1, fontFamily: "monospace", fontSize: hasPhone ? "1.4rem" : "0.95rem", fontWeight: 800, letterSpacing: hasPhone ? 2 : 0, color: hasPhone ? "#1B6B8A" : "var(--muted)" }}>
+                {hasPhone ? (myCode || "—") : "Update mobile number to enable referral program."}
+              </div>
+              {hasPhone && myCode && <button className="btn btn-secondary btn-sm" onClick={copyCode}>{copied ? "✓ Copied!" : "Copy"}</button>}
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <a href={`whatsapp://send?text=Join ProNeighbor — your society's expert network! Use my referral code *${myCode}* and we both earn 100 NeighbourCoins 🎉 https://neighbhorpro.web.app/register`} className="btn btn-secondary btn-sm">📱 Share on WhatsApp</a>
-              <button className="btn btn-secondary btn-sm" onClick={() => { navigator.share?.({ title: "ProNeighbor Referral", text: `Join with my code ${myCode}`, url: "https://neighbhorpro.web.app/register" }); }}>↗ Share</button>
+              {hasPhone && myCode ? (
+                <>
+                  <a 
+                    href={`https://wa.me/?text=${encodeURIComponent(`Join ProNeighbor — your society's expert network! Use my referral code *${myCode}* and we both earn 100 NeighbourCoins 🎉 https://neighbhorpro.web.app/register`)}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#25D366", color: "#fff", border: "none" }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72.937 3.659 1.435 5.621 1.435h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                    Share
+                  </a>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { navigator.share?.({ title: "ProNeighbor Referral", text: `Join with my code ${myCode}`, url: "https://neighbhorpro.web.app/register" }); }}>↗ Share</button>
+                </>
+              ) : (
+                <button className="btn btn-primary btn-sm" onClick={() => navigate("/profile")}>Update Profile</button>
+              )}
             </div>
           </div>
-          {/* Apply a code */}
           <div className="card">
             <h3 className="card-title" style={{ marginBottom: 4 }}>Have a Referral Code?</h3>
             <p className="text-muted text-sm" style={{ marginBottom: 16 }}>Enter a friend's code — you'll both earn 100 NC on your first booking.</p>
@@ -304,7 +323,7 @@ export default function Wallet() {
 
       {/* ── HISTORY ── */}
       {tab === "history" && (
-        <div>
+        <div className="card">
           {ledgerLoading ? (
             <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
           ) : ledger.length === 0 ? (
@@ -325,7 +344,7 @@ export default function Wallet() {
                       <td style={{ fontWeight: 500 }}>{entry.description}</td>
                       <td><span className="badge badge-muted" style={{ fontSize: "0.72rem" }}>{entry.type.replace(/_/g, " ")}</span></td>
                       <td style={{ textAlign: "right", fontWeight: 700, color: ledgerColor(entry.type) }}>{ledgerSign(entry.amount)} NC</td>
-                      <td style={{ textAlign: "right", color: "var(--muted)", fontSize: 13 }}>{entry.balanceAfter.toLocaleString("en-IN")} NC</td>
+                      <td style={{ textAlign: "right", color: "var(--muted)", fontSize: 13 }}>{(entry.balanceAfter || 0).toLocaleString("en-IN")} NC</td>
                     </tr>
                   ))}
                 </tbody>
@@ -368,5 +387,3 @@ export default function Wallet() {
     </div>
   );
 }
-
-

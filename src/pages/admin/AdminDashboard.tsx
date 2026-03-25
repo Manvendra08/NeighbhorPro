@@ -50,8 +50,6 @@ export default function AdminDashboard() {
   const cards = [
     { label: "Total Users", value: stats.users, icon: ICON.users, color: "var(--accent)", action: { label: "Add", to: "/admin/users" } },
     { label: "Total Bookings", value: stats.bookings, icon: ICON.bookings, color: "var(--accent2)", action: { label: "View", to: "/admin/bookings" } },
-    { label: "Revenue (₹)", value: `₹${stats.revenue.toLocaleString()}`, icon: ICON.revenue, color: "var(--warning)", action: null },
-    { label: "Commission (₹)", value: `₹${stats.commission.toLocaleString()}`, icon: ICON.commission, color: "var(--error)", action: null },
   ];
 
   const statusColor: Record<string, string> = {

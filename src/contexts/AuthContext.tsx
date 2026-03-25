@@ -61,8 +61,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-function generateReferralCode(uid: string): string {
-  return "PN" + uid.slice(0, 6).toUpperCase();
+function generateReferralCode(firstName?: string, lastName?: string, phone?: string): string {
+  const f3 = (firstName || "PNB").slice(0, 3).toUpperCase().padEnd(3, "X");
+  const l3 = (lastName || "NBH").slice(0, 3).toUpperCase().padEnd(3, "X");
+  const p4 = (phone || "0000").slice(-4);
+  return `${f3}${l3}${f3}NC${p4}`;
 }
 
 function isProfileComplete(profile: Partial<UserProfile>): boolean {

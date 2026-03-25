@@ -74,7 +74,7 @@ function EmailVerificationBanner() {
 
 // Mobile header — compact, contextual
 function MobileHeader() {
-  const { userProfile } = useAuth();
+  const { user, userProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -103,6 +103,9 @@ function MobileHeader() {
   const isDashboard = location.pathname === "/dashboard" || location.pathname === "/admin";
   const title = routeTitles[location.pathname] || "ProNeighbor";
 
+  const initials = (userProfile?.displayName || user?.displayName || user?.email || "?")
+    .split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+
   return (
     <header className="mobile-header">
       <div className="mobile-header-left">
@@ -122,13 +125,13 @@ function MobileHeader() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           </button>
         )}
-        <button className="mobile-icon-btn" aria-label="Notifications">
+        <button className="mobile-icon-btn" onClick={() => navigate("/messages")} aria-label="Notifications">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span className="mobile-notif-dot" />
         </button>
-        <button className="mobile-avatar" onClick={() => navigate("/wallet")} title="Wallet">
-          <span className="mobile-coin-badge">🪙 {(userProfile?.coinBalance ?? 0).toLocaleString("en-IN")}</span>
-        </button>
+        <div className="topbar-avatar" onClick={() => navigate("/account")} style={{ width: 32, height: 32, fontSize: 12 }}>
+          {user?.photoURL ? <img src={user.photoURL} alt="avatar" /> : initials}
+        </div>
       </div>
     </header>
   );

@@ -468,7 +468,9 @@ export default function Profile() {
                   try {
                     await uploadResidencyProof(user.uid, e.target.files[0]);
                     logActivity(user.uid, "verification.submitted", `Residency proof uploaded: ${e.target.files[0].name}`, { fileName: e.target.files[0].name, fileSize: e.target.files[0].size });
-                  } catch { /* ignore */ }
+                  } catch (err: any) {
+                    alert(err.message || "Upload failed. Please try again.");
+                  }
                   setUploadingProof(false);
                 }}
               />

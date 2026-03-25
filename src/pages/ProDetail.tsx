@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  getUserProfile, getServicesByUser, getReviewsForUser,
-  formatTimestamp, trackProView,
+  getUserProfile, getServicesByUser, getReviewsForUser, trackProView, formatTimestamp,
 } from "../services/firestoreService";
-import { raiseDispute } from "../services/supportService";
-import { getBookingsForUser } from "../services/firestoreService";
 import { useAuth } from "../contexts/AuthContext";
 
 /* Skeleton block */
@@ -67,15 +64,6 @@ export default function ProDetail() {
   const [reportComment, setRC]          = useState("");
   const [reportSub, setRS]              = useState(false);
 
-  // Dispute state
-  const [showDispute, setShowDispute]   = useState(false);
-  const [disputeBookingId, setDBId]     = useState("");
-  const [disputeReason, setDReason]     = useState("");
-  const [disputeDesc, setDDesc]         = useState("");
-  const [disputeSub, setDS]             = useState(false);
-  const [disputeMsg, setDMsg]           = useState("");
-  const [myBookingsWithPro, setMyBwP]   = useState<Record<string, unknown>[]>([]);
-
   useEffect(() => {
     if (!id) return;
     const load = async () => {
@@ -97,13 +85,6 @@ export default function ProDetail() {
     load();
   }, [id]);
 
-  // Load user's bookings with this pro for dispute form
-  useEffect(() => {
-    if (!user || !id) return;
-    getBookingsForUser(user.uid).then(all => {
-      setMyBwP(all.filter(b => b.proId === id && (b.status === "completed" || b.status === "confirmed")));
-    });
-  }, [user, id]);
 
   async function computeResponseTime(proId: string): Promise<number | null> {
     try {
@@ -134,25 +115,6 @@ export default function ProDetail() {
     setRS(false);
   };
 
-  const handleDisputeSubmit = async () => {
-    if (!user || !id || !disputeBookingId || !disputeReason.trim() || !disputeDesc.trim()) {
-      setDMsg("Please fill all fields."); return;
-    }
-    setDS(true); setDMsg("");
-    try {
-      await raiseDispute({
-        bookingId: disputeBookingId,
-        raisedByUid: user.uid,
-        raisedByName: user.displayName || "User",
-        againstUid: id,
-        reason: disputeReason,
-        description: disputeDesc,
-      });
-      setDMsg("✅ Dispute raised. We'll review within 48 hours.");
-      setTimeout(() => { setShowDispute(false); setDMsg(""); setDReason(""); setDDesc(""); setDBId(""); }, 2500);
-    } catch { setDMsg("Failed to raise dispute. Try again."); }
-    setDS(false);
-  };
 
   if (loading) return <ProDetailSkeleton />;
   if (error === "not_found" || !pro) return (
@@ -266,10 +228,7 @@ export default function ProDetail() {
       {/* Action row */}
       {user && !isOwnProfile && (
         <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowReport(true)} style={{ color: "var(--error)", opacity: 0.7 }}>⚐ Report</button>
-          {myBookingsWithPro.length > 0 && (
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowDispute(true)} style={{ color: "var(--warning)", opacity: 0.85 }}>⚠ Raise Dispute</button>
-          )}
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowReport(true)} style={{ color: "var(--error)", opacity: 0.7 }}>⚐ Report Professional</button>
         </div>
       )}
 
@@ -296,38 +255,6 @@ export default function ProDetail() {
         </div>
       )}
 
-      {/* Dispute modal */}
-      {showDispute && (
-        <div className="modal-overlay" onClick={() => setShowDispute(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3 className="modal-title">⚠ Raise a Dispute</h3><button className="modal-close" onClick={() => setShowDispute(false)}>✕</button></div>
-            <p style={{ fontSize: "0.84rem", color: "var(--muted)", marginBottom: 16 }}>Disputes are reviewed by our team within 48 hours. All NC remains in escrow until resolved.</p>
-            <div className="form-group">
-              <label className="form-label">Booking</label>
-              <select className="form-input" value={disputeBookingId} onChange={e => setDBId(e.target.value)}>
-                <option value="">Select a booking…</option>
-                {myBookingsWithPro.map(b => <option key={b.id as string} value={b.id as string}>{(b.serviceName as string) || "Booking"} — {(b.date as string) || ""}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Reason</label>
-              <select className="form-input" value={disputeReason} onChange={e => setDReason(e.target.value)}>
-                <option value="">Select reason…</option>
-                {["Service not delivered","Quality below expectations","No-show / late","Overcharged","Unprofessional behaviour","Other"].map(r => <option key={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Description</label>
-              <textarea className="form-input" placeholder="Describe the issue in detail…" value={disputeDesc} onChange={e => setDDesc(e.target.value)} style={{ minHeight: 100 }} />
-            </div>
-            {disputeMsg && <div style={{ padding: "10px 14px", borderRadius: 8, background: disputeMsg.startsWith("✅") ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)", color: disputeMsg.startsWith("✅") ? "#16a34a" : "#dc2626", fontSize: 13, marginBottom: 14 }}>{disputeMsg}</div>}
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowDispute(false)}>Cancel</button>
-              <button className="btn btn-danger" onClick={handleDisputeSubmit} disabled={disputeSub || !disputeBookingId || !disputeReason || !disputeDesc.trim()}>{disputeSub ? "Submitting…" : "Submit Dispute"}</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
