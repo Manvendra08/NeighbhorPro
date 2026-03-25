@@ -5,25 +5,25 @@ import {
   getBookingsForUser, getBookingsForPro, updateBookingStatus,
   getOrCreateConversation, formatTimestamp,
 } from "../services/firestoreService";
-import { releaseEscrow, refundEscrow, earnCoins } from "../services/coinService";
+import { releaseEscrow, refundEscrow, earnCoins, rewardReferral } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 
 export default function MyBookings() {
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab]             = useState<"client" | "pro">("client");
+  const [tab, setTab] = useState<"client" | "pro">("client");
   const [clientBookings, setClientB] = useState<Record<string, unknown>[]>([]);
-  const [proBookings, setProB]    = useState<Record<string, unknown>[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [actionLoading, setAL]    = useState<string | null>(null);
-  const [error, setError]         = useState("");
+  const [proBookings, setProB] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setAL] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const [reviewBid, setReviewBid] = useState<string | null>(null);
-  const [reviewRating, setRR]     = useState(5);
-  const [reviewComment, setRC]    = useState("");
-  const [reviewSub, setRS]        = useState(false);
-  
-  const [subTab, setSubTab]       = useState<"upcoming" | "past">("upcoming");
-  const [searchQ, setSearchQ]     = useState("");
+  const [reviewRating, setRR] = useState(5);
+  const [reviewComment, setRC] = useState("");
+  const [reviewSub, setRS] = useState(false);
+
+  const [subTab, setSubTab] = useState<"upcoming" | "past">("upcoming");
+  const [searchQ, setSearchQ] = useState("");
 
   const load = async () => {
     if (!user) return;
@@ -83,6 +83,7 @@ export default function MyBookings() {
       const result = await releaseEscrow(user!.uid, id, (b.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
       await updateBookingStatus(id, "completed");
+      await rewardReferral(b.clientId as string);
       logActivity(user!.uid, "booking.completed", `Completed booking: ${(b.serviceName as string) || id} for ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowReleased: (b.escrowCoins as number) || 0 });
     } catch { setError("Failed to complete booking."); }
     setAL(null); load();
@@ -110,12 +111,12 @@ export default function MyBookings() {
     // search match
     const match = !searchQ || [b.serviceCategory, b.proName, b.clientName, b.serviceName]
       .some(val => (val as string)?.toLowerCase().includes(searchQ.toLowerCase()));
-      
+
     // subtab match
     const isPast = ["completed", "reviewed", "cancelled"].includes(b.status as string);
     const isUpcoming = ["pending", "confirmed"].includes(b.status as string);
     const subMatch = subTab === "upcoming" ? isUpcoming : isPast;
-    
+
     return match && subMatch;
   });
 
@@ -162,103 +163,103 @@ export default function MyBookings() {
       {/* Main Container */}
       {!loading && (
         <div style={{ display: "flex", gap: 24, flexDirection: "column" }}>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", gap: 8, background: "var(--surface-2)", padding: 4, borderRadius: "var(--radius)" }}>
-                <button className={`btn btn-sm ${subTab === "upcoming" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("upcoming")} style={{ borderRadius: "var(--radius-sm)" }}>Upcoming</button>
-                <button className={`btn btn-sm ${subTab === "past" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("past")} style={{ borderRadius: "var(--radius-sm)" }}>Past</button>
-              </div>
-              <input type="text" className="form-input" placeholder="Search bookings..." value={searchQ} onChange={e => setSearchQ(e.target.value)} style={{ maxWidth: 300 }} />
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, background: "var(--surface-2)", padding: 4, borderRadius: "var(--radius)" }}>
+              <button className={`btn btn-sm ${subTab === "upcoming" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("upcoming")} style={{ borderRadius: "var(--radius-sm)" }}>Upcoming</button>
+              <button className={`btn btn-sm ${subTab === "past" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("past")} style={{ borderRadius: "var(--radius-sm)" }}>Past</button>
             </div>
+            <input type="text" className="form-input" placeholder="Search bookings..." value={searchQ} onChange={e => setSearchQ(e.target.value)} style={{ maxWidth: 300 }} />
+          </div>
 
-            {filtered.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon">📅</div>
-                <div className="empty-state-title">No bookings found</div>
-                <div className="empty-state-desc">{searchQ ? "No bookings match your search" : (tab === "client" ? "Browse professionals and book a consultation" : "Client bookings will appear here")}</div>
-                {tab === "client" && !searchQ && <a href="/browse" className="btn btn-primary" style={{ marginTop: 16 }}>Book Now</a>}
-              </div>
-            ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {filtered.map(b => {
-            const id    = b.id as string;
-            const busy  = actionLoading === id;
-            const status = b.status as string;
-            const escrowCoins = (b.escrowCoins as number) || 0;
-            const otherUid = tab === "client" ? (b.proId as string) : (b.clientId as string);
+          {filtered.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">📅</div>
+              <div className="empty-state-title">No bookings found</div>
+              <div className="empty-state-desc">{searchQ ? "No bookings match your search" : (tab === "client" ? "Browse professionals and book a consultation" : "Client bookings will appear here")}</div>
+              {tab === "client" && !searchQ && <a href="/browse" className="btn btn-primary" style={{ marginTop: 16 }}>Book Now</a>}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {filtered.map(b => {
+                const id = b.id as string;
+                const busy = actionLoading === id;
+                const status = b.status as string;
+                const escrowCoins = (b.escrowCoins as number) || 0;
+                const otherUid = tab === "client" ? (b.proId as string) : (b.clientId as string);
 
-            return (
-              <div className="card" key={id} style={{ opacity: busy ? 0.65 : 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-                  <div style={{ flex: 1, cursor: "pointer" }} onClick={() => navigate(`/bookings/${id}`)}>
-                    <h4 style={{ marginBottom: 4 }}>Consultation for {(b.serviceCategory as string) || "Other"}</h4>
-                    <p className="text-muted text-sm">
-                      {tab === "client" ? `with ${(b.proName as string) || "Professional"}` : `from ${(b.clientName as string) || "Client"}`}
-                    </p>
-                    <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <span className="text-sm">📅 {(b.date as string) || formatTimestamp(b.createdAt)}</span>
-                      <span className="text-sm">🕐 {(b.timeSlot as string) || "TBD"}</span>
-                      {escrowCoins > 0 ? (
-                        <span className="text-sm">
-                          🔒 {escrowCoins} NC {status === "completed" || status === "reviewed" ? "released" : "in escrow"}
+                return (
+                  <div className="card" key={id} style={{ opacity: busy ? 0.65 : 1 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+                      <div style={{ flex: 1, cursor: "pointer" }} onClick={() => navigate(`/bookings/${id}`)}>
+                        <h4 style={{ marginBottom: 4 }}>Consultation for {(b.serviceCategory as string) || "Other"}</h4>
+                        <p className="text-muted text-sm">
+                          {tab === "client" ? `with ${(b.proName as string) || "Professional"}` : `from ${(b.clientName as string) || "Client"}`}
+                        </p>
+                        <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          <span className="text-sm">📅 {(b.date as string) || formatTimestamp(b.createdAt)}</span>
+                          <span className="text-sm">🕐 {(b.timeSlot as string) || "TBD"}</span>
+                          {escrowCoins > 0 ? (
+                            <span className="text-sm">
+                              🔒 {escrowCoins} NC {status === "completed" || status === "reviewed" ? "released" : "in escrow"}
+                            </span>
+                          ) : (
+                            <span className="text-sm" style={{ color: "var(--accent2)" }}>Free</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                        <span className={`badge ${STATUS_COLOR[status] || "badge-muted"}`}>
+                          {STATUS_LABEL[status] || status}
                         </span>
-                      ) : (
-                        <span className="text-sm" style={{ color: "var(--accent2)" }}>Free</span>
-                      )}
+
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          {/* ── Message button — always available unless cancelled ── */}
+                          {status !== "cancelled" && (
+                            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => openChat(otherUid)}>
+                              💬 Message
+                            </button>
+                          )}
+
+                          {/* ── Pro actions ── */}
+                          {tab === "pro" && status === "pending" && (
+                            <>
+                              <button className="btn btn-success btn-sm" disabled={busy} onClick={() => handleConfirm(id)}>✓ Confirm</button>
+                              <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => handleDecline(b)}>✕ Decline</button>
+                            </>
+                          )}
+                          {tab === "pro" && status === "confirmed" && (
+                            <button className="btn btn-success btn-sm" disabled={busy} onClick={() => handleComplete(b)}>
+                              {busy ? "Processing…" : "✓ Mark Complete"}
+                            </button>
+                          )}
+
+                          {/* ── Client actions ── */}
+                          {tab === "client" && status === "pending" && (
+                            <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => handleCancel(b)}>
+                              {busy ? "Cancelling…" : `Cancel${escrowCoins > 0 ? " & Refund" : ""}`}
+                            </button>
+                          )}
+                          {tab === "client" && status === "completed" && (
+                            <button className="btn btn-primary btn-sm" onClick={() => setReviewBid(id)}>⭐ Review</button>
+                          )}
+
+                          <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/bookings/${id}`)}>View Details</button>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Escrow status bar for pending/confirmed paid bookings */}
+                    {escrowCoins > 0 && (status === "pending" || status === "confirmed") && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", color: "#1B6B8A" }}>
+                        🔒 <span><strong>{escrowCoins} NC</strong> held in escrow — released to pro when session is marked complete</span>
+                      </div>
+                    )}
                   </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                    <span className={`badge ${STATUS_COLOR[status] || "badge-muted"}`}>
-                      {STATUS_LABEL[status] || status}
-                    </span>
-
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      {/* ── Message button — always available unless cancelled ── */}
-                      {status !== "cancelled" && (
-                        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => openChat(otherUid)}>
-                          💬 Message
-                        </button>
-                      )}
-
-                      {/* ── Pro actions ── */}
-                      {tab === "pro" && status === "pending" && (
-                        <>
-                          <button className="btn btn-success btn-sm" disabled={busy} onClick={() => handleConfirm(id)}>✓ Confirm</button>
-                          <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => handleDecline(b)}>✕ Decline</button>
-                        </>
-                      )}
-                      {tab === "pro" && status === "confirmed" && (
-                        <button className="btn btn-success btn-sm" disabled={busy} onClick={() => handleComplete(b)}>
-                          {busy ? "Processing…" : "✓ Mark Complete"}
-                        </button>
-                      )}
-
-                      {/* ── Client actions ── */}
-                      {tab === "client" && status === "pending" && (
-                        <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => handleCancel(b)}>
-                          {busy ? "Cancelling…" : `Cancel${escrowCoins > 0 ? " & Refund" : ""}`}
-                        </button>
-                      )}
-                      {tab === "client" && status === "completed" && (
-                        <button className="btn btn-primary btn-sm" onClick={() => setReviewBid(id)}>⭐ Review</button>
-                      )}
-
-                      <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/bookings/${id}`)}>View Details</button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Escrow status bar for pending/confirmed paid bookings */}
-                {escrowCoins > 0 && (status === "pending" || status === "confirmed") && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", color: "#1B6B8A" }}>
-                    🔒 <span><strong>{escrowCoins} NC</strong> held in escrow — released to pro when session is marked complete</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-            )}
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -273,7 +274,7 @@ export default function MyBookings() {
             <div className="form-group">
               <label className="form-label">Rating</label>
               <div className="stars">
-                {[1,2,3,4,5].map(n => (
+                {[1, 2, 3, 4, 5].map(n => (
                   <button key={n} className={`star ${n <= reviewRating ? "filled" : "empty"}`} onClick={() => setRR(n)}>★</button>
                 ))}
               </div>

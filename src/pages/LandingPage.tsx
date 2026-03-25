@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import "./LandingPage.css";
 
 function useIsMobile() {
@@ -22,8 +22,8 @@ function Tag({ children, dark, orange }: { children: React.ReactNode; dark?: boo
 
 
 export default function LandingPage() {
-  const navigate  = useNavigate();
-  const isMobile  = useIsMobile();
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -54,7 +54,7 @@ export default function LandingPage() {
   };
 
   const px = isMobile ? "5%" : "6%";
-  const navLinks: [string, string][] = [["How It Works","how"],["Features","features"],["Services","categories"],["Early Access","early"]];
+  const navLinks: [string, string][] = [["How It Works", "how"], ["Features", "features"], ["Services", "categories"], ["Early Access", "early"]];
 
   return (
     <div id="lp-root">
@@ -84,8 +84,8 @@ export default function LandingPage() {
             <button onClick={() => navigate("/login")} className="lp-btn-secondary lp-nav-btn-signin" style={{ padding: "7px 14px", fontSize: "0.8rem" }}>Sign In</button>
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
               {mobileMenuOpen
-                ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C1B2E" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C1B2E" strokeWidth="2.5"><path d="M3 12h18M3 6h18M3 18h18"/></svg>}
+                ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C1B2E" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C1B2E" strokeWidth="2.5"><path d="M3 12h18M3 6h18M3 18h18" /></svg>}
             </button>
           </div>
         )}
@@ -105,7 +105,7 @@ export default function LandingPage() {
       <section className="lp-hero" style={{
         minHeight: isMobile ? "100dvh" : "100vh",
         background: `linear-gradient(to bottom right, rgba(11,27,46,0.85) 0%, rgba(15,78,104,0.65) 60%, rgba(0,0,0,0.3) 100%), url('/images/hero-bg.jpg') center/cover no-repeat`,
-        padding: isMobile ? `${52+20}px ${px} 36px` : `90px ${px} 60px`,
+        padding: isMobile ? `${52 + 20}px ${px} 36px` : `90px ${px} 60px`,
       }}>
         <div className="lp-hero-overlay" style={{ height: isMobile ? 60 : 100 }} />
 
@@ -140,7 +140,7 @@ export default function LandingPage() {
                 <img src="/images/2.jpg" alt="Community" style={{ width: "100%", display: "block", objectFit: "cover", height: 300 }} />
               </div>
               <div className="lp-hero-features-grid">
-                {[["⚡","Instant Booking","Book real-time slots"],["🔒","Society-Verified","Lives in your community"]].map(([icon,title,desc]) => (
+                {[["⚡", "Instant Booking", "Book real-time slots"], ["🔒", "Society-Verified", "Lives in your community"]].map(([icon, title, desc]) => (
                   <div key={title} className="lp-hero-feature-card">
                     <div style={{ fontSize: "1.4rem", marginBottom: 8 }}>{icon}</div>
                     <strong style={{ display: "block", fontSize: "0.88rem", marginBottom: 4 }}>{title}</strong>
@@ -156,7 +156,7 @@ export default function LandingPage() {
       {/* ── PROOF STRIP ── */}
       <div className="lp-proof-strip" style={{ padding: `16px ${px}` }}>
         <div className="lp-proof-container">
-          {[["🏘️","Exclusive to Park Street, Wakad"],["⭐","4.9/5 satisfaction"],["💼","CA, Doctor, Yoga + 17 more"],["🔐","Verified residents only"]].map(([icon,text]) => (
+          {[["🏘️", "Exclusive to Park Street, Wakad"], ["⭐", "4.9/5 satisfaction"], ["💼", "CA, Doctor, Yoga + 17 more"], ["🔐", "Verified residents only"]].map(([icon, text]) => (
             <div key={text as string} className="lp-proof-item">
               <span>{icon}</span><span>{text}</span>
             </div>
@@ -172,10 +172,10 @@ export default function LandingPage() {
           <p className="lp-section-p">No cold calls. No WhatsApp forwards. A clean, trusted marketplace inside your gates.</p>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 12 : 24 }}>
             {[
-              ["01","🏠","Join Your Society","Sign up with your society code. Only genuine residents and pros get in."],
-              ["02","🔍","Browse & Filter","Search by category, rating, price, or availability. See neighbour endorsements."],
-              ["03","✅","Book Instantly","Pick a real-time slot. Group sessions, recurring bookings — all supported."],
-            ].map(([num,icon,title,desc]) => (
+              ["01", "🏠", "Join Your Society", "Sign up with your society code. Only genuine residents and pros get in."],
+              ["02", "🔍", "Browse & Filter", "Search by category, rating, price, or availability. See neighbour endorsements."],
+              ["03", "✅", "Book Instantly", "Pick a real-time slot. Group sessions, recurring bookings — all supported."],
+            ].map(([num, icon, title, desc]) => (
               <div key={num as string} className="lp-step-card" style={{ opacity: 1, transform: "none" }}>
                 <div className="lp-step-num">{num}</div>
                 <div className="lp-step-icon">{icon}</div>
@@ -194,7 +194,7 @@ export default function LandingPage() {
           <h2 className="lp-section-h2">20+ categories, all inside your gates.</h2>
           <p className="lp-section-p">From tax filing to yoga — your society has more talent than you think.</p>
           <div className="lp-cat-grid" style={{ gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 8 : 14 }}>
-            {[["📊","Tax & CA"],["💹","Investment"],["⚖️","Legal"],["🏥","Health"],["🧠","Mental Health"],["🧘","Fitness & Yoga"],["🥗","Nutrition"],["📚","Tutoring"],["💻","IT & Tech"],["🎨","Design"],["📷","Photography"],["🎵","Music & Arts"],["💼","Career Coaching"],["🎉","Event Planning"],["🐾","Pet Care"],["✨","Beauty"]].map(([icon,name]) => (
+            {[["📊", "Tax & CA"], ["💹", "Investment"], ["⚖️", "Legal"], ["🏥", "Health"], ["🧠", "Mental Health"], ["🧘", "Fitness & Yoga"], ["🥗", "Nutrition"], ["📚", "Tutoring"], ["💻", "IT & Tech"], ["🎨", "Design"], ["📷", "Photography"], ["🎵", "Music & Arts"], ["💼", "Career Coaching"], ["🎉", "Event Planning"], ["🐾", "Pet Care"], ["✨", "Beauty"]].map(([icon, name]) => (
               <div key={name as string} className="lp-cat-card" style={{ opacity: 1, transform: "none" }}>
                 <span style={{ fontSize: isMobile ? "1.2rem" : "1.4rem" }}>{icon}</span>
                 <span style={{ fontSize: "clamp(0.78rem,2.5vw,0.88rem)", fontWeight: 600, color: "#0C1B2E" }}>{name}</span>
@@ -211,13 +211,13 @@ export default function LandingPage() {
           <h2 className="lp-section-h2" style={{ color: "#fff" }}>Built for how gated communities <em style={{ color: "#F5692C", fontStyle: "normal" }}>actually</em> work.</h2>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: isMobile ? 8 : 20, marginTop: 24 }}>
             {[
-              ["⚡",null,"Instant Slot Booking","Real-time availability. Pick a slot, confirm instantly."],
-              ["👥","Phase 2","Group Sessions","8 households book one yoga class at ₹150/head."],
-              ["🔄","Phase 2","Recurring Bookings","Auto-books weekly yoga, monthly CA reviews."],
-              ["🤝",null,"Neighbour Endorsements","Endorsed by 4 neighbours in Tower B. Far more trusted."],
-              ["📹","Phase 2","Video Consultations","Built-in video for CA, legal, mental health."],
-              ["🔐",null,"Verified Pro Badges","🎓 Degree · 🪪 ID · ✅ Background checks."],
-            ].map(([icon,phase,title,desc]) => (
+              ["⚡", null, "Instant Slot Booking", "Real-time availability. Pick a slot, confirm instantly."],
+              ["👥", "Phase 2", "Group Sessions", "8 households book one yoga class at ₹150/head."],
+              ["🔄", "Phase 2", "Recurring Bookings", "Auto-books weekly yoga, monthly CA reviews."],
+              ["🤝", null, "Neighbour Endorsements", "Endorsed by 4 neighbours in Tower B. Far more trusted."],
+              ["📹", "Phase 2", "Video Consultations", "Built-in video for CA, legal, mental health."],
+              ["🔐", null, "Verified Pro Badges", "🎓 Degree · 🪪 ID · ✅ Background checks."],
+            ].map(([icon, phase, title, desc]) => (
               <div key={title as string} className="lp-feature-card-dark" style={{ opacity: 1, transform: "none", textAlign: "left" }}>
                 <div style={{ fontSize: isMobile ? "1.5rem" : "1.8rem", marginBottom: 12 }}>{icon}</div>
                 {phase && <div className="lp-feature-phase">{phase}</div>}
@@ -243,11 +243,11 @@ export default function LandingPage() {
             <h2 className="lp-section-h2">First 1000 members get founder perks for life.</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
               {[
-                ["🏆","Founder Badge","Permanent social trust signal on every profile."],
-                ["💰","Zero Platform Fee — 6 Months","Pros keep 100%. Residents get 3 free credits."],
-                ["🚀","Priority Onboarding","Your society goes live before public launch."],
-                ["⭐","Referral Credits Stack","₹200 per successful referral, no cap."],
-              ].map(([icon,title,desc]) => (
+                ["🏆", "Founder Badge", "Permanent social trust signal on every profile."],
+                ["💰", "Zero Platform Fee — 6 Months", "Pros keep 100%. Residents get 3 free credits."],
+                ["🚀", "Priority Onboarding", "Your society goes live before public launch."],
+                ["⭐", "Referral Credits Stack", "₹200 per successful referral, no cap."],
+              ].map(([icon, title, desc]) => (
                 <div key={title as string} className="lp-benefit-item">
                   <div className="lp-benefit-icon">{icon}</div>
                   <div>
@@ -281,21 +281,21 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div className="lp-footer-grid" style={{ gridTemplateColumns: isMobile ? "1fr 1fr" : "2fr 1fr 1fr 1fr" }}>
             <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
-              <div className="lp-footer-brand">
-                <img src="/images/logo_new.png" alt="PN" style={{ height: 32 }} />
+              <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+                <img src="/images/logo_new.png" alt="PN" style={{ height: 42, borderRadius: 8 }} />
                 <span className="lp-logo-text" style={{ color: "#fff", fontSize: "1rem" }}>ProNeighbor</span>
-              </div>
+              </Link>
               <p style={{ fontSize: "0.84rem", lineHeight: 1.7, maxWidth: 260 }}>The professional services marketplace for gated communities.</p>
               <p style={{ marginTop: 10, fontSize: "0.76rem" }}>📍 Park Street, Wakad, Pune · May 2026</p>
             </div>
             {[
-              ["Product",[["How it Works","#how"],["Features","#features"],["Categories","#categories"],["Early Access","#early"]]],
-              ["For Pros",[["Register as Expert","#"],["Founder Perks","#early"]]],
-              ["Company",[["Privacy","/privacy"],["Terms","/terms"],["Contact","/contact"]]],
+              ["Product", [["How it Works", "#how"], ["Features", "#features"], ["Categories", "#categories"], ["Early Access", "#early"]]],
+              ["For Pros", [["Register as Expert", "#"], ["Founder Perks", "#early"]]],
+              ["Company", [["Privacy", "/privacy"], ["Terms", "/terms"], ["Contact", "/contact"]]],
             ].map(([heading, links]) => (
               <div key={heading as string}>
                 <h4 className="lp-footer-h4">{heading as string}</h4>
-                {(links as [string,string][]).map(([label,href]) => (
+                {(links as [string, string][]).map(([label, href]) => (
                   <a key={label} href={href} className="lp-footer-link">{label}</a>
                 ))}
               </div>

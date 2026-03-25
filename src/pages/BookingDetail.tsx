@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview } from "../services/firestoreService";
-import { releaseEscrow, refundEscrow, earnCoins } from "../services/coinService";
+import { releaseEscrow, refundEscrow, earnCoins, rewardReferral } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 
 export default function BookingDetail() {
@@ -14,7 +14,7 @@ export default function BookingDetail() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setAL] = useState<string | null>(null);
   const [error, setError] = useState("");
-  
+
   const [showReview, setShowReview] = useState(false);
   const [reviewRating, setRR] = useState(5);
   const [reviewComment, setRC] = useState("");
@@ -77,6 +77,7 @@ export default function BookingDetail() {
       const result = await releaseEscrow(user!.uid, id!, (booking.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
       await updateBookingStatus(id!, "completed");
+      await rewardReferral(booking.clientId as string);
       logActivity(user!.uid, "booking.completed", `Completed booking: ${(booking.serviceName as string) || id} for ${(booking.clientName as string) || booking.clientId}`, { bookingId: id, role: "pro", escrowReleased: escrowCoins });
       await load();
     } catch { setError("Failed to complete booking."); }
@@ -163,7 +164,7 @@ export default function BookingDetail() {
 
         <div style={{ display: "flex", gap: 12, borderTop: "1px solid var(--border)", paddingTop: 24, flexWrap: "wrap" }}>
           <button className="btn btn-primary" onClick={openChat}>💬 Message {isClient ? "Professional" : "Client"}</button>
-          
+
           {isPro && status === "pending" && (
             <>
               <button className="btn btn-success" disabled={!!actionLoading} onClick={handleConfirm}>{actionLoading === "confirm" ? "..." : "✓ Confirm Booking"}</button>
@@ -200,7 +201,7 @@ export default function BookingDetail() {
             <div className="form-group">
               <label className="form-label">Rating</label>
               <div className="stars" style={{ display: "flex", gap: 4, fontSize: 24, cursor: "pointer" }}>
-                {[1,2,3,4,5].map(n => (
+                {[1, 2, 3, 4, 5].map(n => (
                   <button key={n} type="button" style={{ background: "none", border: "none", color: n <= reviewRating ? "#fbbf24" : "var(--muted)", cursor: "pointer", fontSize: 28 }} onClick={() => setRR(n)}>★</button>
                 ))}
               </div>

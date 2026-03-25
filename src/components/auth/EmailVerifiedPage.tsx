@@ -46,7 +46,7 @@ export function EmailVerifiedPage() {
 
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 36 }}>
-          <img src="/images/logo.png" alt="ProNeighbor" style={{ height: 36 }} />
+          <img src="/images/logo.png" alt="ProNeighbor" style={{ height: 44, borderRadius: 8 }} />
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.15rem", color: "#0C1B2E", letterSpacing: -0.5 }}>
             Pro<span style={{ color: "#F5692C" }}>Neighbour</span>
           </span>

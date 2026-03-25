@@ -19,8 +19,8 @@ export function ForgotPasswordPage() {
       const msg = (err as { code?: string })?.code;
       setError(
         msg === "auth/user-not-found" ? "No account found with this email." :
-        msg === "auth/invalid-email" ? "Invalid email address." :
-        "Failed to send reset email. Please try again."
+          msg === "auth/invalid-email" ? "Invalid email address." :
+            "Failed to send reset email. Please try again."
       );
     } finally { setLoading(false); }
   };
@@ -32,7 +32,7 @@ export function ForgotPasswordPage() {
         backgroundSize: "cover", backgroundPosition: "center", color: "white"
       }}>
         <div className="brand-logo" style={{ display: "flex", alignItems: "center", gap: "12px", color: "white" }}>
-          <img src="/images/logo.png" alt="Logo" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
+          <img src="/images/logo.png" alt="Logo" style={{ width: "44px", height: "44px", objectFit: "contain", borderRadius: "8px" }} />
           ProNeighbor
         </div>
         <h2 className="brand-headline" style={{ color: "white" }}>Reset your password</h2>
@@ -75,4 +75,5 @@ export function ForgotPasswordPage() {
     </div>
   );
 }
+
 

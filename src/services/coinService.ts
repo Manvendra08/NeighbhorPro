@@ -50,30 +50,30 @@ export interface CoinPayout {
 }
 
 export const COIN_PACKS = [
-  { label: "Trial",   priceRs: 50,   coins: 50,   bonus: 0,   popular: false },
-  { label: "Starter", priceRs: 200,  coins: 200,  bonus: 20,  popular: false },
-  { label: "Popular", priceRs: 500,  coins: 500,  bonus: 75,  popular: true  },
-  { label: "Pro",     priceRs: 1000, coins: 1000, bonus: 175, popular: false },
+  { label: "Trial", priceRs: 50, coins: 50, bonus: 0, popular: false },
+  { label: "Starter", priceRs: 200, coins: 200, bonus: 20, popular: false },
+  { label: "Popular", priceRs: 500, coins: 500, bonus: 75, popular: true },
+  { label: "Pro", priceRs: 1000, coins: 1000, bonus: 175, popular: false },
   { label: "Society", priceRs: 2500, coins: 2500, bonus: 500, popular: false },
 ];
 
 export const EARN_RULES: Record<LedgerType, { coins: number; label: string }> = {
-  earn_signup_bonus:       { coins: 100, label: "Welcome bonus 🎉" },
-  earn_profile:            { coins: 20,  label: "Profile completed" },
-  earn_review:             { coins: 10,  label: "Review written" },
-  earn_referral:           { coins: 100, label: "Referral reward" },
-  earn_free_consult:       { coins: 50,  label: "Free consultation given" },
-  earn_groupsession:       { coins: 5,   label: "Group session attended" },
-  earn_ondemand:           { coins: 75,  label: "On-demand request fulfilled" },
-  earn_milestone:          { coins: 50,  label: "Community milestone" },
-  topup:                   { coins: 0,   label: "Coins purchased" },
-  booking_debit:           { coins: 0,   label: "Booking payment" },
-  booking_escrow:          { coins: 0,   label: "Booking payment (held)" },
-  booking_escrow_release:  { coins: 0,   label: "Session earnings" },
-  booking_refund:          { coins: 0,   label: "Booking refund" },
-  payout:                  { coins: 0,   label: "Payout processed" },
-  admin_credit:            { coins: 0,   label: "Admin credit" },
-  admin_debit:             { coins: 0,   label: "Admin debit" },
+  earn_signup_bonus: { coins: 100, label: "Welcome bonus 🎉" },
+  earn_profile: { coins: 20, label: "Profile completed" },
+  earn_review: { coins: 10, label: "Review written" },
+  earn_referral: { coins: 100, label: "Referral reward" },
+  earn_free_consult: { coins: 50, label: "Free consultation given" },
+  earn_groupsession: { coins: 5, label: "Group session attended" },
+  earn_ondemand: { coins: 75, label: "On-demand request fulfilled" },
+  earn_milestone: { coins: 50, label: "Community milestone" },
+  topup: { coins: 0, label: "Coins purchased" },
+  booking_debit: { coins: 0, label: "Booking payment" },
+  booking_escrow: { coins: 0, label: "Booking payment (held)" },
+  booking_escrow_release: { coins: 0, label: "Session earnings" },
+  booking_refund: { coins: 0, label: "Booking refund" },
+  payout: { coins: 0, label: "Payout processed" },
+  admin_credit: { coins: 0, label: "Admin credit" },
+  admin_debit: { coins: 0, label: "Admin debit" },
 };
 
 // ── NC Terms (read from appSettings, fallback defaults) ──────────────────
@@ -103,8 +103,31 @@ export async function getNCTerms(): Promise<NCTerms> {
 }
 
 // ── Referral ─────────────────────────────────────────────────────────────
-export function generateReferralCode(uid: string): string {
-  return "PN" + uid.slice(0, 6).toUpperCase();
+export function generateReferralCode(params: {
+  displayName?: string;
+  phoneNumber?: string;
+  uid?: string;
+}): string {
+  const { displayName = "", phoneNumber = "", uid = "" } = params;
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+
+  const first = (parts[0] || "PNB")
+    .replace(/[^a-zA-Z]/g, "")
+    .slice(0, 3)
+    .toUpperCase()
+    .padEnd(3, "X");
+
+  const last = (parts[1] || parts[0] || "NBH")
+    .replace(/[^a-zA-Z]/g, "")
+    .slice(0, 3)
+    .toUpperCase()
+    .padEnd(3, "X");
+
+  const phoneTail = phoneNumber.replace(/\D/g, "").slice(-4);
+  const fallbackTail = uid.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase();
+  const tail = (phoneTail || fallbackTail || "0000").padStart(4, "0");
+
+  return `${first}${last}${first}NC${tail}`;
 }
 
 /**
@@ -155,9 +178,9 @@ export async function rewardReferral(newUserUid: string): Promise<void> {
     const rule = EARN_RULES.earn_referral;
 
     // 1. Reward Referrer
-    const rRef  = doc(db, "users", referrerUid);
+    const rRef = doc(db, "users", referrerUid);
     const rSnap = await tx.get(rRef);
-    const rBal  = ((rSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
+    const rBal = ((rSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
     tx.update(rRef, { coinBalance: rBal, updatedAt: serverTimestamp() });
     tx.set(doc(collection(db, "coinLedger", referrerUid, "entries")), {
       uid: referrerUid, type: "earn_referral", amount: rule.coins, balanceAfter: rBal,
@@ -166,9 +189,9 @@ export async function rewardReferral(newUserUid: string): Promise<void> {
     } as LedgerEntry);
 
     // 2. Reward New User
-    const nRef  = doc(db, "users", newUserUid);
+    const nRef = doc(db, "users", newUserUid);
     const nSnap = await tx.get(nRef);
-    const nBal  = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
+    const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
     tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp() });
     tx.set(doc(collection(db, "coinLedger", newUserUid, "entries")), {
       uid: newUserUid, type: "earn_referral", amount: rule.coins, balanceAfter: nBal,
@@ -195,9 +218,9 @@ export async function getLedger(uid: string, pageLimit = 50): Promise<LedgerEntr
 
 export async function topUpCoins(uid: string, priceRs: number, coins: number, packLabel: string, paymentId?: string): Promise<void> {
   await runTransaction(db, async tx => {
-    const userRef  = doc(db, "users", uid);
+    const userRef = doc(db, "users", uid);
     const userSnap = await tx.get(userRef);
-    const newBal   = ((userSnap.data()?.coinBalance as number) ?? 0) + coins;
+    const newBal = ((userSnap.data()?.coinBalance as number) ?? 0) + coins;
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
     const purchaseRef = doc(collection(db, "coinPurchases"));
     tx.set(purchaseRef, { uid, amountPaid: priceRs, coinsGranted: coins, packLabel, status: "completed", paymentId: paymentId ?? null, createdAt: serverTimestamp(), completedAt: serverTimestamp() } as CoinPurchase);
@@ -210,9 +233,9 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
   if (coins === 0) return { success: true };
   try {
     await runTransaction(db, async tx => {
-      const clientRef  = doc(db, "users", clientUid);
+      const clientRef = doc(db, "users", clientUid);
       const clientSnap = await tx.get(clientRef);
-      const clientBal  = (clientSnap.data()?.coinBalance as number) ?? 0;
+      const clientBal = (clientSnap.data()?.coinBalance as number) ?? 0;
       if (clientBal < coins) throw new Error("INSUFFICIENT_BALANCE");
       const newBal = clientBal - coins;
       tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
@@ -229,15 +252,15 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
 export async function releaseEscrow(proUid: string, bookingId: string, serviceName: string, platformFeePct = 0.10): Promise<{ success: boolean; reason?: string }> {
   try {
     await runTransaction(db, async tx => {
-      const bookingRef  = doc(db, "bookings", bookingId);
+      const bookingRef = doc(db, "bookings", bookingId);
       const bookingSnap = await tx.get(bookingRef);
       if (!bookingSnap.exists()) throw new Error("BOOKING_NOT_FOUND");
-      const escrowCoins  = (bookingSnap.data()?.escrowCoins as number) ?? 0;
+      const escrowCoins = (bookingSnap.data()?.escrowCoins as number) ?? 0;
       if (bookingSnap.data()?.escrowStatus === "released") return;
       if (escrowCoins === 0) return;
       const platformFee = Math.round(escrowCoins * platformFeePct);
-      const proEarning  = escrowCoins - platformFee;
-      const proRef  = doc(db, "users", proUid);
+      const proEarning = escrowCoins - platformFee;
+      const proRef = doc(db, "users", proUid);
       const proSnap = await tx.get(proRef);
       const newProBal = ((proSnap.data()?.coinBalance as number) ?? 0) + proEarning;
       tx.update(proRef, { coinBalance: newProBal, updatedAt: serverTimestamp() });
@@ -252,17 +275,17 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
 
 export async function refundEscrow(clientUid: string, bookingId: string, serviceName: string): Promise<void> {
   await runTransaction(db, async tx => {
-    const bookingRef  = doc(db, "bookings", bookingId);
+    const bookingRef = doc(db, "bookings", bookingId);
     const bookingSnap = await tx.get(bookingRef);
-    const escrowCoins  = (bookingSnap.data()?.escrowCoins as number) ?? 0;
+    const escrowCoins = (bookingSnap.data()?.escrowCoins as number) ?? 0;
     const escrowStatus = bookingSnap.data()?.escrowStatus as string;
     if (escrowStatus === "released" || escrowCoins === 0) {
       tx.update(bookingRef, { escrowStatus: "refunded", updatedAt: serverTimestamp() });
       return;
     }
     const userRef = doc(db, "users", clientUid);
-    const snap    = await tx.get(userRef);
-    const newBal  = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
+    const snap = await tx.get(userRef);
+    const newBal = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
     tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false, updatedAt: serverTimestamp() });
     tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), { uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal, description: `Refund: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
@@ -287,8 +310,8 @@ export async function earnCoins(uid: string, type: LedgerType, refId?: string): 
     if (existing.exists()) return; // Already credited
 
     const userRef = doc(db, "users", uid);
-    const snap    = await tx.get(userRef);
-    const newBal  = ((snap.data()?.coinBalance as number) ?? 0) + rule.coins;
+    const snap = await tx.get(userRef);
+    const newBal = ((snap.data()?.coinBalance as number) ?? 0) + rule.coins;
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
     tx.set(dedupRef, {
       uid, type, amount: rule.coins, balanceAfter: newBal,
@@ -304,7 +327,7 @@ export async function requestPayout(uid: string, displayName: string, coins: num
   try {
     await runTransaction(db, async tx => {
       const userRef = doc(db, "users", uid);
-      const snap    = await tx.get(userRef);
+      const snap = await tx.get(userRef);
       const balance = (snap.data()?.coinBalance as number) ?? 0;
       if (balance < coins) throw new Error("INSUFFICIENT_BALANCE");
       const newBal = balance - coins;
@@ -349,9 +372,9 @@ export async function adminAdjustCoins(uid: string, amount: number, reason: stri
   try {
     await runTransaction(db, async tx => {
       const userRef = doc(db, "users", uid);
-      const snap    = await tx.get(userRef);
+      const snap = await tx.get(userRef);
       if (!snap.exists()) throw new Error("USER_NOT_FOUND");
-      const newBal  = ((snap.data()?.coinBalance as number) ?? 0) + amount;
+      const newBal = ((snap.data()?.coinBalance as number) ?? 0) + amount;
       if (newBal < 0) throw new Error("WOULD_GO_NEGATIVE");
       tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
       tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type: amount > 0 ? "admin_credit" : "admin_debit", amount, balanceAfter: newBal, description: `Admin ${amount > 0 ? "credit" : "debit"}: ${reason}`, refId: adminUid, createdAt: serverTimestamp() } as LedgerEntry);
@@ -359,7 +382,7 @@ export async function adminAdjustCoins(uid: string, amount: number, reason: stri
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
-    if (msg === "USER_NOT_FOUND")    return { success: false, reason: "User not found" };
+    if (msg === "USER_NOT_FOUND") return { success: false, reason: "User not found" };
     if (msg === "WOULD_GO_NEGATIVE") return { success: false, reason: "Balance would go negative" };
     return { success: false, reason: "Transaction failed" };
   }
@@ -372,17 +395,17 @@ export async function getCoinEconomySummary() {
     getAllCoinPurchases(500), getAllPayouts(500),
     getDocs(query(
       collectionGroup(db, "entries"),
-      where("type", "in", ["earn_signup_bonus","earn_profile","earn_review","earn_referral","earn_free_consult","earn_groupsession","earn_ondemand","earn_milestone"]),
+      where("type", "in", ["earn_signup_bonus", "earn_profile", "earn_review", "earn_referral", "earn_free_consult", "earn_groupsession", "earn_ondemand", "earn_milestone"]),
       limit(1000),
     )),
   ]);
   const purchases = purchasesRes.data;
   const payouts = payoutsRes.data;
-  const totalPurchasedNC     = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.coinsGranted, 0);
+  const totalPurchasedNC = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.coinsGranted, 0);
   const totalPurchaseRevenue = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.amountPaid, 0);
-  const totalPayoutNC        = payouts.filter(p => p.status === "processed").reduce((s, p) => s + p.coinsRedeemed, 0);
-  const pendingPayouts       = payouts.filter(p => p.status === "pending");
-  const totalEarnedNC        = earnedSnap.docs.reduce((s, d) => s + ((d.data().amount as number) || 0), 0);
+  const totalPayoutNC = payouts.filter(p => p.status === "processed").reduce((s, p) => s + p.coinsRedeemed, 0);
+  const pendingPayouts = payouts.filter(p => p.status === "pending");
+  const totalEarnedNC = earnedSnap.docs.reduce((s, d) => s + ((d.data().amount as number) || 0), 0);
   return { totalPurchasedNC, totalPurchaseRevenue, totalPayoutNC, totalEarnedNC, pendingPayoutNC: pendingPayouts.reduce((s, p) => s + p.coinsRedeemed, 0), pendingPayoutCount: pendingPayouts.length };
 }
 

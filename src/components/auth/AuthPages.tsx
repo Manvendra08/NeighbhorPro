@@ -8,10 +8,10 @@ export { ForgotPasswordPage } from "./ForgotPasswordPage";
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18">
-    <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
-    <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/>
-    <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
-    <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.96L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z"/>
+    <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" />
+    <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" />
+    <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" />
+    <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.96L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z" />
   </svg>
 );
 
@@ -36,9 +36,9 @@ export function LoginPage() {
       const msg = (err as { code?: string })?.code;
       setError(
         msg === "auth/user-not-found" ? "No account found with this email." :
-        msg === "auth/wrong-password" ? "Incorrect password." :
-        msg === "auth/too-many-requests" ? "Too many attempts. Try again later." :
-        "Sign-in failed. Check your credentials."
+          msg === "auth/wrong-password" ? "Incorrect password." :
+            msg === "auth/too-many-requests" ? "Too many attempts. Try again later." :
+              "Sign-in failed. Check your credentials."
       );
     } finally { setLoading(false); }
   };
@@ -58,7 +58,7 @@ export function LoginPage() {
       <div className="auth-form-panel">
         <div className="auth-card">
           <Link to="/" className="auth-logo-link" title="Go to Home">
-            <img src="/images/logo.png" alt="Logo" style={{ width: 32, height: 32 }} />
+            <img src="/images/logo.png" alt="Logo" style={{ width: 40, height: 40 }} />
           </Link>
           <h1 className="auth-title">Welcome back</h1>
           <p className="auth-sub">Sign in to your ProNeighbor account</p>
@@ -113,24 +113,24 @@ function BrandPanel({ register }: { register?: boolean }) {
       backgroundPosition: "center",
       color: "white"
     }}>
-      <Link to="/" className="brand-logo" style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "12px", 
+      <Link to="/" className="brand-logo" style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
         color: "white",
         textShadow: "0 2px 8px rgba(0,0,0,0.3)",
         textDecoration: "none"
       }}>
-        <img src="/images/logo_new.png" alt="Logo" style={{ width: "32px", height: "32px", objectFit: "contain", borderRadius: "6px" }} />
+        <img src="/images/logo_new.png" alt="Logo" style={{ width: "44px", height: "44px", objectFit: "contain", borderRadius: "8px" }} />
         ProNeighbor
       </Link>
-      <h2 className="brand-headline" style={{ 
+      <h2 className="brand-headline" style={{
         color: "white",
         textShadow: "0 2px 12px rgba(0,0,0,0.5)"
       }}>
         {register ? "Find trusted pros,\nnear you." : "Your community,\nyour experts."}
       </h2>
-      <p className="brand-sub" style={{ 
+      <p className="brand-sub" style={{
         color: "rgba(255, 255, 255, 0.95)",
         textShadow: "0 1px 6px rgba(0,0,0,0.3)"
       }}>
@@ -174,8 +174,8 @@ export function RegisterPage() {
       const msg = (err as { code?: string })?.code;
       setError(
         msg === "auth/email-already-in-use" ? "This email is already registered." :
-        msg === "auth/invalid-email" ? "Invalid email address." :
-        "Registration failed. Please try again."
+          msg === "auth/invalid-email" ? "Invalid email address." :
+            "Registration failed. Please try again."
       );
     } finally { setLoading(false); }
   };
@@ -195,7 +195,7 @@ export function RegisterPage() {
       <div className="auth-form-panel">
         <div className="auth-card">
           <Link to="/" className="auth-logo-link" title="Go to Home">
-            <img src="/images/logo.png" alt="Logo" style={{ width: 32, height: 32 }} />
+            <img src="/images/logo.png" alt="Logo" style={{ width: 40, height: 40 }} />
           </Link>
           <h1 className="auth-title">Create account</h1>
           <p className="auth-sub">Join your neighborhood network</p>
@@ -230,10 +230,10 @@ export function RegisterPage() {
                 onChange={e => setConfirm(e.target.value)} required />
             </div>
             <div className="field check-field" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '4px' }}>
-              <input 
-                type="checkbox" 
-                id="terms" 
-                checked={acceptedTerms} 
+              <input
+                type="checkbox"
+                id="terms"
+                checked={acceptedTerms}
                 onChange={e => setAcceptedTerms(e.target.checked)}
                 style={{ width: 'auto', marginTop: '3px' }}
               />

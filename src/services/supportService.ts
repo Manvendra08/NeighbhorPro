@@ -11,6 +11,7 @@ export type DisputeStatus = "raised" | "under_review" | "resolved_client" | "res
 
 export interface SupportTicket {
   id?: string;
+  ticketNumber?: string;
   uid: string;
   displayName: string;
   email: string;
@@ -68,9 +69,9 @@ export async function getSLAHours(priority: TicketPriority): Promise<number> {
       const snap = await getDoc(doc(db, "appSettings", "support"));
       if (snap.exists()) {
         _slaCache = {
-          low:    snap.data()?.["sla_low"]    ?? DEFAULT_SLA.low,
+          low: snap.data()?.["sla_low"] ?? DEFAULT_SLA.low,
           normal: snap.data()?.["sla_normal"] ?? DEFAULT_SLA.normal,
-          high:   snap.data()?.["sla_high"]   ?? DEFAULT_SLA.high,
+          high: snap.data()?.["sla_high"] ?? DEFAULT_SLA.high,
           urgent: snap.data()?.["sla_urgent"] ?? DEFAULT_SLA.urgent,
         };
       } else {
@@ -83,23 +84,23 @@ export async function getSLAHours(priority: TicketPriority): Promise<number> {
   return _slaCache[priority];
 }
 
-/** Generates a booking ID in the format NP<ddmmyyyy><3-digit-sequence> */
-export async function generateBookingId(): Promise<string> {
+/** Generates a ticket number in the format NP<ddmmyyyy><3-digit-sequence> */
+export async function generateTicketNumber(): Promise<string> {
   const now = new Date();
-  const dd   = String(now.getDate()).padStart(2, "0");
-  const mm   = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
   const yyyy = String(now.getFullYear());
   const dateStr = `${dd}${mm}${yyyy}`;
 
   // Count tickets created today to get sequence number
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay   = new Date(startOfDay.getTime() + 86_400_000);
+  const endOfDay = new Date(startOfDay.getTime() + 86_400_000);
   try {
     const { Timestamp } = await import("firebase/firestore");
     const snap = await getDocs(query(
       collection(db, "tickets"),
       where("createdAt", ">=", Timestamp.fromDate(startOfDay)),
-      where("createdAt", "<",  Timestamp.fromDate(endOfDay))
+      where("createdAt", "<", Timestamp.fromDate(endOfDay))
     ));
     const seq = String(snap.size + 1).padStart(3, "0");
     return `NP${dateStr}${seq}`;
@@ -110,12 +111,13 @@ export async function generateBookingId(): Promise<string> {
 }
 
 // ── Tickets ──────────────────────────────────────────────────────────────
-export async function createTicket(data: Omit<SupportTicket, "id" | "status" | "slaHours" | "createdAt" | "updatedAt">): Promise<string> {
+export async function createTicket(data: Omit<SupportTicket, "id" | "ticketNumber" | "status" | "slaHours" | "createdAt" | "updatedAt">): Promise<{ id: string; ticketNumber: string }> {
   const slaHours = await getSLAHours(data.priority);
+  const ticketNumber = await generateTicketNumber();
   const ref = await addDoc(collection(db, "tickets"), {
-    ...data, status: "open", slaHours, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    ...data, ticketNumber, status: "open", slaHours, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
-  return ref.id;
+  return { id: ref.id, ticketNumber };
 }
 
 export async function sendTicketMessage(ticketId: string, msg: Omit<TicketMessage, "id" | "timestamp">): Promise<void> {
@@ -141,9 +143,17 @@ export async function getAllTickets(pageLimit = 100): Promise<SupportTicket[]> {
 }
 
 export async function updateTicketStatus(ticketId: string, status: TicketStatus, adminUid?: string): Promise<void> {
+  const resolutionFields =
+    status === "resolved" || status === "closed"
+      ? {
+        resolvedAt: serverTimestamp(),
+        ...(adminUid ? { resolvedBy: adminUid } : {}),
+      }
+      : {};
+
   await updateDoc(doc(db, "tickets", ticketId), {
     status, updatedAt: serverTimestamp(),
-    ...(status === "resolved" || status === "closed" ? { resolvedAt: serverTimestamp(), resolvedBy: adminUid } : {}),
+    ...resolutionFields,
   });
 }
 

@@ -20,8 +20,10 @@ import {
   Timestamp,
   runTransaction,
 } from "firebase/firestore";
+import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { updateProfile } from "firebase/auth";
-import { db, auth } from "../firebase";
+import { db, auth, storage } from "../firebase";
+import { generateReferralCode } from "./coinService";
 import { validateUpload } from "../utils/cloudinary";
 
 /* ═══════════════════════════════════════════
@@ -33,7 +35,23 @@ export async function getUserProfile(uid: string): Promise<Record<string, unknow
 }
 
 export async function updateUserProfile(uid: string, data: Record<string, unknown>) {
-  await updateDoc(doc(db, "users", uid), { ...data, updatedAt: serverTimestamp() });
+  const userRef = doc(db, "users", uid);
+  const current = await getDoc(userRef);
+  const currentData = current.data() ?? {};
+
+  const nextData: Record<string, unknown> = { ...data };
+  const nextDisplayName = (typeof data.displayName === "string" ? data.displayName : (currentData.displayName as string | undefined)) ?? "";
+  const nextPhone = (typeof data.phoneNumber === "string" ? data.phoneNumber : (currentData.phoneNumber as string | undefined)) ?? "";
+
+  if (typeof data.displayName === "string" || typeof data.phoneNumber === "string") {
+    nextData.referralCode = generateReferralCode({
+      displayName: nextDisplayName,
+      phoneNumber: nextPhone,
+      uid,
+    });
+  }
+
+  await updateDoc(userRef, { ...nextData, updatedAt: serverTimestamp() });
 }
 
 export async function uploadProfilePhoto(uid: string, file: File) {
@@ -58,15 +76,29 @@ export async function uploadResidencyProof(uid: string, file: File) {
   validateUpload(file, "residencyProof"); // throws if invalid
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-  if (!cloudName || !uploadPreset) throw new Error("Cloudinary configuration is missing.");
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
-  formData.append("folder", "ProNeighbor/residency-proofs");
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
-  if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
-  const data = await response.json();
-  const residencyProofUrl = data.secure_url;
+
+  let residencyProofUrl = "";
+
+  if (cloudName && uploadPreset) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
+    formData.append("folder", "ProNeighbor/residency-proofs");
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || "Upload failed");
+    }
+    const data = await response.json();
+    residencyProofUrl = data.secure_url;
+  } else {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const fileRef = storageRef(storage, `residency-proofs/${uid}/${Date.now()}-${safeName}`);
+    await uploadBytes(fileRef, file);
+    residencyProofUrl = await getDownloadURL(fileRef);
+  }
+
   await updateDoc(doc(db, "users", uid), {
     residencyProofUrl,
     residentVerificationStatus: "pending",
@@ -101,8 +133,8 @@ export async function listProfessionals(
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot<DocumentData> | null }> {
   const constraints: Parameters<typeof query>[1][] = [orderBy("createdAt", "desc"), limit(BROWSE_PAGE_SIZE)];
   if (filters?.locality) constraints.unshift(where("locality", "==", filters.locality));
-  if (filters?.tower)    constraints.unshift(where("tower",    "==", filters.tower));
-  if (cursor)            constraints.push(startAfter(cursor));
+  if (filters?.tower) constraints.unshift(where("tower", "==", filters.tower));
+  if (cursor) constraints.push(startAfter(cursor));
 
   const q = query(collection(db, "users"), ...constraints);
   const snap = await getDocs(q);
@@ -206,11 +238,11 @@ export async function uploadBookingAttachment(bookingId: string | null, file: Fi
   if (!res.ok) throw new Error("Upload failed");
   const data = await res.json();
   const fileUrl = data.secure_url;
-  
+
   if (bookingId) {
     await updateDoc(doc(db, "bookings", bookingId), { attachmentUrl: fileUrl, attachmentName: file.name, attachmentType: file.type });
   }
-  
+
   return { url: fileUrl, name: file.name, type: file.type };
 }
 
@@ -348,7 +380,7 @@ export function getConversationId(uid1: string, uid2: string): string {
 }
 
 export async function getOrCreateConversation(uid1: string, uid2: string) {
-  const convId  = getConversationId(uid1, uid2);
+  const convId = getConversationId(uid1, uid2);
   const convRef = doc(db, "messages", convId);
   await runTransaction(db, async tx => {
     const snap = await tx.get(convRef);
@@ -370,7 +402,7 @@ export async function sendMessage(conversationId: string, senderId: string, text
     payload.attachmentName = attachment.name;
   }
   await addDoc(collection(db, `messages/${conversationId}/chats`), payload);
-  
+
   const lastMsg = attachment ? (text ? `📎 ${text}` : `📎 Attachment`) : text;
   await updateDoc(doc(db, "messages", conversationId), { lastMessage: lastMsg, lastMessageAt: serverTimestamp() });
 }
@@ -384,7 +416,7 @@ export async function uploadAttachment(conversationId: string, file: File) {
   formData.append("file", file);
   formData.append("upload_preset", uploadPreset);
   formData.append("folder", `ProNeighbor/messages/${conversationId}`);
-  
+
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
   if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
   const data = await response.json();

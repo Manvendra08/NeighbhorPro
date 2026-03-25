@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, FormEvent } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createTicket, sendTicketMessage, subscribeTicketMessages,
-  getUserTickets, getFAQs, getSLAHours, generateBookingId, updateTicketStatus,
+  getUserTickets, getFAQs, getSLAHours, generateTicketNumber, updateTicketStatus,
   type SupportTicket, type TicketMessage, type FAQ,
 } from "../services/supportService";
 
@@ -17,10 +17,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket; onBack: () => void; onStatusChange?: (status: SupportTicket["status"]) => void }) {
   const { userProfile } = useAuth();
   const [messages, setMessages] = useState<TicketMessage[]>([]);
-  const [text, setText]         = useState("");
-  const [sending, setSending]   = useState(false);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   const [localStatus, setLocalStatus] = useState(ticket.status);
-  const bottomRef               = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!ticket.id) return;
@@ -54,7 +54,7 @@ function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket;
         <button className="btn btn-ghost btn-sm" onClick={onBack}>← Back</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700 }}>{ticket.subject}</div>
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>#{ticket.id?.slice(0, 8)} · SLA: {ticket.slaHours}h response</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>#{ticket.ticketNumber || ticket.id?.slice(0, 8)} · SLA: {ticket.slaHours}h response</div>
         </div>
         <span className="badge" style={{ background: statusColors[localStatus] + "18", color: statusColors[localStatus], border: `1px solid ${statusColors[localStatus]}40` }}>
           {localStatus.replace("_", " ")}
@@ -95,17 +95,17 @@ function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket;
 // ── New ticket form ───────────────────────────────────────────────────────
 function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void }) {
   const { user, userProfile } = useAuth();
-  const [subject, setSubject]     = useState("");
-  const [category, setCategory]   = useState<typeof CATEGORIES[number]>("general");
-  const [description, setDesc]    = useState("");
-  const [bookingId, setBookingId] = useState("");
-  const [slaHours, setSla]        = useState<number | null>(null);
-  const [submitting, setSub]      = useState(false);
-  const [error, setError]         = useState("");
+  const [subject, setSubject] = useState("");
+  const [category, setCategory] = useState<typeof CATEGORIES[number]>("general");
+  const [description, setDesc] = useState("");
+  const [ticketNumber, setTicketNumber] = useState("");
+  const [slaHours, setSla] = useState<number | null>(null);
+  const [submitting, setSub] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     getSLAHours("normal").then(setSla);
-    generateBookingId().then(setBookingId);
+    generateTicketNumber().then(setTicketNumber);
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -113,13 +113,25 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
     if (!user || !userProfile) return;
     if (!subject.trim() || !description.trim()) { setError("Please fill all required fields."); return; }
     setSub(true); setError("");
-    const id = await createTicket({
+    const created = await createTicket({
       uid: user.uid, displayName: userProfile.displayName, email: userProfile.email,
       subject: subject.trim(), category, priority: "normal",
-      bookingId: bookingId.trim(),
     });
-    await sendTicketMessage(id, { text: description.trim(), senderRole: "user", senderName: userProfile.displayName });
-    onCreated({ id, uid: user.uid, displayName: userProfile.displayName, email: userProfile.email, subject: subject.trim(), category, priority: "normal", status: "open", slaHours: slaHours ?? 24, createdAt: null, updatedAt: null });
+    await sendTicketMessage(created.id, { text: description.trim(), senderRole: "user", senderName: userProfile.displayName });
+    onCreated({
+      id: created.id,
+      ticketNumber: created.ticketNumber,
+      uid: user.uid,
+      displayName: userProfile.displayName,
+      email: userProfile.email,
+      subject: subject.trim(),
+      category,
+      priority: "normal",
+      status: "open",
+      slaHours: slaHours ?? 24,
+      createdAt: null,
+      updatedAt: null,
+    });
     setSub(false);
   };
 
@@ -137,10 +149,10 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
             </select>
           </div>
           <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">Booking ID</label>
+            <label className="form-label">Ticket Number</label>
             <input
               className="form-input"
-              value={bookingId || "Generating…"}
+              value={ticketNumber || "Generating…"}
               readOnly
               disabled
               style={{ background: "var(--surface-2)", color: "var(--muted)", cursor: "not-allowed", fontFamily: "monospace", letterSpacing: 1 }}
@@ -156,7 +168,7 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
           <label className="form-label">Description *</label>
           <textarea className="form-input" placeholder="Please describe your issue in detail…" value={description} onChange={e => setDesc(e.target.value)} style={{ minHeight: 120 }} />
         </div>
-        <button type="submit" className="btn btn-primary" disabled={submitting || !bookingId}>{submitting ? "Submitting…" : "Submit Ticket"}</button>
+        <button type="submit" className="btn btn-primary" disabled={submitting || !ticketNumber}>{submitting ? "Submitting…" : "Submit Ticket"}</button>
       </div>
     </form>
   );
@@ -165,13 +177,13 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
 // ── Main Support page ─────────────────────────────────────────────────────
 export default function Support() {
   const { user } = useAuth();
-  const [tab, setTab]                 = useState<Tab>("faq");
-  const [faqs, setFaqs]               = useState<FAQ[]>([]);
-  const [faqCat, setFaqCat]           = useState("All");
-  const [openFaq, setOpenFaq]         = useState<number | null>(null);
-  const [tickets, setTickets]         = useState<SupportTicket[]>([]);
-  const [activeTicket, setActive]     = useState<SupportTicket | null>(null);
-  const [ticketsLoaded, setTL]        = useState(false);
+  const [tab, setTab] = useState<Tab>("faq");
+  const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [faqCat, setFaqCat] = useState("All");
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [activeTicket, setActive] = useState<SupportTicket | null>(null);
+  const [ticketsLoaded, setTL] = useState(false);
 
   useEffect(() => { getFAQs().then(setFaqs); }, []);
 
@@ -182,7 +194,7 @@ export default function Support() {
   };
 
   const faqCategories = ["All", ...Array.from(new Set(faqs.map(f => f.category)))];
-  const visibleFaqs   = faqCat === "All" ? faqs : faqs.filter(f => f.category === faqCat);
+  const visibleFaqs = faqCat === "All" ? faqs : faqs.filter(f => f.category === faqCat);
 
   const statusColors: Record<string, string> = { open: "#C4882A", in_progress: "#1B6B8A", resolved: "#16a34a", closed: "var(--muted)" };
 
@@ -260,7 +272,7 @@ export default function Support() {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{t.subject}</div>
                         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                          {CATEGORY_LABELS[t.category]} · #{t.id?.slice(0, 8)} · SLA {t.slaHours}h
+                          {CATEGORY_LABELS[t.category]} · #{t.ticketNumber || t.id?.slice(0, 8)} · SLA {t.slaHours}h
                         </div>
                       </div>
                       <span className="badge" style={{ background: statusColors[t.status] + "18", color: statusColors[t.status], border: `1px solid ${statusColors[t.status]}40` }}>

@@ -8,7 +8,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
-import { earnCoins } from "../services/coinService";
+import { earnCoins, generateReferralCode } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 import type { FirestoreTimestamp } from "../types/firestore";
 
@@ -61,21 +61,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-function generateReferralCode(firstName?: string, lastName?: string, phone?: string): string {
-  const f3 = (firstName || "PNB").slice(0, 3).toUpperCase().padEnd(3, "X");
-  const l3 = (lastName || "NBH").slice(0, 3).toUpperCase().padEnd(3, "X");
-  const p4 = (phone || "0000").slice(-4);
-  return `${f3}${l3}${f3}NC${p4}`;
-}
-
 function isProfileComplete(profile: Partial<UserProfile>): boolean {
   return !!(profile.displayName?.trim() && profile.bio?.trim() && profile.society?.trim() && (profile.skills?.length ?? 0) > 0);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser]               = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => {
@@ -89,10 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const profileBonusClaimedRef = useRef(false);
 
   type ConfirmationResult = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
-  const confirmationRef  = useRef<ConfirmationResult | null>(null);
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
   // FIX 3: Store the RecaptchaVerifier in a ref so it can be cleared before
   // re-instantiation, preventing verifier accumulation on the same DOM element.
-  const recaptchaRef     = useRef<RecaptchaVerifier | null>(null);
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -116,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const createUserProfile = async (u: User) => {
-    const ref  = doc(db, "users", u.uid);
+    const ref = doc(db, "users", u.uid);
     const snap = await getDoc(ref);
     if (!snap.exists()) {
       const profile: UserProfile = {
@@ -126,7 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         residentVerificationStatus: "none", verificationMethod: null,
         isServiceProvider: false, priceAfterQuote: false,
         role: "user", rating: 0, reviewCount: 0, coinBalance: 0,
-        referralCode: generateReferralCode(u.uid),
+        referralCode: generateReferralCode({
+          displayName: u.displayName ?? "",
+          phoneNumber: u.phoneNumber ?? "",
+          uid: u.uid,
+        }),
         emailVerified: u.emailVerified,
         phoneVisible: false, flatVisible: false,
         createdAt: serverTimestamp(),
@@ -152,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await createUserProfile(u);
     logActivity(u.uid, "user.login", `Signed in via Google`);
   };
-  const resetPassword           = async (email: string) => { await sendPasswordResetEmail(auth, email); };
+  const resetPassword = async (email: string) => { await sendPasswordResetEmail(auth, email); };
   const resendVerificationEmail = async () => { if (auth.currentUser && !auth.currentUser.emailVerified) await sendEmailVerification(auth.currentUser); };
   const logout = async () => {
     if (auth.currentUser?.uid) {
@@ -177,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // FIX 3: Destroy any existing verifier before creating a new one.
       recaptchaRef.current?.clear();
       recaptchaRef.current = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
-      
+
       const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaRef.current);
       confirmationRef.current = result;
       return result.verificationId;
@@ -195,8 +192,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!confirmation) throw new Error("No pending OTP. Please request a new code.");
     await confirmation.confirm(otp);
     if (auth.currentUser?.phoneNumber) {
-      await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        phoneNumber: auth.currentUser.phoneNumber, updatedAt: serverTimestamp(),
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      const existingDisplayName = (userSnap.data()?.displayName as string | undefined) ?? auth.currentUser.displayName ?? "";
+      const referralCode = generateReferralCode({
+        displayName: existingDisplayName,
+        phoneNumber: auth.currentUser.phoneNumber,
+        uid: auth.currentUser.uid,
+      });
+
+      await updateDoc(userRef, {
+        phoneNumber: auth.currentUser.phoneNumber,
+        referralCode,
+        updatedAt: serverTimestamp(),
       });
     }
     confirmationRef.current = null;
@@ -238,7 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true };
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;
-      if (code === "auth/wrong-password")       return { success: false, reason: "Incorrect password." };
+      if (code === "auth/wrong-password") return { success: false, reason: "Incorrect password." };
       if (code === "auth/requires-recent-login") return { success: false, reason: "Please sign out and sign in again before deleting." };
       return { success: false, reason: "Deletion failed. Try again." };
     }

@@ -198,7 +198,7 @@ export default function Profile() {
     // Indian phone validation: +91- followed by 10 digits starting with 6-9
     const phoneRegex = /^\+91-[6-9]\d{9}$/;
     if (phoneNumber && phoneNumber !== "+91-" && !phoneRegex.test(phoneNumber.replace(/\s/g, ""))) {
-      (nextErrors as any).phoneNumber = "Invalid Indian mobile number. Format: +91-9876543210";
+      (nextErrors as any).phoneNumber = "Invalid Indian mobile number.";
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
@@ -483,7 +483,7 @@ export default function Profile() {
             {/* Skills */}
             <div className="card" style={{ marginBottom: 24 }}>
               <h3 className="card-title" style={{ marginBottom: 16 }}>Skills & Expertise</h3>
-              
+
               <div className="tips-card" style={{ background: "var(--accent-dim)", border: "1px solid rgba(61,126,255,0.2)", borderRadius: "var(--radius-sm)", padding: "12px 16px", marginBottom: 20 }}>
                 <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                   <span style={{ fontSize: 20 }}>💡</span>
