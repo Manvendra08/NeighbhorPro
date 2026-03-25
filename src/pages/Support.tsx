@@ -8,10 +8,10 @@ import {
 
 type Tab = "faq" | "tickets" | "new";
 
-const CATEGORIES = ["general", "booking", "payment", "account", "dispute", "other"] as const;
+const CATEGORIES = ["general", "booking", "payment", "account", "other"] as const;
 const CATEGORY_LABELS: Record<string, string> = {
   general: "General", booking: "Booking Issue", payment: "Payment / NC",
-  account: "Account", dispute: "Dispute", other: "Other",
+  account: "Account", other: "Other",
 };
 
 function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket; onBack: () => void; onStatusChange?: (status: SupportTicket["status"]) => void }) {

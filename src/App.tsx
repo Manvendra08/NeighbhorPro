@@ -26,14 +26,12 @@ import AdminDashboard  from "./pages/admin/AdminDashboard";
 import AdminUsers      from "./pages/admin/AdminUsers";
 import AdminSocieties  from "./pages/admin/AdminSocieties";
 import AdminBroadcast  from "./pages/admin/AdminBroadcast";
-import AdminSupport    from "./pages/admin/AdminSupport";
 import AdminAuditLog   from "./pages/admin/AdminAuditLog";
 import AdminSettings   from "./pages/admin/AdminSettings";
 import AdminServices   from "./pages/admin/AdminServices";
 import AdminReviews    from "./pages/admin/AdminReviews";
 import AdminWallet     from "./pages/admin/AdminWallet";
 import AdminTickets    from "./pages/admin/AdminTickets";
-import AdminDisputes   from "./pages/admin/AdminDisputes";
 
 export default function App() {
   return (
@@ -69,9 +67,7 @@ export default function App() {
             <Route path="/admin/services"       element={<ProtectedRoute adminOnly><AdminServices /></ProtectedRoute>} />
             <Route path="/admin/reviews"        element={<ProtectedRoute adminOnly><AdminReviews /></ProtectedRoute>} />
             <Route path="/admin/broadcast"      element={<ProtectedRoute adminOnly><AdminBroadcast /></ProtectedRoute>} />
-            <Route path="/admin/support"        element={<ProtectedRoute adminOnly><AdminSupport /></ProtectedRoute>} />
             <Route path="/admin/tickets"        element={<ProtectedRoute adminOnly><AdminTickets /></ProtectedRoute>} />
-            <Route path="/admin/disputes"       element={<ProtectedRoute adminOnly><AdminDisputes /></ProtectedRoute>} />
             <Route path="/admin/audit"          element={<ProtectedRoute adminOnly><AdminAuditLog /></ProtectedRoute>} />
             <Route path="/admin/settings"       element={<ProtectedRoute adminOnly><AdminSettings /></ProtectedRoute>} />
             <Route path="/admin/wallet"         element={<ProtectedRoute adminOnly><AdminWallet /></ProtectedRoute>} />

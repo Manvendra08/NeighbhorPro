@@ -69,7 +69,7 @@ export default function AdminDashboard() {
         <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
       ) : (
         <>
-          <div className="grid grid-4" style={{ marginBottom: 32 }}>
+          <div className="grid grid-2" style={{ marginBottom: 32 }}>
             {cards.map((c) => (
               <div className="stat-card" key={c.label}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

@@ -89,15 +89,10 @@ function MobileHeader() {
     "/admin": "Admin Dashboard",
     "/admin/users": "Users",
     "/admin/tickets": "Tickets",
-    "/admin/disputes": "Disputes",
-    "/admin/broadcast": "Broadcast",
-    "/admin/services": "Services",
-    "/admin/reviews": "Reviews",
     "/admin/societies": "Societies",
     "/admin/audit": "Audit Log",
     "/admin/settings": "Settings",
     "/admin/wallet": "Wallet Admin",
-    "/admin/support": "Legacy Support",
   };
 
   const isDashboard = location.pathname === "/dashboard" || location.pathname === "/admin";
