@@ -85,18 +85,32 @@ export async function uploadResidencyProof(uid: string, file: File) {
     formData.append("upload_preset", uploadPreset);
     formData.append("folder", "ProNeighbor/residency-proofs");
 
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || "Upload failed");
+    try {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error?.message || "Cloudinary upload failed");
+      }
+      const data = await response.json();
+      residencyProofUrl = data.secure_url;
+    } catch (e: any) {
+      console.warn("Cloudinary upload failed, falling back to Firebase Storage (requires CORS configuration)", e);
+      // Fallback below
     }
-    const data = await response.json();
-    residencyProofUrl = data.secure_url;
-  } else {
+  }
+
+  if (!residencyProofUrl) {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const fileRef = storageRef(storage, `residency-proofs/${uid}/${Date.now()}-${safeName}`);
-    await uploadBytes(fileRef, file);
-    residencyProofUrl = await getDownloadURL(fileRef);
+    try {
+      await uploadBytes(fileRef, file);
+      residencyProofUrl = await getDownloadURL(fileRef);
+    } catch (e: any) {
+      if (e.message?.includes("CORS")) {
+        throw new Error("Residency proof upload blocked by CORS policy. Please configure Firebase Storage CORS using the provided cors.json and setup-storage-cors.ps1 scripts.");
+      }
+      throw new Error(`Firebase Storage upload failed: ${e.message}`);
+    }
   }
 
   await updateDoc(doc(db, "users", uid), {
