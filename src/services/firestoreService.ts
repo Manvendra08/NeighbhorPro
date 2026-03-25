@@ -20,9 +20,8 @@ import {
   Timestamp,
   runTransaction,
 } from "firebase/firestore";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { updateProfile } from "firebase/auth";
-import { db, auth, storage } from "../firebase";
+import { db, auth } from "../firebase";
 import { generateReferralCode } from "./coinService";
 import { validateUpload } from "../utils/cloudinary";
 
@@ -77,41 +76,22 @@ export async function uploadResidencyProof(uid: string, file: File) {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-  let residencyProofUrl = "";
-
-  if (cloudName && uploadPreset) {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", uploadPreset);
-    formData.append("folder", "ProNeighbor/residency-proofs");
-
-    try {
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || "Cloudinary upload failed");
-      }
-      const data = await response.json();
-      residencyProofUrl = data.secure_url;
-    } catch (e: any) {
-      console.warn("Cloudinary upload failed, falling back to Firebase Storage (requires CORS configuration)", e);
-      // Fallback below
-    }
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Cloudinary configuration is missing. Please contact support.");
   }
 
-  if (!residencyProofUrl) {
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const fileRef = storageRef(storage, `residency-proofs/${uid}/${Date.now()}-${safeName}`);
-    try {
-      await uploadBytes(fileRef, file);
-      residencyProofUrl = await getDownloadURL(fileRef);
-    } catch (e: any) {
-      if (e.message?.includes("CORS")) {
-        throw new Error("Residency proof upload blocked by CORS policy. Please configure Firebase Storage CORS using the provided cors.json and setup-storage-cors.ps1 scripts.");
-      }
-      throw new Error(`Firebase Storage upload failed: ${e.message}`);
-    }
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  formData.append("folder", "ProNeighbor/residency-proofs");
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || "Cloudinary upload failed");
   }
+  const data = await response.json();
+  const residencyProofUrl = data.secure_url;
 
   await updateDoc(doc(db, "users", uid), {
     residencyProofUrl,
