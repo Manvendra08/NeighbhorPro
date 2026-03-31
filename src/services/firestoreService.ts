@@ -488,6 +488,42 @@ export async function deleteFeedPost(postId: string) {
   await deleteDoc(doc(db, "localFeed", postId));
 }
 
+export type FeedReportReason = "offensive" | "scam" | "spam" | "policy_violation" | "other";
+
+export async function reportFeedPost(
+  postId: string,
+  reporterId: string,
+  reason: FeedReportReason,
+  details?: string,
+): Promise<{ success: boolean; alreadyReported?: boolean }> {
+  // Dedup: one report per user per post
+  const dedupId = `${postId}_${reporterId}`;
+  const dedupRef = doc(db, "feedReports", dedupId);
+  const existing = await getDoc(dedupRef);
+  if (existing.exists()) return { success: false, alreadyReported: true };
+
+  await setDoc(dedupRef, {
+    postId,
+    reporterId,
+    reason,
+    details: details ?? "",
+    status: "pending",
+    createdAt: serverTimestamp(),
+  });
+
+  // Increment report count on the post; auto-hide after 3 reports
+  const postRef = doc(db, "localFeed", postId);
+  const postSnap = await getDoc(postRef);
+  if (postSnap.exists()) {
+    const currentCount = ((postSnap.data()?.reportCount as number) ?? 0) + 1;
+    await updateDoc(postRef, {
+      reportCount: currentCount,
+      ...(currentCount >= 3 ? { hidden: true } : {}),
+    });
+  }
+  return { success: true };
+}
+
 /* ═══════════════════════════════════════════
    RECENTLY VIEWED / RECOMMENDATIONS
 ═══════════════════════════════════════════ */
