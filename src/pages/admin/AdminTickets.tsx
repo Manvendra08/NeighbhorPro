@@ -52,6 +52,14 @@ export default function AdminTickets() {
     setSending(true);
     await sendTicketMessage(selected.id, { text: reply.trim(), senderRole: "admin", senderName: adminName });
     await logAudit("ticket.reply", adminId, adminName, `Replied to ticket: ${selected.subject}`, selected.id);
+    
+    if (selected.status === "open") {
+      await updateTicketStatus(selected.id, "in_progress", adminId);
+      await logAudit("ticket.status", adminId, adminName, `Ticket ${selected.id.slice(0,8)} → in_progress`, selected.id);
+      setSelected(prev => prev ? { ...prev, status: "in_progress" } : null);
+      load();
+    }
+
     setReply("");
     setSending(false);
   };

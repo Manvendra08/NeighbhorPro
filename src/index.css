@@ -1912,8 +1912,16 @@ select.form-input {
     grid-template-columns: 1fr;
   }
 
-  .chat-list {
+  .chat-list.hidden-mobile {
     display: none;
+  }
+
+  .chat-messages.hidden-mobile {
+    display: none;
+  }
+
+  .mobile-back-btn {
+    display: flex !important;
   }
 
   .sidebar {

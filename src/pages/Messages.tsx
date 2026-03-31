@@ -200,7 +200,7 @@ export default function Messages() {
 
       <div className="chat-layout">
         {/* Conversation list */}
-        <div className="chat-list">
+        <div className={`chat-list ${activeConv ? 'hidden-mobile' : ''}`}>
           {/* Search bar */}
           <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
             <input
@@ -271,7 +271,7 @@ export default function Messages() {
         </div>
 
         {/* Chat messages */}
-        <div className="chat-messages">
+        <div className={`chat-messages ${!activeConv ? 'hidden-mobile' : ''}`}>
           {!activeConv ? (
             <div className="empty-state" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
               <div className="empty-state-icon">💬</div>
@@ -292,6 +292,20 @@ export default function Messages() {
                     borderBottom: "1px solid var(--border)",
                     background: "var(--bg-elevated)",
                   }}>
+                    <button 
+                      className="btn btn-ghost btn-icon mobile-back-btn" 
+                      onClick={() => {
+                         setActiveConv(null);
+                         // Remove conv from URL natively
+                         const url = new URL(window.location.href);
+                         url.searchParams.delete("conv");
+                         window.history.pushState({}, "", url.toString());
+                      }} 
+                      style={{ padding: 4, display: "none", marginRight: -4, marginLeft: -12 }}
+                      title="Back to conversations"
+                    >
+                      ←
+                    </button>
                     <div className="avatar avatar-sm">
                       {(other?.photoURL as string) ? (
                         <img src={other.photoURL as string} alt="" />

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, FormEvent } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createTicket, sendTicketMessage, subscribeTicketMessages,
-  getUserTickets, getFAQs, getSLAHours, generateTicketNumber, updateTicketStatus,
+  getFAQs, getSLAHours, generateTicketNumber, updateTicketStatus,
+  subscribeUserTickets,
   type SupportTicket, type TicketMessage, type FAQ,
 } from "../services/supportService";
 
@@ -21,6 +22,10 @@ function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket;
   const [sending, setSending] = useState(false);
   const [localStatus, setLocalStatus] = useState(ticket.status);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLocalStatus(ticket.status);
+  }, [ticket.status]);
 
   useEffect(() => {
     if (!ticket.id) return;
@@ -183,15 +188,16 @@ export default function Support() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [activeTicket, setActive] = useState<SupportTicket | null>(null);
-  const [ticketsLoaded, setTL] = useState(false);
-
   useEffect(() => { getFAQs().then(setFaqs); }, []);
 
-  const loadTickets = async () => {
-    if (!user || ticketsLoaded) return;
-    const t = await getUserTickets(user.uid);
-    setTickets(t); setTL(true);
-  };
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeUserTickets(user.uid, t => {
+      setTickets(t);
+      setActive(prev => prev ? (t.find(x => x.id === prev.id) || prev) : null);
+    });
+    return unsub;
+  }, [user]);
 
   const faqCategories = ["All", ...Array.from(new Set(faqs.map(f => f.category)))];
   const visibleFaqs = faqCat === "All" ? faqs : faqs.filter(f => f.category === faqCat);
@@ -209,7 +215,7 @@ export default function Support() {
 
       <div className="tabs">
         <button className={`tab${tab === "faq" ? " active" : ""}`} onClick={() => setTab("faq")}>FAQ</button>
-        <button className={`tab${tab === "tickets" ? " active" : ""}`} onClick={() => { setTab("tickets"); loadTickets(); }}>My Tickets</button>
+        <button className={`tab${tab === "tickets" ? " active" : ""}`} onClick={() => setTab("tickets")}>My Tickets</button>
         <button className={`tab${tab === "new" ? " active" : ""}`} onClick={() => setTab("new")}>+ New Ticket</button>
       </div>
 
@@ -290,7 +296,7 @@ export default function Support() {
 
       {/* ── NEW TICKET ── */}
       {tab === "new" && (
-        <NewTicketForm onCreated={t => { setTickets(prev => [t, ...prev]); setActive(t); setTab("tickets"); setTL(true); }} />
+        <NewTicketForm onCreated={t => { setTickets(prev => [t, ...prev]); setActive(t); setTab("tickets"); }} />
       )}
     </div>
   );

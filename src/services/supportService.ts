@@ -137,6 +137,12 @@ export async function getUserTickets(uid: string): Promise<SupportTicket[]> {
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as SupportTicket));
 }
 
+export function subscribeUserTickets(uid: string, cb: (tickets: SupportTicket[]) => void): Unsubscribe {
+  return onSnapshot(query(collection(db, "tickets"), where("uid", "==", uid), orderBy("createdAt", "desc")), snap => {
+    cb(snap.docs.map(d => ({ id: d.id, ...d.data() } as SupportTicket)));
+  });
+}
+
 export async function getAllTickets(pageLimit = 100): Promise<SupportTicket[]> {
   const snap = await getDocs(query(collection(db, "tickets"), orderBy("createdAt", "desc"), limit(pageLimit)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as SupportTicket));
