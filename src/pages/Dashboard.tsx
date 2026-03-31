@@ -8,6 +8,7 @@ import {
   createFeedPost,
   deleteFeedPost,
   reportFeedPost,
+  toggleLikeFeedPost,
   getRecommendedPros,
   getLastCompletedBookingForUser,
   getUserProfile,
@@ -209,6 +210,28 @@ function FeedPostCard({ post, uid, onDelete }: {
         <p style={{ fontSize: 14, lineHeight: 1.65, color: "var(--text-2)", margin: 0, whiteSpace: "pre-wrap" }}>
           {post.content as string}
         </p>
+
+        {/* Action Bar: Reactions */}
+        <div style={{ display: "flex", gap: 16, marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(0,0,0,0.03)" }}>
+          <button
+            onClick={() => toggleLikeFeedPost(post.id as string, uid)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, background: "none", border: "none",
+              cursor: "pointer", fontSize: 13, color: (post.likes as string[])?.includes(uid) ? "#E0245E" : "var(--muted)",
+              transition: "transform 0.1s", padding: 0,
+            }}
+            onMouseDown={e => (e.currentTarget.style.transform = "scale(0.92)")}
+            onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+          >
+            <span>{(post.likes as string[])?.includes(uid) ? "❤️" : "🤍"}</span>
+            <span style={{ fontWeight: 600 }}>{(post.likes as string[])?.length || 0}</span>
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--muted)" }}>
+            <span>💬</span>
+            <span style={{ fontWeight: 600 }}>{(post.commentCount as number) || 0}</span>
+          </div>
+        </div>
+
         {isHidden && isOwn && (
           <div style={{ marginTop: 8, fontSize: 11, color: "var(--error)", fontStyle: "italic" }}>
             This post has been flagged for review.
@@ -323,8 +346,11 @@ function RecommendedPros({ uid }: { uid: string }) {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{(p.displayName as string) || "Pro"}</div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>
-                  {(p.rating as number) ? `★ ${(p.rating as number).toFixed(1)}` : "New"}
+                <div style={{ fontSize: 11, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>★ {(p.rating as number) ? (p.rating as number).toFixed(1) : "New"}</span>
+                  {(p.tower as string) && (
+                    <span style={{ fontSize: 10, background: "var(--surface-2)", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>🏙️ {p.tower as string}</span>
+                  )}
                 </div>
               </div>
               <button className="btn btn-primary btn-xs" style={{ fontSize: 11, padding: "3px 12px", borderRadius: 8, flexShrink: 0 }}

@@ -314,19 +314,36 @@ export default function BrowsePros() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <input className="form-input" type="text" placeholder="Search by name, skill, locality…"
-          value={search} onChange={e => handleSearch(e.target.value)} style={{ maxWidth: 320, flex: 1 }} />
-        <input className="form-input" type="text" placeholder="Filter by locality…"
-          value={localityFilter} onChange={e => setLocalityFilter(e.target.value)} style={{ maxWidth: 200 }} />
-        <input className="form-input" type="text" placeholder="Tower / Wing"
-          value={towerFilter} onChange={e => setTowerFilter(e.target.value)} style={{ maxWidth: 140 }} />
-      </div>
+      <div style={{ marginBottom: 24, background: "#fff", padding: "20px 24px", borderRadius: 16, border: "1px solid var(--border)", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ flex: 1, minWidth: 280, position: "relative" }}>
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16 }}>🔍</span>
+            <input
+              className="form-input"
+              type="text"
+              placeholder="Search by name, skill, or service…"
+              value={search}
+              onChange={e => handleSearch(e.target.value)}
+              style={{ paddingLeft: 44, height: 48, borderRadius: 12, fontSize: 15, background: "var(--surface)" }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input className="form-input" type="text" placeholder="Locality…"
+              value={localityFilter} onChange={e => setLocalityFilter(e.target.value)} style={{ width: 140, height: 48, borderRadius: 12, fontSize: 13 }} />
+            <input className="form-input" type="text" placeholder="Tower/Wing"
+              value={towerFilter} onChange={e => setTowerFilter(e.target.value)} style={{ width: 110, height: 48, borderRadius: 12, fontSize: 13 }} />
+          </div>
+        </div>
 
-      <div className="filter-chips" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12, marginBottom: 24, scrollbarWidth: "none" }}>
-        {CATEGORIES.map(c => (
-          <button key={c} className={`chip${category === c ? " active" : ""}`} onClick={() => setCategory(c)}>{c}</button>
-        ))}
+        <div className="filter-chips" style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 16, paddingBottom: 4, scrollbarWidth: "none" }}>
+          <span style={{ alignSelf: "center", fontSize: 12, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", marginRight: 8, letterSpacing: 0.5 }}>Categories:</span>
+          {CATEGORIES.map(c => (
+            <button key={c} className={`chip${category === c ? " active" : ""}`} onClick={() => setCategory(c)}
+              style={{ padding: "6px 16px", borderRadius: 10, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>{CATEGORY_ICONS[c] || "✨"}</span> {c}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -339,6 +356,11 @@ export default function BrowsePros() {
         </div>
       ) : (
         <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+             <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: "var(--muted)" }}>
+               Showing {filtered.length} experts {category !== "All" ? `in ${category}` : ""}
+             </h2>
+          </div>
           <div className={viewMode === "grid" ? "grid grid-3" : "pro-list-layout"}>
             {filtered.map(p => <DesktopProCard key={p.uid as string} p={p} />)}
           </div>

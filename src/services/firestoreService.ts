@@ -524,6 +524,34 @@ export async function reportFeedPost(
   return { success: true };
 }
 
+/** Toggle a like on a feed post. Returns the updated like count and whether liked by user. */
+export async function toggleLikeFeedPost(postId: string, uid: string) {
+  const postRef = doc(db, "localFeed", postId);
+  let liked = false;
+  let newCount = 0;
+
+  await runTransaction(db, async tx => {
+    const postSnap = await tx.get(postRef);
+    if (!postSnap.exists()) return;
+
+    const currentLikes = (postSnap.data().likes as string[]) || [];
+    const index = currentLikes.indexOf(uid);
+
+    if (index === -1) {
+      currentLikes.push(uid);
+      liked = true;
+    } else {
+      currentLikes.splice(index, 1);
+      liked = false;
+    }
+
+    newCount = currentLikes.length;
+    tx.update(postRef, { likes: currentLikes, likeCount: newCount });
+  });
+
+  return { liked, likeCount: newCount };
+}
+
 /* ═══════════════════════════════════════════
    RECENTLY VIEWED / RECOMMENDATIONS
 ═══════════════════════════════════════════ */
