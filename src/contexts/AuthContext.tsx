@@ -10,7 +10,7 @@ import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "fir
 import { auth, db, googleProvider } from "../firebase";
 import { earnCoins, generateReferralCode } from "../services/coinService";
 import { logActivity } from "../services/activityService";
-import { mirrorPublicProfile } from "../services/firestoreService";
+import { mirrorPublicProfile, normalizeProfileData } from "../services/firestoreService";
 import type { FirestoreTimestamp } from "../types/firestore";
 
 export interface UserProfile {
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const unsub = onSnapshot(doc(db, "users", user.uid), snap => {
       if (snap.exists()) {
-        const data = snap.data() as UserProfile;
+        const data = normalizeProfileData({ uid: snap.id, ...snap.data() }) as unknown as UserProfile;
         setUserProfile(data);
         if (!profileBonusClaimedRef.current && isProfileComplete(data)) {
           profileBonusClaimedRef.current = true;

@@ -1,5 +1,6 @@
-import { collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp } from "firebase/firestore";
-import { db } from "../firebase";
+import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { db, functionsClient } from "../firebase";
 
 export type ActivityEvent =
   | "user.login"
@@ -26,12 +27,12 @@ export interface ActivityLog {
   event: ActivityEvent;
   details: string;
   metadata?: Record<string, unknown>;
-  timestamp: ReturnType<typeof serverTimestamp>;
+  timestamp: any; // Using any for simplicity as it could be serverTimestamp or plain object
 }
 
 /**
- * Log a user activity event to Firestore.
- * Fire-and-forget — never blocks the calling action.
+ * Log a user activity event via secure Cloud Function.
+ * Implements server-side rate limiting to prevent write abuse.
  */
 export async function logActivity(
   userId: string,
@@ -40,15 +41,15 @@ export async function logActivity(
   metadata?: Record<string, unknown>
 ): Promise<void> {
   try {
-    await addDoc(collection(db, "activityLogs"), {
+    const logFn = httpsCallable(functionsClient, "logActivityFunction");
+    await logFn({
       userId,
       event,
       details,
       metadata: metadata ?? {},
-      timestamp: serverTimestamp(),
     });
-  } catch {
-    // Non-critical — silently swallow
+  } catch (err) {
+    console.error("Activity logging failed:", err);
   }
 }
 

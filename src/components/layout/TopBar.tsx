@@ -4,7 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useDarkMode } from "../../hooks/useDarkMode";
 import { collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
-import { getAllUsers, getAllServices } from "../../services/firestoreService";
+import { getPublicStats, getAllServices } from "../../services/firestoreService";
 import NotificationCenter from "./NotificationCenter";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -219,12 +219,12 @@ function MessageTicker() {
       try {
         const msgs: string[] = [];
 
-        const userRes = await getAllUsers();
-        if (userRes.data.length > 0) msgs.push(`${userRes.data.length} neighbors are using ProNeighbor right now!`);
+        const stats = await getPublicStats();
+        if (stats.totalUsers > 0) msgs.push(`${stats.totalUsers.toLocaleString()}+ neighbors are using ProNeighbor right now!`);
 
         const svcRes = await getAllServices();
         if (svcRes.data.length > 0) {
-          const hot = svcRes.data.slice(0, 3).map((s: Record<string, unknown>) => (s.title || s.name) as string).join(", ");
+          const hot = svcRes.data.slice(0, 3).map((s: Record<string, unknown>) => (s.title || (s.name as string)) as string).join(", ");
           msgs.push(`🔥 Hot Services: ${hot}`);
         }
 

@@ -209,3 +209,81 @@ export const razorpayWebhook = functions.onRequest(
     res.status(200).send("OK");
   }
 );
+
+/* ═══════════════════════════════════════════════════════
+   3. generateCloudinarySignature — Signed Uploads Validation
+═══════════════════════════════════════════════════════ */
+export const generateCloudinarySignature = functions.onCall(
+  {
+    secrets: ["CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
+    region: "asia-south1",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new functions.HttpsError("unauthenticated", "Login required.");
+    }
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = "ProNeighbor/residency-proofs";
+    const apiKey = process.env.CLOUDINARY_API_KEY!;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET!;
+    
+    // Cloudinary signature does NOT include api_key or file in the string
+    // Format: folder=MyFolder&timestamp=12345678MySecret
+    const strToSign = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
+    const signature = crypto.createHash("sha1").update(strToSign).digest("hex");
+
+    return { 
+      signature, 
+      timestamp, 
+      folder, 
+      apiKey 
+    };
+  }
+);
+
+/* ═══════════════════════════════════════════════════════
+   4. logActivityFunction — Rate-limited server-side logging
+═══════════════════════════════════════════════════════ */
+const activityRateLimitCache = new Map<string, number>();
+
+export const logActivityFunction = functions.onCall(
+  {
+    region: "asia-south1",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new functions.HttpsError("unauthenticated", "Login required.");
+    }
+    const { event, details, metadata } = request.data;
+    if (!event || !details) {
+      throw new functions.HttpsError("invalid-argument", "Missing required fields.");
+    }
+
+    const uid = request.auth.uid;
+    const now = Date.now();
+    const lastTime = activityRateLimitCache.get(uid);
+
+    // Enforce 2-second rate limit per instance to prevent spam
+    if (lastTime && now - lastTime < 2000) {
+      logger.warn("Activity log rate limited for user", { uid, event });
+      throw new functions.HttpsError("resource-exhausted", "Too many requests. Please wait.");
+    }
+    
+    // Prune the map occasionally to prevent memory leaks in long-running instances
+    if (activityRateLimitCache.size > 1000) {
+      activityRateLimitCache.clear();
+    }
+    activityRateLimitCache.set(uid, now);
+
+    // Bypass client-side security rules by writing via Admin SDK
+    await db.collection("activityLogs").add({
+      userId: uid,
+      event,
+      details,
+      metadata: metadata || {},
+      timestamp: FieldValue.serverTimestamp(),
+    });
+
+    return { success: true };
+  }
+);

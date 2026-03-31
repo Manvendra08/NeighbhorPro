@@ -337,11 +337,11 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       const bookingSnap = await tx.get(bookingRef);
       if (!bookingSnap.exists()) throw new Error("BOOKING_NOT_FOUND");
       const data = bookingSnap.data()!;
-      // Idempotency guard: already released or completed — skip
-      if (data.escrowStatus === "released" || data.status === "completed") return;
+      // Idempotency guard: already released — skip
+      if (data.escrowStatus === "released") return;
       const escrowCoins = (data.escrowCoins as number) ?? 0;
       if (escrowCoins === 0) {
-        // No escrow but still mark completed atomically
+        // No escrow but still ensure marked completed atomically
         tx.update(bookingRef, { status: "completed", updatedAt: serverTimestamp() });
         return;
       }
@@ -375,19 +375,83 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
   await runTransaction(db, async tx => {
     const bookingRef = doc(db, "bookings", bookingId);
     const bookingSnap = await tx.get(bookingRef);
-    const escrowCoins = (bookingSnap.data()?.escrowCoins as number) ?? 0;
-    const escrowStatus = bookingSnap.data()?.escrowStatus as string;
-    if (escrowStatus === "released" || escrowCoins === 0) {
+    const data = bookingSnap.data();
+    if (!data) return;
+
+    const escrowCoins = (data.escrowCoins as number) ?? 0;
+    const escrowStatus = data.escrowStatus as string;
+
+    // If already released, it cannot be refunded.
+    if (escrowStatus === "released") return;
+    // If already refunded, skip.
+    if (escrowStatus === "refunded") return;
+
+    if (escrowCoins === 0) {
       tx.update(bookingRef, { escrowStatus: "refunded", updatedAt: serverTimestamp() });
       return;
     }
+
     const userRef = doc(db, "users", clientUid);
     const snap = await tx.get(userRef);
     const newBal = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
+    
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
     tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false, updatedAt: serverTimestamp() });
-    tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), { uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal, description: `Refund: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
+    tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), {
+      uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal,
+      description: `Refund: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp()
+    } as LedgerEntry);
   });
+}
+
+/**
+ * Atomically cancels a booking and refunds escrow if present.
+ * This prevents the race where a booking is marked 'cancelled' but the refund fails.
+ */
+export async function cancelBookingAndRefund(uid: string, bookingId: string, _role: "client" | "pro"): Promise<{ success: boolean; reason?: string }> {
+  try {
+    await runTransaction(db, async tx => {
+      const bookingRef = doc(db, "bookings", bookingId);
+      const bookingSnap = await tx.get(bookingRef);
+      const data = bookingSnap.data();
+      if (!data) throw new Error("BOOKING_NOT_FOUND");
+      
+      const status = data.status as string;
+      if (status === "cancelled" || status === "completed" || status === "reviewed") {
+        throw new Error("ALREADY_FINALIZED");
+      }
+
+      const escrowCoins = (data.escrowCoins as number) || 0;
+      const escrowStatus = data.escrowStatus as string;
+      const clientUid = data.clientId as string;
+      const serviceName = (data.serviceName as string) || "Booking";
+
+      // 1. Mark booking as cancelled
+      tx.update(bookingRef, { 
+        status: "cancelled", 
+        updatedAt: serverTimestamp(),
+        cancelledBy: uid,
+        cancelledAt: serverTimestamp()
+      });
+
+      // 2. Handle escrow refund if held
+      if (escrowCoins > 0 && escrowStatus === "held") {
+        const clientRef = doc(db, "users", clientUid);
+        const clientSnap = await tx.get(clientRef);
+        const newBal = ((clientSnap.data()?.coinBalance as number) ?? 0) + escrowCoins;
+
+        tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
+        tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false });
+        tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), {
+          uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal,
+          description: `Refund (Cancellation): ${serviceName}`, refId: bookingId, createdAt: serverTimestamp()
+        } as LedgerEntry);
+      }
+    });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, reason: e.message };
+  }
 }
 
 export const payForBooking = holdEscrow as unknown as (clientUid: string, proUid: string, bookingId: string, coins: number, serviceName: string) => Promise<{ success: boolean; reason?: string }>;

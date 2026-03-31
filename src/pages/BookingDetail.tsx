@@ -55,13 +55,10 @@ export default function BookingDetail() {
   const handleCancel = async () => {
     setAL("cancel");
     try {
-      await updateBookingStatus(id!, "cancelled");
-      if (escrowCoins > 0 && isClient) {
-        await refundEscrow(user!.uid, id!, (booking.serviceName as string) || "Booking");
-      } else if (escrowCoins > 0 && isPro) {
-        await refundEscrow(booking.clientId as string, id!, (booking.serviceName as string) || "Booking");
-      }
       const role = isClient ? "client" : "pro";
+      const result = await cancelBookingAndRefund(user!.uid, id!, role);
+      if (!result.success) { setError(result.reason || "Failed to cancel."); setAL(null); return; }
+
       const counterparty = isClient ? (booking.proName as string) || booking.proId : (booking.clientName as string) || booking.clientId;
       logActivity(user!.uid, "booking.cancelled", `${isClient ? "Cancelled" : "Declined"} booking: ${(booking.serviceName as string) || id} ${isClient ? "with" : "from"} ${counterparty}`, { bookingId: id, role, escrowRefunded: escrowCoins });
       await load();
@@ -81,7 +78,6 @@ export default function BookingDetail() {
     try {
       const result = await releaseEscrow(user!.uid, id!, (booking.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
-      await updateBookingStatus(id!, "completed");
       await rewardReferral(booking.clientId as string);
       try {
         await processCompletedBookingLoyalty({

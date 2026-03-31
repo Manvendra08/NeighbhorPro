@@ -299,10 +299,51 @@ export default function BrowsePros() {
   // ── Desktop layout ─────────────────────────────────────────────────────
   return (
     <div>
-      <div className="page-header">
+      {/* Search Bar at the very top */}
+      <div style={{ marginBottom: 24, background: "#fff", padding: "24px", borderRadius: 16, border: "1px solid var(--border)", boxShadow: "0 10px 30px rgba(0,0,0,0.06)", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, width: "4px", height: "100%", background: "var(--accent)" }}></div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ flex: 1, minWidth: 320, position: "relative" }}>
+            <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", fontSize: 18 }}>🔍</span>
+            <input
+              className="form-input"
+              type="text"
+              placeholder="Search by name, skill, or service category..."
+              value={search}
+              onChange={e => handleSearch(e.target.value)}
+              style={{ paddingLeft: 48, height: 56, borderRadius: 14, fontSize: 16, background: "var(--surface)", border: "2px solid transparent", transition: "all 0.2s" }}
+              onFocus={e => e.currentTarget.style.borderColor = "var(--accent)"}
+              onBlur={e => e.currentTarget.style.borderColor = "transparent"}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ position: "relative" }}>
+               <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6 }}>📍</span>
+               <input className="form-input" type="text" placeholder="Locality..."
+                 value={localityFilter} onChange={e => setLocalityFilter(e.target.value)} style={{ width: 160, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34 }} />
+            </div>
+            <div style={{ position: "relative" }}>
+               <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6 }}>🏢</span>
+               <input className="form-input" type="text" placeholder="Tower"
+                 value={towerFilter} onChange={e => setTowerFilter(e.target.value)} style={{ width: 110, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34 }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="filter-chips" style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 20, paddingBottom: 4, scrollbarWidth: "none" }}>
+          {CATEGORIES.map(c => (
+            <button key={c} className={`chip${category === c ? " active" : ""}`} onClick={() => setCategory(c)}
+              style={{ padding: "8px 18px", borderRadius: 12, fontSize: 14, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+              <span>{CATEGORY_ICONS[c] || "✨"}</span> {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="page-header" style={{ marginTop: 32 }}>
         <div>
           <h1 className="page-title">Browse Professionals</h1>
-          <p className="page-subtitle">Find trusted experts in your community</p>
+          <p className="page-subtitle">Find trusted experts in your neighborhood</p>
         </div>
         <div className="view-toggle-group">
           <button className={`view-toggle-btn ${viewMode === "grid" ? "active" : ""}`} onClick={() => setViewMode("grid")}>
@@ -311,38 +352,6 @@ export default function BrowsePros() {
           <button className={`view-toggle-btn ${viewMode === "list" ? "active" : ""}`} onClick={() => setViewMode("list")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>List
           </button>
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 24, background: "#fff", padding: "20px 24px", borderRadius: 16, border: "1px solid var(--border)", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 280, position: "relative" }}>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16 }}>🔍</span>
-            <input
-              className="form-input"
-              type="text"
-              placeholder="Search by name, skill, or service…"
-              value={search}
-              onChange={e => handleSearch(e.target.value)}
-              style={{ paddingLeft: 44, height: 48, borderRadius: 12, fontSize: 15, background: "var(--surface)" }}
-            />
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input className="form-input" type="text" placeholder="Locality…"
-              value={localityFilter} onChange={e => setLocalityFilter(e.target.value)} style={{ width: 140, height: 48, borderRadius: 12, fontSize: 13 }} />
-            <input className="form-input" type="text" placeholder="Tower/Wing"
-              value={towerFilter} onChange={e => setTowerFilter(e.target.value)} style={{ width: 110, height: 48, borderRadius: 12, fontSize: 13 }} />
-          </div>
-        </div>
-
-        <div className="filter-chips" style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 16, paddingBottom: 4, scrollbarWidth: "none" }}>
-          <span style={{ alignSelf: "center", fontSize: 12, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", marginRight: 8, letterSpacing: 0.5 }}>Categories:</span>
-          {CATEGORIES.map(c => (
-            <button key={c} className={`chip${category === c ? " active" : ""}`} onClick={() => setCategory(c)}
-              style={{ padding: "6px 16px", borderRadius: 10, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>{CATEGORY_ICONS[c] || "✨"}</span> {c}
-            </button>
-          ))}
         </div>
       </div>
 
