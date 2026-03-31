@@ -113,6 +113,20 @@ export async function updateResidentVerification(
   });
 }
 
+/**
+ * Fetches users with 'pending' residentVerificationStatus.
+ * Used for admin approval workflow.
+ */
+export async function getPendingVerifications(): Promise<Record<string, unknown>[]> {
+  const q = query(
+    collection(db, "users"),
+    where("residentVerificationStatus", "==", "pending"),
+    orderBy("updatedAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ ...d.data(), uid: d.id }));
+}
+
 export const BROWSE_PAGE_SIZE = 20;
 
 /**

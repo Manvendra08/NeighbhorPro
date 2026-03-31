@@ -58,6 +58,20 @@ export default function ProAvailabilityEditor() {
     setAvail({ ...avail, [day]: { ...avail[day], active: !avail[day]?.active } });
   };
 
+  const toggleFullDay = (day: string) => {
+    if (!avail) return;
+    const dayData = avail[day] || { active: true, slots: [] };
+    const isFull = (dayData.slots || []).length === ALL_SLOTS.length;
+    setAvail({ 
+      ...avail, 
+      [day]: { 
+        ...dayData, 
+        active: true, 
+        slots: isFull ? [] : [...ALL_SLOTS] 
+      } 
+    });
+  };
+
   const toggleSlot = (day: string, slot: string) => {
     if (!avail) return;
     const dayData = avail[day] || { active: true, slots: [] };
@@ -82,10 +96,24 @@ export default function ProAvailabilityEditor() {
         {DAYS.map(day => (
           <div key={day} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: avail[day]?.active ? 16 : 0 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 600, textTransform: "capitalize" }}>
-                <input type="checkbox" checked={!!avail[day]?.active} onChange={() => toggleDay(day)} style={{ width: 18, height: 18, accentColor: "var(--accent)" }} />
-                {day}
-              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 600, textTransform: "capitalize" }}>
+                  <input type="checkbox" checked={!!avail[day]?.active} onChange={() => toggleDay(day)} style={{ width: 18, height: 18, accentColor: "var(--accent)" }} />
+                  {day}
+                </label>
+                
+                {avail[day]?.active && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--accent)", background: "rgba(var(--accent-rgb), 0.1)", padding: "4px 12px", borderRadius: 20 }}>
+                    <input 
+                      type="checkbox" 
+                      checked={(avail[day].slots || []).length === ALL_SLOTS.length} 
+                      onChange={() => toggleFullDay(day)}
+                      style={{ width: 14, height: 14, accentColor: "var(--accent)" }}
+                    />
+                    Available full day
+                  </label>
+                )}
+              </div>
               <span className="text-muted text-sm">{avail[day]?.active ? "Available" : "Unavailable"}</span>
             </div>
 

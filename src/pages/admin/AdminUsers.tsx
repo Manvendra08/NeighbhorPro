@@ -1,7 +1,15 @@
-import { useEffect, useState } from "react";
-import { getAllUsers, updateUserProfile, updateResidentVerification } from "../../services/firestoreService";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { 
+  getAllUsers, 
+  updateUserProfile, 
+  updateResidentVerification,
+  getOrCreateConversation 
+} from "../../services/firestoreService";
 import { deleteDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "../../firebase";
+import { initializeApp, deleteApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, updateProfile, signOut } from "firebase/auth";
+import { db, app } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
 import { getUserActivityLogs } from "../../services/activityService";
@@ -11,8 +19,9 @@ type UserRow = Record<string, unknown>;
 type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verification";
 
 export default function AdminUsers() {
-  const { userProfile } = useAuth();
-  const adminId = userProfile?.uid || "unknown";
+  const { userProfile, user } = useAuth();
+  const navigate = useNavigate();
+  const adminId = userProfile?.uid || user?.uid || "unknown";
   const adminName = userProfile?.displayName || "Admin";
 
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -46,14 +55,14 @@ export default function AdminUsers() {
 
   const counts = {
     all: users.length,
-    active: users.filter(u => !u.disabled).length,
-    disabled: users.filter(u => !!u.disabled).length,
-    admins: users.filter(u => u.role === "admin").length,
-    pros: users.filter(u => !!u.isServiceProvider).length,
-    verification: users.filter(u => u.residentVerificationStatus === "pending").length,
+    active: users.filter((u: UserRow) => !u.disabled).length,
+    disabled: users.filter((u: UserRow) => !!u.disabled).length,
+    admins: users.filter((u: UserRow) => u.role === "admin").length,
+    pros: users.filter((u: UserRow) => !!u.isServiceProvider).length,
+    verification: users.filter((u: UserRow) => u.residentVerificationStatus === "pending").length,
   };
 
-  const filtered = users.filter(u => {
+  const filtered = users.filter((u: UserRow) => {
     const q = search.toLowerCase();
     const matchSearch = !q ||
       ((u.displayName as string) || "").toLowerCase().includes(q) ||
@@ -208,7 +217,7 @@ export default function AdminUsers() {
         <div style={{ display: "flex", gap: 10 }}>
           <button className="btn btn-secondary btn-sm" onClick={() => {
             const csv = ["Name,Email,Society,Role,Pro,Status"]
-              .concat(users.map(u => `"${u.displayName}","${u.email}","${u.society || ""}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`))
+              .concat(users.map((u: UserRow) => `"${u.displayName}","${u.email}","${u.society || ""}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`))
               .join("\n");
             const a = document.createElement("a");
             a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
@@ -218,12 +227,7 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      <div className="grid" style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: 16,
-        marginBottom: 24
-      }}>
+      <div className="grid grid-4" style={{ marginBottom: 24 }}>
         {[
           { label: "Total Users", val: counts.all, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, color: "var(--accent)" },
           { label: "Active Users", val: counts.active, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>, color: "var(--success)" },
@@ -259,7 +263,11 @@ export default function AdminUsers() {
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>User</th><th>Email</th><th>Locality</th><th>Role</th><th>Pro</th><th>Resident</th><th>Status</th><th>Actions</th></tr>
+              {tab === "verification" ? (
+                <tr><th>User</th><th>Society / Flat</th><th>Submitted</th><th>Proof Document</th><th>Actions</th></tr>
+              ) : (
+                <tr><th>User</th><th>Email</th><th>Locality</th><th>Role</th><th>Pro</th><th>Resident</th><th>Status</th><th>Actions</th></tr>
+              )}
             </thead>
             <tbody>
               {filtered.map(u => {
@@ -278,35 +286,68 @@ export default function AdminUsers() {
                         </div>
                       </div>
                     </td>
-                    <td className="text-muted">{u.email as string}</td>
-                    <td>{(u.locality as string) || (u.society as string) || <span className="text-muted">—</span>}{(u.tower as string) ? `, ${u.tower}` : ""}</td>
-                    <td>
-                      <span className={`badge ${u.role === "admin" ? "badge-warning" : "badge-muted"}`}>
-                        {u.role === "admin" ? "🛡 Admin" : "User"}
-                      </span>
-                    </td>
-                    <td>{u.isServiceProvider ? <span className="badge badge-accent">✓ Pro</span> : <span className="text-muted" style={{ fontSize: 12 }}>—</span>}</td>
-                    <td>
-                      {u.residentVerificationStatus === "verified" ? (
-                        <span className="badge badge-success">✓ Verified</span>
-                      ) : u.residentVerificationStatus === "pending" ? (
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <button className="btn btn-success btn-sm" style={{ fontSize: 10, padding: "2px 8px" }} onClick={() => handleVerifyResident(u, "verified")} disabled={busy}>Verify</button>
-                          <button className="btn btn-danger btn-sm" style={{ fontSize: 10, padding: "2px 8px" }} onClick={() => handleVerifyResident(u, "none")} disabled={busy}>Reject</button>
-                        </div>
-                      ) : (
-                        <span className="text-muted" style={{ fontSize: 12 }}>—</span>
-                      )}
-                    </td>
-                    <td><span className={`badge ${u.disabled ? "badge-error" : "badge-success"}`}>{u.disabled ? "Disabled" : "Active"}</span></td>
-                    <td>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        <button className={`btn btn-sm ${u.disabled ? "btn-success" : "btn-danger"}`} onClick={() => handleToggleDisable(u)} disabled={busy}>{u.disabled ? "Enable" : "Disable"}</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => handleToggleRole(u)} disabled={busy}>{u.role === "admin" ? "Demote" : "Make Admin"}</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => handleTogglePro(u)} disabled={busy} style={{ color: u.isServiceProvider ? "var(--warning)" : "var(--accent)" }}>{u.isServiceProvider ? "Remove Pro" : "Set Pro"}</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(u)} disabled={busy}>🗑</button>
-                      </div>
-                    </td>
+
+                    {tab === "verification" ? (
+                      <>
+                        <td>
+                          <div style={{ fontWeight: 500 }}>{(u.society as string) || (u.locality as string) || "—"}</div>
+                          <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                            {u.tower ? `Tower ${u.tower}` : ""} {u.flatNumber ? `Flat ${u.flatNumber}` : ""}
+                          </div>
+                        </td>
+                        <td>{formatTs(u.updatedAt)}</td>
+                        <td>
+                          {u.residencyProofUrl ? (
+                            <a 
+                              href={u.residencyProofUrl as string} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="btn btn-ghost btn-sm"
+                              style={{ color: "var(--accent)", textDecoration: "none", fontSize: 12 }}
+                            >
+                              📎 View Proof
+                            </a>
+                          ) : (
+                            <span className="text-muted" style={{ fontSize: 12 }}>No document</span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button className="btn btn-success btn-sm" onClick={() => handleVerifyResident(u, "verified")} disabled={busy}>Approve</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleVerifyResident(u, "none")} disabled={busy}>Reject</button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="text-muted">{u.email as string}</td>
+                        <td>{(u.locality as string) || (u.society as string) || <span className="text-muted">—</span>}{(u.tower as string) ? `, ${u.tower}` : ""}</td>
+                        <td>
+                          <span className={`badge ${u.role === "admin" ? "badge-warning" : "badge-muted"}`}>
+                            {u.role === "admin" ? "🛡 Admin" : "User"}
+                          </span>
+                        </td>
+                        <td>{u.isServiceProvider ? <span className="badge badge-accent">✓ Pro</span> : <span className="text-muted" style={{ fontSize: 12 }}>—</span>}</td>
+                        <td>
+                          {u.residentVerificationStatus === "verified" ? (
+                            <span className="badge badge-success">✓ Verified</span>
+                          ) : u.residentVerificationStatus === "pending" ? (
+                            <button className="btn btn-warning btn-sm" style={{ fontSize: 10, padding: "2px 8px" }} onClick={() => setTab("verification")}>Pending</button>
+                          ) : (
+                            <span className="text-muted" style={{ fontSize: 12 }}>—</span>
+                          )}
+                        </td>
+                        <td><span className={`badge ${u.disabled ? "badge-error" : "badge-success"}`}>{u.disabled ? "Disabled" : "Active"}</span></td>
+                        <td>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button className={`btn btn-sm ${u.disabled ? "btn-success" : "btn-danger"}`} onClick={() => handleToggleDisable(u)} disabled={busy}>{u.disabled ? "Enable" : "Disable"}</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => handleToggleRole(u)} disabled={busy}>{u.role === "admin" ? "Demote" : "Make Admin"}</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => handleTogglePro(u)} disabled={busy} style={{ color: u.isServiceProvider ? "var(--warning)" : "var(--accent)" }}>{u.isServiceProvider ? "Remove Pro" : "Set Pro"}</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(u)} disabled={busy}>🗑</button>
+                          </div>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
@@ -367,6 +408,11 @@ export default function AdminUsers() {
                   <button className={`btn ${selectedUser.disabled ? "btn-success" : "btn-danger"} btn-sm`} onClick={() => { handleToggleDisable(selectedUser); setSelectedUser(null); }}>
                     {selectedUser.disabled ? "Enable User" : "Disable User"}
                   </button>
+                  <button className="btn btn-secondary btn-sm" onClick={async () => {
+                    if (!user) return;
+                    const convId = await getOrCreateConversation(user.uid, selectedUser.uid as string);
+                    navigate(`/messages?conv=${convId}`);
+                  }}>💬 Message</button>
                   <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(null)}>Close</button>
                 </div>
               </>
@@ -439,27 +485,44 @@ export default function AdminUsers() {
 }
 
 function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string; adminName: string; onClose: () => void; onDone: () => void }) {
-  const [form, setForm] = useState({ displayName: "", email: "", society: "", role: "user", isServiceProvider: false });
+  const [form, setForm] = useState({ displayName: "", email: "", password: "", society: "", role: "user", isServiceProvider: false });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
-    if (!form.displayName.trim() || !form.email.trim()) { setError("Name and email are required"); return; }
+    if (!form.displayName.trim() || !form.email.trim() || !form.password) { setError("Name, email, and password are required"); return; }
+    if (form.password.length < 6) { setError("Password must be at least 6 characters"); return; }
     setSaving(true);
+    let secondaryApp;
     try {
-      const uid = `manual_${Date.now()}`;
+      secondaryApp = initializeApp(app.options, "SecondaryAdminApp");
+      const secondaryAuth = getAuth(secondaryApp);
+      
+      const userCred = await createUserWithEmailAndPassword(secondaryAuth, form.email.trim(), form.password);
+      const uid = userCred.user.uid;
+      
+      await updateProfile(userCred.user, { displayName: form.displayName.trim() });
+      await signOut(secondaryAuth);
+
       await setDoc(doc(db, "users", uid), {
         uid, displayName: form.displayName.trim(), email: form.email.trim(),
         society: form.society.trim(), role: form.role, isServiceProvider: form.isServiceProvider,
         photoURL: "", bio: "", skills: [], hourlyRate: 0, isFreeConsultation: true,
         rating: 0, reviewCount: 0, disabled: false, createdAt: serverTimestamp(),
+        residentVerificationStatus: "none",
       });
-      await logAudit("user.create", adminId, adminName, `Created manual user record: ${form.displayName} (${form.email})`, uid);
+      await logAudit("user.create", adminId, adminName, `Created user record and Auth: ${form.displayName} (${form.email})`, uid);
       onDone();
-    } catch (e: unknown) { setError((e as Error).message || "Failed"); }
-    setSaving(false);
+    } catch (e: unknown) { 
+      setError((e as Error).message || "Failed"); 
+    } finally {
+      if (secondaryApp) {
+        deleteApp(secondaryApp).catch(() => {});
+      }
+      setSaving(false);
+    }
   };
 
   return (
@@ -469,18 +532,24 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
           <h3 className="modal-title">Add User Record</h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
-        <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Creates a Firestore profile stub. Firebase Auth account must be created separately.</p>
+        <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Creates a fully functional Firebase Auth account and Firestore profile.</p>
         {error && <div className="error-box">{error}</div>}
-        {[
-          { label: "Full Name *", key: "displayName", placeholder: "Rajesh Kumar" },
-          { label: "Email *", key: "email", placeholder: "rajesh@example.com" },
-          { label: "Society", key: "society", placeholder: "Sunflower Heights" },
-        ].map(f => (
-          <div className="form-group" key={f.key}>
-            <label className="form-label">{f.label}</label>
-            <input className="form-input" placeholder={f.placeholder} value={form[f.key as "displayName" | "email" | "society"]} onChange={e => set(f.key, e.target.value)} />
-          </div>
-        ))}
+        <div className="form-group">
+          <label className="form-label">Full Name *</label>
+          <input className="form-input" placeholder="Rajesh Kumar" value={form.displayName} onChange={e => set("displayName", e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Email *</label>
+          <input className="form-input" placeholder="rajesh@example.com" value={form.email} onChange={e => set("email", e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Temporary Password *</label>
+          <input className="form-input" placeholder="Min 6 chars" type="password" value={form.password} onChange={e => set("password", e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Society</label>
+          <input className="form-input" placeholder="Sunflower Heights" value={form.society} onChange={e => set("society", e.target.value)} />
+        </div>
         <div className="form-group">
           <label className="form-label">Role</label>
           <select className="form-input" value={form.role} onChange={e => set("role", e.target.value)}>

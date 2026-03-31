@@ -26,10 +26,17 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isOwner(userId);
       allow update: if isSignedIn() && (
-        (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coinBalance', 'role', 'residentVerificationStatus', 'verificationMethod'])) || 
+        (isOwner(userId) && (
+          // Standard metadata/profile updates
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'residentVerificationStatus', 'verificationMethod']) ||
+          // Specifically allow residency proof submission
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasAny(['residencyProofUrl', 'residentVerificationStatus']) &&
+            request.resource.data.residentVerificationStatus == 'pending'
+          )
+        )) || 
         isAdmin()
       ) && noSensitiveFieldChange();
-      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 

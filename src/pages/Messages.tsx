@@ -11,6 +11,8 @@ import {
   getUserProfile,
   formatTimestampTime,
   markConversationRead,
+  getAllUsers,
+  getOrCreateConversation,
 } from "../services/firestoreService";
 import { Timestamp } from "firebase/firestore";
 import { relativeTime } from "../utils/time";
@@ -31,7 +33,13 @@ export default function Messages() {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const loggedConvsRef = useRef<Set<string>>(new Set()); // throttle: log once per conv per session
+  const loggedConvsRef = useRef<Set<string>>(new Set());
+
+  // New Chat Modal state
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [allUsers, setAllUsers] = useState<Record<string, unknown>[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
 
   // Subscribe to conversations
   useEffect(() => {
@@ -139,6 +147,40 @@ export default function Messages() {
     const last = ((conv.lastMessage as string) || "").toLowerCase();
     return name.includes(search.toLowerCase()) || last.includes(search.toLowerCase());
   });
+  
+  const handleStartNewChat = async (targetUid: string) => {
+    if (!user) return;
+    try {
+      const convId = await getOrCreateConversation(user.uid, targetUid);
+      setActiveConv(convId);
+      setShowNewChatModal(false);
+      setUserSearch("");
+      // Add ?conv= to URL without full reload
+      const url = new URL(window.location.href);
+      url.searchParams.set("conv", convId);
+      window.history.pushState({}, "", url.toString());
+    } catch (err) {
+      alert("Failed to start chat.");
+    }
+  };
+
+  useEffect(() => {
+    if (showNewChatModal && allUsers.length === 0) {
+      setSearchingUsers(true);
+      getAllUsers().then(res => {
+        setAllUsers(res.data.filter(u => u.uid !== user?.uid));
+        setSearchingUsers(false);
+      });
+    }
+  }, [showNewChatModal, user, allUsers.length]);
+
+  const filteredUsers = allUsers.filter(u => {
+    const q = userSearch.toLowerCase();
+    const name = ((u.displayName as string) || "").toLowerCase();
+    const email = ((u.email as string) || "").toLowerCase();
+    const society = ((u.society as string) || "").toLowerCase();
+    return name.includes(q) || email.includes(q) || society.includes(q);
+  });
 
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
@@ -151,6 +193,9 @@ export default function Messages() {
           </h1>
           <p className="page-subtitle">Chat with professionals and clients</p>
         </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNewChatModal(true)}>
+          <span style={{ marginRight: 6 }}>+</span> New Chat
+        </button>
       </div>
 
       <div className="chat-layout">
@@ -363,6 +408,57 @@ export default function Messages() {
           )}
         </div>
       </div>
+
+      {/* New Chat Modal */}
+      {showNewChatModal && (
+        <div className="modal-overlay" onClick={() => setShowNewChatModal(false)}>
+          <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Start a New Chat</h3>
+              <button className="modal-close" onClick={() => setShowNewChatModal(false)}>✕</button>
+            </div>
+            <div style={{ padding: "0 0 16px" }}>
+              <input 
+                className="form-input" 
+                placeholder="Search name, email, or society…" 
+                autoFocus
+                value={userSearch}
+                onChange={e => setUserSearch(e.target.value)}
+              />
+            </div>
+            <div style={{ maxHeight: 320, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+              {searchingUsers ? (
+                <div style={{ padding: 40, textAlign: "center" }}><div className="loader" style={{ margin: "0 auto" }} /></div>
+              ) : filteredUsers.length === 0 ? (
+                <div style={{ padding: 30, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>No users found.</div>
+              ) : (
+                filteredUsers.map(u => {
+                  const initials = ((u.displayName as string) || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+                  return (
+                    <div 
+                      key={u.uid as string} 
+                      className="chat-list-item" 
+                      onClick={() => handleStartNewChat(u.uid as string)}
+                      style={{ padding: "10px 14px" }}
+                    >
+                      <div className="avatar avatar-sm">
+                        {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" /> : initials}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{u.displayName as string || "Anonymous"}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{u.society as string || "Neighbor"}</div>
+                      </div>
+                      {!!u.isServiceProvider && (
+                        <span className="badge badge-accent" style={{ fontSize: 9 }}>Pro</span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

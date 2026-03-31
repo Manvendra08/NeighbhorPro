@@ -4,6 +4,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
 import { Link } from "react-router-dom";
 
+type SubscriptionFilter = "all" | "free" | "premium";
+
 export default function AdminSocieties() {
   const { userProfile } = useAuth();
   const adminId = userProfile?.uid || "unknown";
@@ -11,6 +13,7 @@ export default function AdminSocieties() {
 
   const [societies, setSocieties] = useState<Record<string, unknown>[]>([]);
   const [search, setSearch] = useState("");
+  const [subscriptionFilter, setSubscriptionFilter] = useState<SubscriptionFilter>("all");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -26,12 +29,21 @@ export default function AdminSocieties() {
     setLoading(true);
     try {
       const res = await getAllSocieties();
-      setSocieties(res.data);
-    } catch { /* ignore */ }
+      setSocieties(res.data || []);
+    } catch (e) { console.error("Load error:", e); }
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClick = () => setActiveMenu(null);
+    if (activeMenu) {
+      document.addEventListener("click", handleClick);
+      return () => document.removeEventListener("click", handleClick);
+    }
+  }, [activeMenu]);
 
   const handleCreate = async () => {
     if (!name.trim()) return;
@@ -66,6 +78,18 @@ export default function AdminSocieties() {
     } catch { showToast("Delete failed"); }
   };
 
+  const counts = {
+    all: societies.length,
+    free: societies.filter(s => (s.subscription as string) !== "premium").length,
+    premium: societies.filter(s => (s.subscription as string) === "premium").length,
+  };
+
+  const filtered = societies.filter(s => {
+    const matchSearch = !search || (s.name as string).toLowerCase().includes(search.toLowerCase());
+    const matchSub = subscriptionFilter === "all" || (s.subscription as string) === subscriptionFilter;
+    return matchSearch && matchSub;
+  });
+
   return (
     <div>
       {toast && <div style={{ position: "fixed", top: 20, right: 24, zIndex: 9999, background: "var(--success)", color: "#fff", padding: "10px 20px", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: 13, boxShadow: "var(--shadow-lg)" }}>{toast}</div>}
@@ -99,7 +123,15 @@ export default function AdminSocieties() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+      {/* FIX: Added working subscription filter with state and counts */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+        <div className="tabs" style={{ marginBottom: 0, border: "none" }}>
+          {(["all", "free", "premium"] as SubscriptionFilter[]).map(f => (
+            <button key={f} className={`tab${subscriptionFilter === f ? " active" : ""}`} onClick={() => setSubscriptionFilter(f)}>
+              {f.charAt(0).toUpperCase() + f.slice(1)} ({counts[f]})
+            </button>
+          ))}
+        </div>
         <input
           className="form-input"
           placeholder="Search societies..."
@@ -107,34 +139,33 @@ export default function AdminSocieties() {
           onChange={e => setSearch(e.target.value)}
           style={{ maxWidth: 320 }}
         />
-        <select className="form-input" style={{ maxWidth: 160 }}>
-          <option value="all">All Subscriptions</option>
-          <option value="free">Free</option>
-          <option value="premium">Premium</option>
-        </select>
       </div>
 
       {loading ? (
         <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
-      ) : societies.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🏘️</div>
-          <div className="empty-state-title">No societies yet</div>
-          <div className="empty-state-desc">Add your first community to get started</div>
+          <div className="empty-state-title">No societies found</div>
+          <div className="empty-state-desc">
+            {societies.length === 0 ? "Add your first community to get started" : "No societies match your filters"}
+          </div>
         </div>
       ) : (
         <div className="grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 24 }}>
-          {societies.filter(s => (s.name as string).toLowerCase().includes(search.toLowerCase())).map(s => (
+          {filtered.map(s => (
             <div className="card" key={s.id as string} style={{ position: "relative" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <Link to={`/admin/societies/${s.id}`} style={{ textDecoration: "none", color: "inherit", flex: 1 }}>
                   <h3 style={{ marginBottom: 4, cursor: "pointer" }}>{s.name as string}</h3>
                   <p className="text-muted text-sm">{(s.address as string) || (s.city as string) || "—"}</p>
                 </Link>
+
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span className={`badge ${(s.subscription as string) === "premium" ? "badge-accent" : "badge-muted"}`}>
                     {(s.subscription as string) || "free"}
                   </span>
+
                   <div style={{ position: "relative" }}>
                     <button
                       className="btn btn-ghost btn-sm btn-icon"
@@ -143,6 +174,7 @@ export default function AdminSocieties() {
                     >
                       ⋮
                     </button>
+
                     {activeMenu === s.id && (
                       <div
                         className="card"
@@ -163,12 +195,14 @@ export default function AdminSocieties() {
                   </div>
                 </div>
               </div>
+
               <div className="text-muted text-sm" style={{ marginBottom: 16 }}>
                 Members: {(s.memberCount as number) || 0}
               </div>
+
               <div>
                 <button
-                  className={`btn btn-sm ${ (s.subscription as string) === "premium" ? "btn-secondary" : "btn-primary" }`}
+                  className={`btn btn-sm ${(s.subscription as string) === "premium" ? "btn-secondary" : "btn-primary"}`}
                   style={{ width: "100%" }}
                   onClick={() => handleTogglePremium(s.id as string, (s.subscription as string) || "free", s.name as string)}
                 >
@@ -201,4 +235,3 @@ export default function AdminSocieties() {
     </div>
   );
 }
-

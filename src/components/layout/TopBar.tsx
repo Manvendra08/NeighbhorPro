@@ -2,10 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { useDarkMode } from "../../hooks/useDarkMode";
-import { usePushNotifications } from "../../hooks/usePushNotifications";
 import { collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import { getAllUsers, getAllServices } from "../../services/firestoreService";
+import NotificationCenter from "./NotificationCenter";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 type BroadcastDoc = {
@@ -69,7 +69,7 @@ function BroadcastBanner() {
 
   const priorityStyle: Record<string, { bg: string; border: string; color: string; icon: string }> = {
     urgent: { bg: "rgba(220,38,38,0.11)", border: "rgba(220,38,38,0.38)", color: "#dc2626", icon: "🔴" },
-    high:   { bg: "rgba(234,88,12,0.09)", border: "rgba(234,88,12,0.32)", color: "#ea580c",  icon: "🟠" },
+    high: { bg: "rgba(234,88,12,0.09)", border: "rgba(234,88,12,0.32)", color: "#ea580c", icon: "🟠" },
     normal: { bg: "rgba(27,107,138,0.09)", border: "rgba(27,107,138,0.28)", color: "var(--accent)", icon: "📣" },
   };
 
@@ -110,11 +110,10 @@ function BroadcastBanner() {
 // ── TopBar ─────────────────────────────────────────────────────────────────
 export default function TopBar() {
   const { user, userProfile, logout } = useAuth();
-  const { dark, toggle: toggleDark }  = useDarkMode();
-  const { permission, requestPermission } = usePushNotifications(user?.uid);
-  const isAdmin   = userProfile?.role === "admin";
-  const navigate  = useNavigate();
-  const dropRef   = useRef<HTMLDivElement>(null);
+  const { dark, toggle: toggleDark } = useDarkMode();
+  const isAdmin = userProfile?.role === "admin";
+  const navigate = useNavigate();
+  const dropRef = useRef<HTMLDivElement>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
@@ -156,21 +155,7 @@ export default function TopBar() {
             </Link>
           )}
 
-          <button
-            className="topbar-btn"
-            onClick={() => {
-              if (permission === "default") requestPermission();
-              navigate("/messages");
-            }}
-            title={permission === "default" ? "Enable notifications" : "Notifications"}
-            aria-label="Notifications"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-            {permission === "granted" && <span className="topbar-badge" />}
-          </button>
+          <NotificationCenter />
 
           <div
             className="topbar-avatar"
@@ -189,8 +174,8 @@ export default function TopBar() {
               <div className="user-dropdown-divider" />
               <Link to="/account" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
                 </svg>
                 My Profile
               </Link>
@@ -210,9 +195,9 @@ export default function TopBar() {
               <div className="user-dropdown-divider" />
               <button className="user-dropdown-item danger" onClick={handleLogout}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16 17 21 12 16 7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
                 Sign Out
               </button>

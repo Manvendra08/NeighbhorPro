@@ -137,12 +137,12 @@ export default function AdminSettings() {
         <div>
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 20 }}>⚙️ Core Configuration</h3>
-            <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+            <div className="flex gap-16 item-center flex-wrap" style={{ marginBottom: 16 }}>
               {[
                 { label: "Platform Name", k: "platformName" as const, type: "text", placeholder: "ProNeighbor" },
                 { label: "Support Email", k: "supportEmail" as const, type: "email", placeholder: "support@pro-neighbor.in" },
               ].map(f => (
-                <div className="form-group" key={f.k} style={{ flex: 1, marginBottom: 0 }}>
+                <div className="form-group" key={f.k} style={{ flex: "1 1 200px", marginBottom: 0 }}>
                   <label className="form-label">{f.label}</label>
                   <input className="form-input" type={f.type} placeholder={f.placeholder} value={settings[f.k] as string} onChange={e => set(f.k, e.target.value as never)} />
                 </div>
@@ -158,7 +158,7 @@ export default function AdminSettings() {
               <span className="form-hint">Current: {settings.commissionRate}% of every completed booking</span>
             </div>
 
-            <div className="grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="grid grid-2" style={{ gap: 16 }}>
               {[
                 { label: "Free Trial Days", k: "freeTrialDays" as const, min: 0, max: 90 },
                 { label: "Min Booking ₹", k: "minBookingAmount" as const, min: 0, max: 5000 },

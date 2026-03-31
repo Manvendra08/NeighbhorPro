@@ -87,7 +87,7 @@ export default function AdminTickets() {
       {loading ? (
         <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 20, height: "calc(100vh - 220px)", minHeight: 500 }}>
+        <div className="admin-split-layout" style={{ height: "calc(100vh - 220px)", minHeight: 500 }}>
           {/* List */}
           <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-elevated)" }}>
             <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{visible.length} ticket{visible.length !== 1 ? "s" : ""}</div>
