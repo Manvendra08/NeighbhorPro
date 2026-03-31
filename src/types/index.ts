@@ -5,27 +5,57 @@
  */
 import { Timestamp } from "firebase/firestore";
 
+export type LoyaltyTier = "none" | "bronze" | "silver" | "gold" | "diamond";
+
 // ── Booking ──────────────────────────────────────────────────────────────────
 export interface Booking {
   id: string;
   clientId: string;
   clientName: string;
   proId: string;
+  proName?: string;
+  serviceId?: string;
   serviceName?: string;
   serviceCategory?: string;
   date?: string;
   timeSlot?: string;
+  notes?: string;
+  amount?: number;
+  isPaid?: boolean;
   status: "pending" | "confirmed" | "completed" | "cancelled" | "reviewed";
   escrowCoins?: number;
   coinsPaid?: boolean;
-  escrowStatus?: "held" | "released" | "refunded";
+  escrowStatus?: "none" | "held" | "released" | "refunded";
   platformFee?: number;
   proEarning?: number;
   paidInCoins?: number;
   attachmentUrl?: string;
   attachmentName?: string;
   attachmentType?: string;
+  streakCount?: number;
+  loyaltyTier?: LoyaltyTier;
+  loyaltyCashback?: number;
+  proBonus?: number;
+  loyaltyProcessedAt?: unknown;
   createdAt: unknown;
+  updatedAt?: unknown;
+}
+
+export interface LoyaltyStreak {
+  id: string;
+  clientId: string;
+  proId: string;
+  currentStreak: number;
+  longestStreak: number;
+  tier: LoyaltyTier;
+  highestTier?: LoyaltyTier;
+  cadence?: "weekly" | "monthly";
+  lastBookingDate?: Timestamp | string | null;
+  streakStartDate?: Timestamp | string | null;
+  lastCompletedBookingId?: string;
+  totalCashbackEarned: number;
+  totalProBonusEarned: number;
+  createdAt?: unknown;
   updatedAt?: unknown;
 }
 
@@ -84,6 +114,7 @@ export interface UserSummary {
   rating: number;
   reviewCount: number;
   coinBalance: number;
+  highestLoyaltyTier?: LoyaltyTier;
   referralCode?: string;
   recentlyViewedPros?: string[];
   createdAt: unknown;

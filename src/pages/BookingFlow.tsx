@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createBooking, getUserProfile, getServicesByUser, getOrCreateConversation,
@@ -7,29 +7,38 @@ import {
 } from "../services/firestoreService";
 import { holdEscrow, earnCoins } from "../services/coinService";
 import { logActivity } from "../services/activityService";
+import LoyaltyStreakWidget from "../components/LoyaltyStreakWidget";
+import { getLoyaltyPreview, type LoyaltyPreview } from "../services/loyaltyService";
 
 export default function BookingFlow() {
   const { id: proId } = useParams<{ id: string }>();
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [pro, setPro]             = useState<Record<string, unknown> | null>(null);
-  const [proNotFound, setPNF]     = useState(false);
-  const [services, setServices]   = useState<Record<string, unknown>[]>([]);
-  const [selectedSvc, setSvc]     = useState<Record<string, unknown> | null>(null);
-  const [step, setStep]           = useState(1);
-  const [date, setDate]           = useState("");
-  const [timeSlot, setTS]         = useState("");
-  const [notes, setNotes]         = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState("");
-  const [convId, setConvId]       = useState<string | null>(null); // for success screen
-  
-  const [proAvail, setProAvail]   = useState<Record<string, any> | null>(null);
+  const [pro, setPro] = useState<Record<string, unknown> | null>(null);
+  const [proNotFound, setPNF] = useState(false);
+  const [services, setServices] = useState<Record<string, unknown>[]>([]);
+  const [selectedSvc, setSvc] = useState<Record<string, unknown> | null>(null);
+  const [step, setStep] = useState(1);
+  const [date, setDate] = useState("");
+  const [timeSlot, setTS] = useState("");
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [convId, setConvId] = useState<string | null>(null); // for success screen
+
+  const [proAvail, setProAvail] = useState<Record<string, any> | null>(null);
   const [availableSlots, setAvailSlots] = useState<string[]>([]);
-  const [checkingAvail, setCA]    = useState(false);
+  const [checkingAvail, setCA] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
-  const [selectedCat, setCat]     = useState<string>("All");
+  const [selectedCat, setCat] = useState<string>("All");
+  const [loyaltyPreview, setLoyaltyPreview] = useState<LoyaltyPreview | null>(null);
+
+  const preselectedServiceId = searchParams.get("serviceId");
+  const rebookDate = searchParams.get("date") ?? "";
+  const rebookTimeSlot = searchParams.get("timeSlot") ?? "";
+  const isRebookFlow = searchParams.get("rebook") === "1";
 
   useEffect(() => {
     if (!proId) return;
@@ -39,25 +48,27 @@ export default function BookingFlow() {
         setPro(p);
         setServices(s);
         setProAvail(a);
-        
+
         // Pre-select default service
-        const defaultSvc = s.length > 0 ? s[0] : {
+        const matchedSvc = preselectedServiceId ? s.find(service => String(service.id) === preselectedServiceId) : null;
+        const defaultSvc = matchedSvc ?? (s.length > 0 ? s[0] : {
           id: "generic",
           title: `Consultation with ${p.displayName || "Professional"}`,
           price: p.isFreeConsultation ? 0 : (p.hourlyRate || 0),
           duration: "60 minutes",
-        };
+        });
         setSvc(defaultSvc as Record<string, unknown>);
+        if (rebookDate) setDate(rebookDate);
       })
       .catch(() => setPNF(true));
-  }, [proId]);
+  }, [proId, preselectedServiceId, rebookDate]);
 
   useEffect(() => {
     if (!date || !proId || !proAvail) return;
     setCA(true);
     const d = new Date(date);
     const dayName = d.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
-    
+
     const dayAvail = proAvail[dayName];
     if (!dayAvail || !dayAvail.active || !dayAvail.slots || dayAvail.slots.length === 0) {
       setAvailSlots([]);
@@ -76,11 +87,26 @@ export default function BookingFlow() {
     });
   }, [date, proId, proAvail]);
 
+  useEffect(() => {
+    if (!rebookTimeSlot || timeSlot || availableSlots.length === 0) return;
+    if (availableSlots.includes(rebookTimeSlot)) setTS(rebookTimeSlot);
+  }, [availableSlots, rebookTimeSlot, timeSlot]);
 
-  const isSelf    = user?.uid === proId;
-  const isFree    = (selectedSvc?.price as number) === 0;
-  const feeCoins  = (selectedSvc?.price as number) || 0;
-  const balance   = userProfile?.coinBalance ?? 0;
+  useEffect(() => {
+    if (!user?.uid || !proId || !selectedSvc) {
+      setLoyaltyPreview(null);
+      return;
+    }
+    getLoyaltyPreview(user.uid, proId, ((selectedSvc.price as number) || 0))
+      .then(setLoyaltyPreview)
+      .catch(() => setLoyaltyPreview(null));
+  }, [user?.uid, proId, selectedSvc]);
+
+
+  const isSelf = user?.uid === proId;
+  const isFree = (selectedSvc?.price as number) === 0;
+  const feeCoins = (selectedSvc?.price as number) || 0;
+  const balance = userProfile?.coinBalance ?? 0;
   const hasEnough = isFree || balance >= feeCoins;
 
   const handleSubmit = async () => {
@@ -97,12 +123,12 @@ export default function BookingFlow() {
 
       // 1. Create booking in pending state — escrow NOT yet released to pro
       const bookingId = await createBooking({
-        clientId:   user!.uid,
+        clientId: user!.uid,
         clientName: userProfile?.displayName || user!.displayName || user!.email,
-        proId:      proId!,
-        proName:    (pro?.displayName as string) || "",
-        serviceId:  selectedSvc.id,
-        serviceName, 
+        proId: proId!,
+        proName: (pro?.displayName as string) || "",
+        serviceId: selectedSvc.id,
+        serviceName,
         serviceCategory: selectedSvc.category || "Other",
         date, timeSlot, notes,
         isPaid: !isFree, amount: feeCoins,
@@ -183,12 +209,34 @@ export default function BookingFlow() {
           <h3 className="card-title" style={{ marginBottom: 4 }}>Select Service & Time</h3>
           <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Book time with {(pro.displayName as string) || "the professional"}</p>
 
+          {isRebookFlow && (
+            <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "rgba(13,107,107,0.06)", border: "1px solid rgba(13,107,107,0.15)", color: "#0d6b6b", fontSize: "0.88rem" }}>
+              ↻ Quick re-book loaded with your previous service preferences. Confirm the next slot and keep your loyalty streak active.
+            </div>
+          )}
+
+          {loyaltyPreview && (
+            <div style={{ marginBottom: 16 }}>
+              <LoyaltyStreakWidget
+                streakCount={loyaltyPreview.streakCount}
+                tier={loyaltyPreview.tier}
+                cashbackPct={loyaltyPreview.cashbackPct}
+                cashbackCoins={loyaltyPreview.cashbackCoins}
+                nextTier={loyaltyPreview.nextTier}
+                bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
+                projected
+                title="Projected loyalty streak"
+                subtitle={`Current streak: ${loyaltyPreview.currentStreak} · Current tier: ${loyaltyPreview.currentTier}`}
+              />
+            </div>
+          )}
+
           {services.length > 0 && (
             <div className="form-group">
               <label className="form-label">Service Category</label>
-              <select 
-                className="form-input" 
-                value={selectedCat} 
+              <select
+                className="form-input"
+                value={selectedCat}
                 onChange={(e) => {
                   setCat(e.target.value);
                   // Auto-select first service of this category
@@ -211,16 +259,16 @@ export default function BookingFlow() {
                 {services
                   .filter(svc => selectedCat === "All" || svc.category === selectedCat)
                   .map(svc => (
-                  <div key={svc.id as string} onClick={() => setSvc(svc)} style={{ padding: "12px 16px", border: `2px solid ${selectedSvc?.id === svc.id ? "var(--accent)" : "var(--border)"}`, background: selectedSvc?.id === svc.id ? "rgba(13,107,107,0.04)" : "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
-                      {(svc.duration as string) && <div className="text-muted text-sm">{svc.duration as string}</div>}
+                    <div key={svc.id as string} onClick={() => setSvc(svc)} style={{ padding: "12px 16px", border: `2px solid ${selectedSvc?.id === svc.id ? "var(--accent)" : "var(--border)"}`, background: selectedSvc?.id === svc.id ? "rgba(13,107,107,0.04)" : "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
+                        {(svc.duration as string) && <div className="text-muted text-sm">{svc.duration as string}</div>}
+                      </div>
+                      <span style={{ fontWeight: 700, color: (svc.price as number) === 0 ? "var(--accent2)" : "var(--text)" }}>
+                        {(svc.price as number) === 0 ? "Free" : `${svc.price as number} NC`}
+                      </span>
                     </div>
-                    <span style={{ fontWeight: 700, color: (svc.price as number) === 0 ? "var(--accent2)" : "var(--text)" }}>
-                      {(svc.price as number) === 0 ? "Free" : `${svc.price as number} NC`}
-                    </span>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           )}
@@ -251,9 +299,9 @@ export default function BookingFlow() {
 
           <div className="form-group">
             <label className="form-label">Attachment (optional)</label>
-            <input 
-              type="file" 
-              className="form-input" 
+            <input
+              type="file"
+              className="form-input"
               accept="image/*,.pdf,.doc,.docx"
               onChange={e => {
                 const file = e.target.files?.[0];
@@ -267,7 +315,7 @@ export default function BookingFlow() {
                   }
                 }
                 setAttachment(file || null);
-              }} 
+              }}
             />
             <p className="text-muted text-sm" style={{ marginTop: 4 }}>Upload images, PDFs, etc. to provide more context (Max 10MB).</p>
           </div>
@@ -286,6 +334,21 @@ export default function BookingFlow() {
           {!isFree && (
             <div style={{ background: "rgba(27,107,138,0.06)", border: "1px solid rgba(27,107,138,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: "0.82rem", color: "#1B6B8A" }}>
               🔒 <strong>NC held securely.</strong> Payment is released to the pro only after the session is marked complete.
+            </div>
+          )}
+
+          {loyaltyPreview && (
+            <div style={{ marginBottom: 16 }}>
+              <LoyaltyStreakWidget
+                streakCount={loyaltyPreview.streakCount}
+                tier={loyaltyPreview.tier}
+                cashbackPct={loyaltyPreview.cashbackPct}
+                cashbackCoins={loyaltyPreview.cashbackCoins}
+                nextTier={loyaltyPreview.nextTier}
+                bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
+                compact
+                projected
+              />
             </div>
           )}
 
@@ -371,6 +434,23 @@ export default function BookingFlow() {
             ))}
           </div>
 
+          {loyaltyPreview && (
+            <div style={{ marginBottom: 20, textAlign: "left" }}>
+              <LoyaltyStreakWidget
+                streakCount={loyaltyPreview.streakCount}
+                tier={loyaltyPreview.tier}
+                cashbackPct={loyaltyPreview.cashbackPct}
+                cashbackCoins={loyaltyPreview.cashbackCoins}
+                nextTier={loyaltyPreview.nextTier}
+                bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
+                compact
+                projected
+                title="Keep the streak alive"
+                subtitle="Rewards are credited after the session is completed on-platform."
+              />
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             {convId && (
               <button className="btn btn-primary" onClick={() => navigate(`/messages?conv=${convId}`)}>
@@ -384,4 +464,3 @@ export default function BookingFlow() {
     </div>
   );
 }
-

@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import type { LoyaltyTier } from "../types";
 import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview } from "../services/firestoreService";
 import { releaseEscrow, refundEscrow, earnCoins, rewardReferral } from "../services/coinService";
 import { logActivity } from "../services/activityService";
+import LoyaltyStreakWidget from "../components/LoyaltyStreakWidget";
+import { buildRecurringRebookQuery, getLoyaltyTierLabel, processCompletedBookingLoyalty } from "../services/loyaltyService";
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +49,8 @@ export default function BookingDetail() {
   const status = booking.status as string;
   const otherUid = isClient ? (booking.proId as string) : (booking.clientId as string);
   const escrowCoins = (booking.escrowCoins as number) || 0;
+  const streakCount = (booking.streakCount as number) || 0;
+  const loyaltyTier = (((booking.loyaltyTier as string) || "none") as LoyaltyTier);
 
   const handleCancel = async () => {
     setAL("cancel");
@@ -78,6 +83,18 @@ export default function BookingDetail() {
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
       await updateBookingStatus(id!, "completed");
       await rewardReferral(booking.clientId as string);
+      try {
+        await processCompletedBookingLoyalty({
+          bookingId: id!,
+          clientId: booking.clientId as string,
+          proId: booking.proId as string,
+          amount: ((booking.amount as number) || escrowCoins || 0),
+          serviceName: (booking.serviceName as string) || "Session",
+          bookingDate: booking.date as string | undefined,
+        });
+      } catch {
+        setError("Booking completed, but loyalty rewards could not be applied automatically.");
+      }
       logActivity(user!.uid, "booking.completed", `Completed booking: ${(booking.serviceName as string) || id} for ${(booking.clientName as string) || booking.clientId}`, { bookingId: id, role: "pro", escrowReleased: escrowCoins });
       await load();
     } catch { setError("Failed to complete booking."); }
@@ -144,6 +161,19 @@ export default function BookingDetail() {
           </div>
         </div>
 
+        {streakCount > 0 && loyaltyTier !== "none" && (
+          <div style={{ marginBottom: 24 }}>
+            <LoyaltyStreakWidget
+              streakCount={streakCount}
+              tier={loyaltyTier}
+              cashbackCoins={(booking.loyaltyCashback as number) || 0}
+              title="Active loyalty streak"
+              subtitle={`${getLoyaltyTierLabel(loyaltyTier)} tier rewards were recorded for this booking.`}
+              compact
+            />
+          </div>
+        )}
+
         {(booking.notes as string) && (
           <div style={{ marginBottom: 24 }}>
             <h4 style={{ marginBottom: 8 }}>Brief of service</h4>
@@ -185,7 +215,14 @@ export default function BookingDetail() {
           )}
 
           {isClient && status === "completed" && (
-            <button className="btn btn-primary" onClick={() => setShowReview(true)}>⭐ Leave Review</button>
+            <>
+              <button className="btn btn-primary" onClick={() => setShowReview(true)}>⭐ Leave Review</button>
+              <button className="btn btn-secondary" onClick={() => navigate(`/book/${booking.proId as string}${buildRecurringRebookQuery(booking)}`)}>↻ Book Next Session</button>
+            </>
+          )}
+
+          {isClient && status === "reviewed" && (
+            <button className="btn btn-secondary" onClick={() => navigate(`/book/${booking.proId as string}${buildRecurringRebookQuery(booking)}`)}>↻ Book Next Session</button>
           )}
         </div>
       </div>
@@ -223,4 +260,3 @@ export default function BookingDetail() {
     </div>
   );
 }
-

@@ -52,6 +52,20 @@ service cloud.firestore {
       allow update: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
     }
 
+    match /loyaltyStreaks/{streakId} {
+      allow read: if isSignedIn() && (
+        resource.data.clientId == request.auth.uid ||
+        resource.data.proId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create, update: if isSignedIn() && (
+        request.resource.data.clientId == request.auth.uid ||
+        request.resource.data.proId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
     // FIX 2: Restored status == 'completed' guard to prevent review fabrication
     // on undelivered bookings.
     match /reviews/{reviewId} {

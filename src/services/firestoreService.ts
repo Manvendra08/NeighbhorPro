@@ -223,6 +223,17 @@ export async function getBookingById(bookingId: string) {
   const snap = await getDoc(doc(db, "bookings", bookingId));
   return snap.exists() ? { id: snap.id, ...snap.data() } as Record<string, unknown> : null;
 }
+export async function getLastCompletedBookingForUser(uid: string) {
+  const q = query(
+    collection(db, "bookings"),
+    where("clientId", "==", uid),
+    where("status", "in", ["completed", "reviewed"]),
+    orderBy("createdAt", "desc"),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  return snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as Record<string, unknown>);
+}
 export async function updateBookingFields(bookingId: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, "bookings", bookingId), { ...data, updatedAt: serverTimestamp() });
 }
@@ -507,16 +518,8 @@ export async function getRecommendedPros(
 }
 
 export async function getLastBookedPro(uid: string): Promise<string | null> {
-  const q = query(
-    collection(db, "bookings"),
-    where("clientId", "==", uid),
-    where("status", "in", ["completed", "reviewed"]),
-    orderBy("createdAt", "desc"),
-    limit(1)
-  );
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return (snap.docs[0].data().proId as string) || null;
+  const lastBooking = await getLastCompletedBookingForUser(uid);
+  return (lastBooking?.proId as string) || null;
 }
 
 /* ═══════════════════════════════════════════
@@ -551,5 +554,4 @@ export async function getUnreadCount(convId: string, uid: string): Promise<numbe
   const snap = await getDocs(q);
   return snap.size;
 }
-
 

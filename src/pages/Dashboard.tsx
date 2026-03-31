@@ -11,19 +11,21 @@ import {
   createFeedPost,
   deleteFeedPost,
   getRecommendedPros,
-  getLastBookedPro,
+  getLastCompletedBookingForUser,
   getUserProfile,
 } from "../services/firestoreService";
 import { Timestamp } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { relativeTime, greetingByTime } from "../utils/time";
+import LoyaltyStreakWidget from "../components/LoyaltyStreakWidget";
+import { buildRecurringRebookQuery, getLoyaltyPreview, type LoyaltyPreview } from "../services/loyaltyService";
 
 const ICON = {
-  bookings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>,
-  requests: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
-  rating:   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
-  earnings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-  skills:   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>,
+  bookings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>,
+  requests: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
+  rating: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
+  earnings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>,
+  skills: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>,
 };
 
 // ─── Local Feed Widget ──────────────────────────────────────────────────────
@@ -105,7 +107,7 @@ function RecommendedPros({ uid }: { uid: string }) {
   const [pros, setPros] = useState<Record<string, unknown>[]>([]);
 
   useEffect(() => {
-    getRecommendedPros(uid, 4).then(setPros).catch(() => {});
+    getRecommendedPros(uid, 4).then(setPros).catch(() => { });
   }, [uid]);
 
   if (!pros.length) return null;
@@ -118,7 +120,7 @@ function RecommendedPros({ uid }: { uid: string }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
         {pros.map(p => {
-          const initials = ((p.displayName as string) || "?").split(" ").map((w: string) => w[0]).join("").slice(0,2).toUpperCase();
+          const initials = ((p.displayName as string) || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
           return (
             <div key={p.uid as string} onClick={() => navigate(`/pro/${p.uid}`)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 10px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", transition: "background 0.2s" }}
               onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-dim)")}
@@ -144,13 +146,16 @@ function RecommendedPros({ uid }: { uid: string }) {
 
 // ─── Mobile Dashboard ──────────────────────────────────────────────────────
 function MobileDashboard({
-  userProfile, user, upcomingBookings, proBookings, loading,
+  userProfile, user, upcomingBookings, proBookings, loading, lastBookedPro, lastCompletedBooking, loyaltyPreview,
 }: {
   userProfile: Record<string, unknown> | null;
   user: unknown;
   upcomingBookings: Record<string, unknown>[];
   proBookings: Record<string, unknown>[];
   loading: boolean;
+  lastBookedPro: Record<string, unknown> | null;
+  lastCompletedBooking: Record<string, unknown> | null;
+  loyaltyPreview: LoyaltyPreview | null;
 }) {
   const navigate = useNavigate();
   const firstName = ((userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "there").split(" ")[0];
@@ -224,6 +229,33 @@ function MobileDashboard({
           ))}
         </div>
       </div>
+
+      {lastBookedPro && lastCompletedBooking && (
+        <div className="m-section">
+          <span className="m-section-label">Quick Re-book</span>
+          <div className="card" style={{ padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: loyaltyPreview ? 12 : 0 }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>Continue with {(lastBookedPro.displayName as string) || "your last pro"}</div>
+                <div className="text-muted text-sm">Same pro, same service, next recurring slot</div>
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={() => navigate(`/book/${lastBookedPro.uid as string}${buildRecurringRebookQuery(lastCompletedBooking)}`)}>Book Again</button>
+            </div>
+            {loyaltyPreview && (
+              <LoyaltyStreakWidget
+                streakCount={loyaltyPreview.streakCount}
+                tier={loyaltyPreview.tier}
+                cashbackPct={loyaltyPreview.cashbackPct}
+                cashbackCoins={loyaltyPreview.cashbackCoins}
+                nextTier={loyaltyPreview.nextTier}
+                bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
+                compact
+                projected
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Stats strip ── */}
       <div className="m-section">
@@ -455,6 +487,8 @@ export default function Dashboard() {
   const [proBookings, setProBookings] = useState<Record<string, unknown>[]>([]);
   const [proTransactions, setProTransactions] = useState<Record<string, unknown>[]>([]);
   const [lastBookedPro, setLastBookedPro] = useState<Record<string, unknown> | null>(null);
+  const [lastCompletedBooking, setLastCompletedBooking] = useState<Record<string, unknown> | null>(null);
+  const [loyaltyPreview, setLoyaltyPreview] = useState<LoyaltyPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -469,11 +503,14 @@ export default function Dashboard() {
         const [client, pro] = await Promise.all([getBookingsForUser(user.uid), getBookingsForPro(user.uid)]);
         setUpcomingBookings(client.filter(b => b.status === "pending" || b.status === "confirmed"));
         setProBookings(pro.filter(b => b.status === "pending" || b.status === "confirmed"));
-        // Load quick re-book
-        const lastProId = await getLastBookedPro(user.uid);
-        if (lastProId) {
+        const lastBooking = await getLastCompletedBookingForUser(user.uid);
+        if (lastBooking) {
+          setLastCompletedBooking(lastBooking);
+          const lastProId = lastBooking.proId as string;
           const profile = await getUserProfile(lastProId);
           if (profile) setLastBookedPro(profile);
+          const preview = await getLoyaltyPreview(user.uid, lastProId, ((lastBooking.amount as number) || (lastBooking.escrowCoins as number) || 0));
+          setLoyaltyPreview(preview);
         }
       } catch { /* ignore */ }
       setLoading(false);
@@ -483,7 +520,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user || (userProfile as { isServiceProvider?: boolean } | null)?.isServiceProvider !== true) return;
-    getTransactionsForPro(user.uid).then(setProTransactions).catch(() => {});
+    getTransactionsForPro(user.uid).then(setProTransactions).catch(() => { });
   }, [user, userProfile]);
 
   const earningsSummary = useMemo(() => {
@@ -515,6 +552,9 @@ export default function Dashboard() {
         upcomingBookings={upcomingBookings}
         proBookings={proBookings}
         loading={loading}
+        lastBookedPro={lastBookedPro}
+        lastCompletedBooking={lastCompletedBooking}
+        loyaltyPreview={loyaltyPreview}
       />
     );
   }
@@ -532,7 +572,7 @@ export default function Dashboard() {
       />
 
       {/* Quick Re-book Banner */}
-      {lastBookedPro && !loading && (
+      {lastBookedPro && lastCompletedBooking && !loading && (
         <div style={{ background: "linear-gradient(135deg, var(--accent-dim), var(--surface-2))", borderRadius: "var(--radius)", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, border: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div className="avatar avatar-sm">
@@ -543,9 +583,25 @@ export default function Dashboard() {
               <div style={{ fontSize: 12, color: "var(--muted)" }}>Last consulted: {(lastBookedPro.displayName as string) || "Professional"}</div>
             </div>
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => navigate(`/book/${lastBookedPro.uid as string}`)}>
-            Book Again →
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {loyaltyPreview && (
+              <div style={{ minWidth: 320 }}>
+                <LoyaltyStreakWidget
+                  streakCount={loyaltyPreview.streakCount}
+                  tier={loyaltyPreview.tier}
+                  cashbackPct={loyaltyPreview.cashbackPct}
+                  cashbackCoins={loyaltyPreview.cashbackCoins}
+                  nextTier={loyaltyPreview.nextTier}
+                  bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
+                  compact
+                  projected
+                />
+              </div>
+            )}
+            <button className="btn btn-primary btn-sm" onClick={() => navigate(`/book/${lastBookedPro.uid as string}${buildRecurringRebookQuery(lastCompletedBooking)}`)}>
+              Book Again →
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import type { LoyaltyTier } from "../types";
 import {
   getBookingsForUser, getBookingsForPro, updateBookingStatus,
   getOrCreateConversation, formatTimestamp,
 } from "../services/firestoreService";
 import { releaseEscrow, refundEscrow, earnCoins, rewardReferral } from "../services/coinService";
 import { logActivity } from "../services/activityService";
+import { buildRecurringRebookQuery, getLoyaltyTierLabel, processCompletedBookingLoyalty } from "../services/loyaltyService";
 
 export default function MyBookings() {
   const { user, userProfile } = useAuth();
@@ -84,6 +86,18 @@ export default function MyBookings() {
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
       await updateBookingStatus(id, "completed");
       await rewardReferral(b.clientId as string);
+      try {
+        await processCompletedBookingLoyalty({
+          bookingId: id,
+          clientId: b.clientId as string,
+          proId: b.proId as string,
+          amount: ((b.amount as number) || (b.escrowCoins as number) || 0),
+          serviceName: (b.serviceName as string) || "Session",
+          bookingDate: b.date as string | undefined,
+        });
+      } catch {
+        setError("Session marked complete, but loyalty rewards could not be applied automatically.");
+      }
       logActivity(user!.uid, "booking.completed", `Completed booking: ${(b.serviceName as string) || id} for ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowReleased: (b.escrowCoins as number) || 0 });
     } catch { setError("Failed to complete booking."); }
     setAL(null); load();
@@ -186,6 +200,8 @@ export default function MyBookings() {
                 const status = b.status as string;
                 const escrowCoins = (b.escrowCoins as number) || 0;
                 const otherUid = tab === "client" ? (b.proId as string) : (b.clientId as string);
+                const loyaltyTier = (((b.loyaltyTier as string) || "none") as LoyaltyTier);
+                const streakCount = (b.streakCount as number) || 0;
 
                 return (
                   <div className="card" key={id} style={{ opacity: busy ? 0.65 : 1 }}>
@@ -195,6 +211,11 @@ export default function MyBookings() {
                         <p className="text-muted text-sm">
                           {tab === "client" ? `with ${(b.proName as string) || "Professional"}` : `from ${(b.clientName as string) || "Client"}`}
                         </p>
+                        {streakCount > 0 && loyaltyTier !== "none" && (
+                          <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, background: "rgba(13,107,107,0.08)", color: "#0d6b6b", fontSize: 12, fontWeight: 600 }}>
+                            🔁 {getLoyaltyTierLabel(loyaltyTier)} · {streakCount} streak{(b.loyaltyCashback as number) ? ` · ${(b.loyaltyCashback as number)} NC cashback` : ""}
+                          </div>
+                        )}
                         <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
                           <span className="text-sm">📅 {(b.date as string) || formatTimestamp(b.createdAt)}</span>
                           <span className="text-sm">🕐 {(b.timeSlot as string) || "TBD"}</span>
@@ -241,7 +262,13 @@ export default function MyBookings() {
                             </button>
                           )}
                           {tab === "client" && status === "completed" && (
-                            <button className="btn btn-primary btn-sm" onClick={() => setReviewBid(id)}>⭐ Review</button>
+                            <>
+                              <button className="btn btn-primary btn-sm" onClick={() => setReviewBid(id)}>⭐ Review</button>
+                              <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/book/${b.proId as string}${buildRecurringRebookQuery(b)}`)}>↻ Book Next Session</button>
+                            </>
+                          )}
+                          {tab === "client" && status === "reviewed" && (
+                            <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/book/${b.proId as string}${buildRecurringRebookQuery(b)}`)}>↻ Book Next Session</button>
                           )}
 
                           <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/bookings/${id}`)}>View Details</button>
@@ -296,4 +323,3 @@ export default function MyBookings() {
     </div>
   );
 }
-

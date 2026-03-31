@@ -4,20 +4,22 @@ import { listProfessionals, BROWSE_PAGE_SIZE } from "../services/firestoreServic
 import { useAuth } from "../contexts/AuthContext";
 import { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
+import type { LoyaltyTier } from "../types";
+import { getLoyaltyTierLabel, getLoyaltyTierWeight, sortProfessionalsByLoyalty } from "../services/loyaltyService";
 
 const CATEGORIES = [
-  "All","Tax & CA","Investment","Legal","Health","Mental Health",
-  "Fitness","Nutrition","Tutoring","IT & Tech",
-  "Design","Photography","Music","Career","Language",
-  "Events","Beauty","Pet Care","Other",
+  "All", "Tax & CA", "Investment", "Legal", "Health", "Mental Health",
+  "Fitness", "Nutrition", "Tutoring", "IT & Tech",
+  "Design", "Photography", "Music", "Career", "Language",
+  "Events", "Beauty", "Pet Care", "Other",
 ];
 
 const CATEGORY_ICONS: Record<string, string> = {
-  "All": "🌐","Tax & CA": "📊","Investment": "📈","Legal": "⚖️","Health": "🏥",
-  "Mental Health": "🧠","Fitness": "💪","Nutrition": "🥗","Tutoring": "📚",
-  "IT & Tech": "💻","Design": "🎨","Photography": "📷","Music": "🎵",
-  "Career": "🚀","Language": "🌍","Events": "🎉","Beauty": "💄",
-  "Pet Care": "🐾","Other": "✨",
+  "All": "🌐", "Tax & CA": "📊", "Investment": "📈", "Legal": "⚖️", "Health": "🏥",
+  "Mental Health": "🧠", "Fitness": "💪", "Nutrition": "🥗", "Tutoring": "📚",
+  "IT & Tech": "💻", "Design": "🎨", "Photography": "📷", "Music": "🎵",
+  "Career": "🚀", "Language": "🌍", "Events": "🎉", "Beauty": "💄",
+  "Pet Care": "🐾", "Other": "✨",
 };
 
 export default function BrowsePros() {
@@ -81,7 +83,7 @@ export default function BrowsePros() {
         (p.skills as string[])?.some(s => s.toLowerCase().includes(q))
       );
     }
-    setFiltered(result);
+    setFiltered(sortProfessionalsByLoyalty(result));
   }, [category, search, allPros, localityFilter, towerFilter]);
 
   const handleSearch = (val: string) => {
@@ -93,6 +95,7 @@ export default function BrowsePros() {
   // ── Mobile pro card — full-width list with avatar ──────────────────────
   const MobileProCard = ({ p }: { p: Record<string, unknown> }) => {
     const uid = p.uid as string;
+    const loyaltyTier = (((p.highestLoyaltyTier as string | undefined) ?? "none") as LoyaltyTier);
     return (
       <div className="m-pro-card" onClick={() => navigate(`/pro/${uid}`)}>
         <div className="m-pro-avatar">
@@ -117,6 +120,11 @@ export default function BrowsePros() {
               <span className="skill-tag" style={{ fontSize: 10, padding: "2px 8px" }}>+{(p.skills as string[]).length - 2}</span>
             )}
           </div>
+          {getLoyaltyTierWeight(loyaltyTier) >= getLoyaltyTierWeight("silver") && (
+            <div style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: 999, background: "rgba(13,107,107,0.08)", color: "#0d6b6b", fontSize: 10, fontWeight: 700 }}>
+              ✨ {getLoyaltyTierLabel(loyaltyTier)} Featured
+            </div>
+          )}
         </div>
         <div className="m-pro-right">
           <div className="m-pro-rate">
@@ -137,6 +145,7 @@ export default function BrowsePros() {
   const DesktopProCard = ({ p }: { p: Record<string, unknown> }) => {
     const uid = p.uid as string;
     const isGrid = viewMode === "grid";
+    const loyaltyTier = (((p.highestLoyaltyTier as string | undefined) ?? "none") as LoyaltyTier);
     return (
       <div className={isGrid ? "pro-card" : "pro-card-list"}>
         <div onClick={() => navigate(`/pro/${uid}`)} style={{ cursor: "pointer" }}>
@@ -148,21 +157,28 @@ export default function BrowsePros() {
           </div>
           <div className="pro-card-body">
             <div className="pro-card-main-info">
-                <div className="pro-card-name">
-                  {(p.displayName as string) || "Anonymous"}
-                  {(p.residentVerificationStatus as string) === "verified" && (
-                    <span style={{ marginLeft: 8, fontSize: 10, background: "rgba(0,229,176,0.12)", color: "var(--success)", padding: "2px 8px", borderRadius: 10, fontWeight: 600 }}>✓ Verified Resident</span>
-                  )}
-                </div>
+              <div className="pro-card-name">
+                {(p.displayName as string) || "Anonymous"}
+                {(p.residentVerificationStatus as string) === "verified" && (
+                  <span style={{ marginLeft: 8, fontSize: 10, background: "rgba(0,229,176,0.12)", color: "var(--success)", padding: "2px 8px", borderRadius: 10, fontWeight: 600 }}>✓ Verified Resident</span>
+                )}
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <div className="pro-card-society" style={{ marginBottom: 4 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "middle" }}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: "middle" }}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
                   {(p.locality as string) || (p.society as string) || "Community Member"}{(p.tower as string) ? `, ${p.tower}` : ""}
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                   {((p.skills as string[]) || []).slice(0, 3).map((s: string) => <span className="skill-tag" key={s} style={{ fontSize: 10, padding: "2px 6px" }}>{s}</span>)}
                   {((p.skills as string[]) || []).length > 3 && <span className="skill-tag" style={{ fontSize: 10, padding: "2px 6px" }}>+{(p.skills as string[]).length - 3}</span>}
                 </div>
+                {getLoyaltyTierWeight(loyaltyTier) >= getLoyaltyTierWeight("silver") && (
+                  <div style={{ marginTop: 6 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, background: "rgba(13,107,107,0.08)", color: "#0d6b6b", fontSize: 11, fontWeight: 700 }}>
+                      ✨ {getLoyaltyTierLabel(loyaltyTier)} Featured Pro
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="pro-card-footer">
@@ -184,7 +200,7 @@ export default function BrowsePros() {
   const SkeletonCards = () => (
     <>
       {isMobile
-        ? [1,2,3,4].map(i => (
+        ? [1, 2, 3, 4].map(i => (
           <div key={i} className="m-pro-card" style={{ pointerEvents: "none" }}>
             <div className="skeleton" style={{ width: 56, height: 56, borderRadius: "50%", flexShrink: 0 }} />
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -197,7 +213,7 @@ export default function BrowsePros() {
             </div>
           </div>
         ))
-        : [1,2,3,4,5,6].map(i => (
+        : [1, 2, 3, 4, 5, 6].map(i => (
           <div key={i} className={viewMode === "grid" ? "pro-card" : "pro-card-list"} style={{ pointerEvents: "none" }}>
             <div className="skeleton" style={{ aspectRatio: "4/3", borderRadius: "12px 12px 0 0" }} />
             <div className="pro-card-body" style={{ padding: 16 }}>
@@ -220,7 +236,7 @@ export default function BrowsePros() {
       <div className="m-browse">
         {/* Sticky search bar */}
         <div className={`m-search-bar${searchFocused ? " focused" : ""}`}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, color: "var(--muted)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, color: "var(--muted)" }}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
           <input
             className="m-search-input"
             type="text"
@@ -290,10 +306,10 @@ export default function BrowsePros() {
         </div>
         <div className="view-toggle-group">
           <button className={`view-toggle-btn ${viewMode === "grid" ? "active" : ""}`} onClick={() => setViewMode("grid")}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Grid
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>Grid
           </button>
           <button className={`view-toggle-btn ${viewMode === "list" ? "active" : ""}`} onClick={() => setViewMode("list")}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>List
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>List
           </button>
         </div>
       </div>
