@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getBookingsForUser,
   getBookingsForPro,
-  getTransactionsForPro,
-  formatTimestamp,
-  formatTimestampTime,
   subscribeToFeed,
   createFeedPost,
   deleteFeedPost,
@@ -14,19 +11,10 @@ import {
   getLastCompletedBookingForUser,
   getUserProfile,
 } from "../services/firestoreService";
-import { Timestamp } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { relativeTime, greetingByTime } from "../utils/time";
 import LoyaltyStreakWidget from "../components/LoyaltyStreakWidget";
 import { buildRecurringRebookQuery, getLoyaltyPreview, type LoyaltyPreview } from "../services/loyaltyService";
-
-const ICON = {
-  bookings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>,
-  requests: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
-  rating: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
-  earnings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>,
-  skills: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>,
-};
 
 // ─── Local Feed Widget ──────────────────────────────────────────────────────
 function LocalFeedWidget({ uid, displayName, locality }: { uid: string; displayName: string; locality?: string }) {
@@ -54,15 +42,12 @@ function LocalFeedWidget({ uid, displayName, locality }: { uid: string; displayN
     await deleteFeedPost(postId);
   };
 
-  // relTime is now imported from ../utils/time as relativeTime
-
   return (
     <div className="card" style={{ marginBottom: 24 }}>
       <div className="card-header">
         <h3 className="card-title">📣 Local Feed{locality ? ` — ${locality}` : ""}</h3>
       </div>
-      {/* Compose */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, padding: "0 16px" }}>
         <textarea
           ref={textRef}
           className="form-input"
@@ -76,27 +61,28 @@ function LocalFeedWidget({ uid, displayName, locality }: { uid: string; displayN
           {posting ? "…" : "Post"}
         </button>
       </div>
-      {/* Posts */}
-      {posts.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 13 }}>No posts yet. Be the first to share something!</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {posts.map(p => (
-            <div key={p.id as string} style={{ padding: "12px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ fontWeight: 600, fontSize: 13 }}>{(p.authorName as string) || "Neighbor"}</span>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: "var(--muted)" }}>{relativeTime(p.createdAt)}</span>
-                  {(p.authorId as string) === uid && (
-                    <button onClick={() => handleDelete(p.id as string)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", fontSize: 12 }}>✕</button>
-                  )}
+      <div style={{ padding: "0 16px 16px" }}>
+        {posts.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: 13 }}>No posts yet. Be the first to share something!</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {posts.map(p => (
+              <div key={p.id as string} style={{ padding: "12px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>{(p.authorName as string) || "Neighbor"}</span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 11, color: "var(--muted)" }}>{relativeTime(p.createdAt)}</span>
+                    {(p.authorId as string) === uid && (
+                      <button onClick={() => handleDelete(p.id as string)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)", fontSize: 12 }}>✕</button>
+                    )}
+                  </div>
                 </div>
+                <p style={{ fontSize: 13, color: "var(--text-2)", margin: 0 }}>{p.content as string}</p>
               </div>
-              <p style={{ fontSize: 13, color: "var(--text-2)", margin: 0 }}>{p.content as string}</p>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -118,7 +104,7 @@ function RecommendedPros({ uid }: { uid: string }) {
         <h3 className="card-title">⭐ Recommended for You</h3>
         <Link to="/browse" className="btn btn-ghost btn-sm">See all</Link>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, padding: "0 16px 16px" }}>
         {pros.map(p => {
           const initials = ((p.displayName as string) || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
           return (
@@ -149,7 +135,7 @@ function MobileDashboard({
   userProfile, user, upcomingBookings, proBookings, loading, lastBookedPro, lastCompletedBooking, loyaltyPreview,
 }: {
   userProfile: Record<string, unknown> | null;
-  user: unknown;
+  user: any;
   upcomingBookings: Record<string, unknown>[];
   proBookings: Record<string, unknown>[];
   loading: boolean;
@@ -172,8 +158,6 @@ function MobileDashboard({
 
   return (
     <div className="mobile-dashboard">
-
-      {/* ── Hero greeting ── */}
       <div className="m-hero">
         <div className="m-hero-text">
           <p className="m-hero-greeting">{greetingByTime()} 👋</p>
@@ -185,7 +169,6 @@ function MobileDashboard({
         </Link>
       </div>
 
-      {/* ── Pending action cards (if any) ── */}
       {!loading && (upcomingBookings.length > 0 || proBookings.length > 0) && (
         <div className="m-section">
           <div className="m-section-row">
@@ -197,8 +180,8 @@ function MobileDashboard({
               <div key={b.id as string} className="m-action-card" onClick={() => navigate("/bookings")}>
                 <div className="m-action-card-icon" style={{ background: "rgba(27,107,138,0.1)", color: "#1B6B8A" }}>📅</div>
                 <div className="m-action-card-body">
-                  <div className="m-action-card-title">{(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${(b.serviceCategory as string)})` : ((b.serviceName as string) || "Consultation")}</div>
-                  <div className="m-action-card-sub">{(b.date as string) || "Upcoming"} · {(b.timeSlot as string) || ""}</div>
+                  <div className="m-action-card-title">{(b.serviceName as string) || "Consultation"}</div>
+                  <div className="m-action-card-sub">{(b.date as string)} · {(b.timeSlot as string) || ""}</div>
                 </div>
                 <span className={`badge ${b.status === "confirmed" ? "badge-success" : "badge-warning"}`} style={{ fontSize: 10 }}>{b.status as string}</span>
               </div>
@@ -208,7 +191,7 @@ function MobileDashboard({
                 <div className="m-action-card-icon" style={{ background: "rgba(212,92,59,0.1)", color: "#D45C3B" }}>🔔</div>
                 <div className="m-action-card-body">
                   <div className="m-action-card-title">New request from {(b.clientName as string) || "client"}</div>
-                  <div className="m-action-card-sub">{(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${(b.serviceCategory as string)})` : ((b.serviceName as string) || "Consultation")}</div>
+                  <div className="m-action-card-sub">{(b.serviceName as string) || "Consultation"}</div>
                 </div>
                 <span className="badge badge-accent" style={{ fontSize: 10 }}>Pending</span>
               </div>
@@ -217,7 +200,6 @@ function MobileDashboard({
         </div>
       )}
 
-      {/* ── Quick actions grid ── */}
       <div className="m-section">
         <span className="m-section-label">Quick Actions</span>
         <div className="m-quick-grid">
@@ -257,7 +239,6 @@ function MobileDashboard({
         </div>
       )}
 
-      {/* ── Stats strip ── */}
       <div className="m-section">
         <span className="m-section-label">Overview</span>
         <div className="m-stats-strip">
@@ -283,7 +264,6 @@ function MobileDashboard({
         </div>
       </div>
 
-      {/* ── Browse CTA ── */}
       <div className="m-section">
         <Link to="/browse" className="m-browse-cta">
           <div>
@@ -293,188 +273,187 @@ function MobileDashboard({
           <span className="m-browse-cta-arrow">→</span>
         </Link>
       </div>
-
     </div>
   );
 }
 
-// ─── Desktop Dashboard (unchanged) ────────────────────────────────────────
+// ─── Desktop Dashboard ────────────────────────────────────────
 function DesktopDashboard({
   userProfile, user, upcomingBookings, proBookings,
-  earningsSummary, proTransactions, loading,
+  loading, lastBookedPro, lastCompletedBooking, loyaltyPreview,
 }: {
   userProfile: Record<string, unknown> | null;
   user: Record<string, unknown> | null;
   upcomingBookings: Record<string, unknown>[];
   proBookings: Record<string, unknown>[];
-  earningsSummary: { lifetime: number; thisMonth: number; lastMonth: number };
-  proTransactions: Record<string, unknown>[];
   loading: boolean;
+  lastBookedPro: Record<string, unknown> | null;
+  lastCompletedBooking: Record<string, unknown> | null;
+  loyaltyPreview: LoyaltyPreview | null;
 }) {
-  const stats = [
-    {
-      label: "Upcoming Bookings",
-      value: upcomingBookings.length,
-      icon: ICON.bookings,
-      color: "var(--accent)",
-      action: upcomingBookings.length === 0 ? { label: "Book Now", to: "/browse" } : null,
-    },
-    {
-      label: "Client Requests",
-      value: proBookings.length,
-      icon: ICON.requests,
-      color: "var(--accent2)",
-      action: proBookings.length === 0 ? { label: "Manage", to: "/bookings" } : null,
-    },
-    {
-      label: "Rating",
-      value: (userProfile as { rating?: number } | null)?.rating ? `${(userProfile as { rating: number }).rating} ★` : 0,
-      icon: ICON.rating,
-      color: "var(--warning)",
-      action: !(userProfile as { rating?: number } | null)?.rating ? { label: "My Profile", to: "/profile" } : null,
-    },
-    (userProfile as { isServiceProvider?: boolean } | null)?.isServiceProvider
-      ? {
-        label: "Lifetime Earnings",
-        value: `₹${earningsSummary.lifetime.toLocaleString()}`,
-        icon: ICON.earnings,
-        color: "var(--accent2)",
-        action: earningsSummary.lifetime === 0 ? { label: "Get Paid", to: "/profile" } : null,
-      }
-      : {
-        label: "Skills Listed",
-        value: (userProfile as { skills?: string[] } | null)?.skills?.length || 0,
-        icon: ICON.skills,
-        color: "var(--error)",
-        action: ((userProfile as { skills?: string[] } | null)?.skills?.length || 0) === 0 ? { label: "Add Skills", to: "/profile" } : null,
-      },
-  ];
+  const navigate = useNavigate();
+  const isPro = (userProfile as { isServiceProvider?: boolean } | null)?.isServiceProvider === true;
+  const firstName = ((userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "there").split(" ")[0];
 
   return (
-    <div>
-      <div className="page-header" style={{
-        backgroundImage: "linear-gradient(to right, rgba(15,23,42,0.85), rgba(15,23,42,0.5)), url('/images/hero_banner.png')",
-        backgroundSize: "cover", backgroundPosition: "top center",
-        padding: "48px 32px", borderRadius: "var(--radius-lg)",
-      }}>
-        <div>
-          <h1 className="page-title" style={{ color: "white" }}>
-            Welcome back, {(userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "there"} 👋
-          </h1>
-          <p className="page-subtitle" style={{ color: "rgba(255,255,255,0.9)" }}>Here's what's happening in your neighborhood</p>
-        </div>
+    <div style={{ maxWidth: 1300, margin: "0 auto", padding: "0 20px" }}>
+      {/* ─── Innovative Header ─── */}
+      <div style={{ padding: "40px 0 24px" }}>
+        <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, margin: 0 }}>
+          {greetingByTime()}, <span style={{ color: "var(--accent)" }}>{firstName}</span> 👋
+        </h1>
+        <p style={{ color: "var(--muted)", marginTop: 4 }}>Here's what's happening in your neighborhood today.</p>
       </div>
 
-      <div className="grid grid-4" style={{ marginBottom: 32 }}>
-        {stats.map(s => (
-          <div className="stat-card" key={s.label}>
-            <div className="stat-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div className="stat-icon" style={{ background: s.color, color: "white" }}>{s.icon}</div>
-              {s.action && <Link to={s.action.to} className="btn btn-ghost btn-xs" style={{ fontSize: 10, padding: "2px 8px" }}>{s.action.label}</Link>}
+      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr 340px", gap: "32px", alignItems: "flex-start" }}>
+        {/* ── LEFT COLUMN: STATS & NAVIGATION ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px", position: "sticky", top: "100px" }}>
+          
+          {/* Main Stats Card */}
+          <div className="card" style={{ padding: 0, overflow: "hidden", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
+            <div style={{ padding: "20px", background: "linear-gradient(135deg, var(--accent), var(--accent2))", color: "#fff" }}>
+              <div style={{ fontSize: 13, opacity: 0.8, fontWeight: 600 }}>COIN BALANCE</div>
+              <div style={{ fontSize: 32, fontWeight: 800, margin: "4px 0" }}>{((userProfile as { coinBalance?: number } | null)?.coinBalance || 0).toLocaleString("en-IN")} <span style={{ fontSize: 16 }}>NC</span></div>
+              <Link to="/wallet" className="btn btn-sm" style={{ background: "rgba(255,255,255,0.2)", color: "#fff", border: "none", padding: "4px 12px", borderRadius: 20 }}>Manage Wallet</Link>
             </div>
-            <div>
-              <div className="stat-value">{loading ? "…" : s.value}</div>
-              <div className="stat-label">{s.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-2" style={{ marginBottom: 32 }}>
-        <Link to="/browse" className="card" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}>
-          <div style={{ fontSize: 32 }}>🔍</div>
-          <div><h3 style={{ marginBottom: 4 }}>Browse Professionals</h3><p className="text-muted text-sm">Find experts in your community</p></div>
-        </Link>
-        <Link to="/profile" className="card" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}>
-          <div style={{ fontSize: 32 }}>✨</div>
-          <div><h3 style={{ marginBottom: 4 }}>Update Your Profile</h3><p className="text-muted text-sm">Add skills and start offering services</p></div>
-        </Link>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div className="card-header">
-          <h3 className="card-title">Upcoming Bookings</h3>
-          <Link to="/bookings" className="btn btn-ghost btn-sm">View All</Link>
-        </div>
-        {loading ? (
-          <div style={{ textAlign: "center", padding: 32 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
-        ) : upcomingBookings.length === 0 ? (
-          <div className="empty-state" style={{ padding: "32px 20px" }}>
-            <div className="empty-state-icon">📅</div>
-            <div className="empty-state-title">No upcoming bookings</div>
-            <div className="empty-state-desc">Browse professionals and book a consultation to get started</div>
-            <Link to="/browse" className="btn btn-primary btn-sm" style={{ marginTop: 8 }}>Browse Pros</Link>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {upcomingBookings.slice(0, 5).map(b => (
-              <div key={b.id as string} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${b.serviceCategory as string})` : ((b.serviceName as string) || "Consultation")}</div>
-                  <div className="text-muted text-sm">{(b.date as string) || formatTimestamp(b.createdAt)} · {(b.timeSlot as string) || "TBD"}</div>
-                </div>
-                <span className={`badge ${b.status === "confirmed" ? "badge-success" : "badge-warning"}`}>{(b.status as string) || "pending"}</span>
+            <div style={{ padding: "8px 0" }}>
+              <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>UPCOMING</span>
+                <span style={{ fontWeight: 700 }}>{loading ? "…" : upcomingBookings.length}</span>
               </div>
+              {isPro && (
+                <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>PRO REQUESTS</span>
+                  <span style={{ fontWeight: 700 }}>{loading ? "…" : proBookings.length}</span>
+                </div>
+              )}
+              <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>RATING</span>
+                <span style={{ fontWeight: 700 }}>{(userProfile as { rating?: number } | null)?.rating ? `${(userProfile as { rating: number }).rating}★` : "—"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Links Nav */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              { to: "/browse", icon: "🔍", label: "Find Professionals", color: "var(--accent)" },
+              { to: "/bookings", icon: "📅", label: "My Bookings", color: "#D45C3B" },
+              { to: "/messages", icon: "💬", label: "Messages", color: "#5B7A5B" },
+              { to: "/support", icon: "📧", label: "Support", color: "#4A6B8A" },
+            ].map(link => (
+              <Link key={link.to} to={link.to} className="card" style={{ textDecoration: "none", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, transition: "all 0.2s" }} onMouseEnter={e => (e.currentTarget.style.background = link.color + "08")} onMouseLeave={e => (e.currentTarget.style.background = "var(--surface)")}>
+                <span style={{ fontSize: 18, color: link.color }}>{link.icon}</span>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{link.label}</span>
+              </Link>
             ))}
           </div>
-        )}
-      </div>
 
-      {proBookings.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">Incoming Client Requests</h3>
-            <Link to="/bookings" className="btn btn-ghost btn-sm">Manage</Link>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {proBookings.slice(0, 5).map(b => (
-              <div key={b.id as string} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{(b.serviceCategory as string) ? `${(b.serviceName as string) || "Consultation"} (${(b.serviceCategory as string)})` : ((b.serviceName as string) || "Consultation")}</div>
-                  <div className="text-muted text-sm">{(b.clientName as string) || "Client"}</div>
-                </div>
-                <span className="badge badge-accent">{(b.status as string) || "pending"}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(userProfile as { isServiceProvider?: boolean } | null)?.isServiceProvider && (
-        <div className="card" style={{ marginTop: 24 }}>
-          <div className="card-header">
-            <h3 className="card-title">Earnings Overview</h3>
-            <span className="badge badge-muted">{proTransactions.length} payout{proTransactions.length === 1 ? "" : "s"}</span>
-          </div>
-          {proTransactions.length === 0 ? (
-            <p className="text-muted">No paid consultations yet.</p>
-          ) : (
-            <>
-              <div className="grid grid-3" style={{ marginBottom: 16 }}>
-                <div className="stat-card"><div className="stat-icon" style={{ background: "var(--accent2-dim)", color: "var(--accent2)" }}>💰</div><div className="stat-value">₹{earningsSummary.lifetime.toLocaleString()}</div><div className="stat-label">Lifetime</div></div>
-                <div className="stat-card"><div className="stat-icon" style={{ background: "var(--accent-dim)", color: "var(--accent)" }}>📆</div><div className="stat-value">₹{earningsSummary.thisMonth.toLocaleString()}</div><div className="stat-label">This Month</div></div>
-                <div className="stat-card"><div className="stat-icon" style={{ background: "rgba(255,179,71,0.1)", color: "var(--warning)" }}>📅</div><div className="stat-value">₹{earningsSummary.lastMonth.toLocaleString()}</div><div className="stat-label">Last Month</div></div>
-              </div>
-              <div className="table-wrap">
-                <table className="table">
-                  <thead><tr><th>Date</th><th>Service</th><th>Client</th><th>Amount</th><th>Your Earning</th></tr></thead>
-                  <tbody>
-                    {proTransactions.slice(0, 10).map(t => (
-                      <tr key={t.id as string}>
-                        <td>{formatTimestamp(t.createdAt)} <span className="text-muted text-sm">{formatTimestampTime(t.createdAt)}</span></td>
-                        <td>{(t.serviceName as string) || "Consultation"}</td>
-                        <td>{(t.clientName as string) || "—"}</td>
-                        <td>₹{((t.amount as number) || 0).toLocaleString()}</td>
-                        <td style={{ color: "var(--accent2)", fontWeight: 500 }}>₹{((t.proEarning as number) || 0).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+          {isPro && (
+            <Link to="/profile" className="card" style={{ textDecoration: "none", padding: "16px", background: "var(--surface-2)", textAlign: "center" }}>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>PRO MODE ACTIVE</div>
+              <div style={{ fontWeight: 700, color: "var(--accent)" }}>Manage Skills & Prices →</div>
+            </Link>
           )}
+
         </div>
-      )}
+
+        {/* ── CENTER COLUMN: FEED (THE HEART) ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          
+          {/* Hero Re-book Banner */}
+          {lastBookedPro && lastCompletedBooking && !loading && (
+            <div style={{ background: "linear-gradient(135deg, var(--surface-2), #fff)", borderRadius: "var(--radius)", padding: "24px", display: "flex", flexDirection: "column", gap: 16, border: "1px solid var(--border)", boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div className="avatar">
+                    {(lastBookedPro.photoURL as string) ? <img src={lastBookedPro.photoURL as string} alt="" /> : ((lastBookedPro.displayName as string) || "?").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 16, margin: 0 }}>Ready for your next session?</h3>
+                    <p style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>Continue with {(lastBookedPro.displayName as string) || "Professional"}</p>
+                  </div>
+                </div>
+                <Link to={`/book/${lastBookedPro.uid as string}?rebook=true`} className="btn btn-primary" style={{ padding: "10px 24px" }}>
+                  Book Now
+                </Link>
+              </div>
+
+              {loyaltyPreview && (
+                <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                  <LoyaltyStreakWidget
+                    streakCount={loyaltyPreview.streakCount}
+                    tier={loyaltyPreview.tier}
+                    cashbackPct={loyaltyPreview.cashbackPct}
+                    cashbackCoins={loyaltyPreview.cashbackCoins}
+                    nextTier={loyaltyPreview.nextTier}
+                    bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
+                    compact
+                    projected
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Social Feed */}
+          <div style={{ minHeight: 600 }}>
+             <LocalFeedWidget uid={user!.uid as string} displayName={(userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "User"} locality={(userProfile as { locality?: string } | null)?.locality} />
+          </div>
+        </div>
+
+        {/* ── RIGHT COLUMN: ACTIVITIES & PROS ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px", position: "sticky", top: "100px" }}>
+          
+          {/* Recommended Pros */}
+          <RecommendedPros uid={user!.uid as string} />
+
+          {/* Activity Widget */}
+          <div className="card" style={{ padding: 0 }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ fontSize: 14, margin: 0, fontWeight: 700 }}>Upcoming Activity</h3>
+              <Link to="/bookings" className="btn btn-ghost btn-xs">See All</Link>
+            </div>
+            <div style={{ maxHeight: 300, overflowY: "auto" }}>
+              {loading ? (
+                 <div style={{ padding: 20, textAlign: "center" }}><div className="loader" style={{ width: 20, height: 20 }} /></div>
+              ) : upcomingBookings.length === 0 ? (
+                 <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>No upcoming bookings. Time to explore?</div>
+              ) : (
+                upcomingBookings.slice(0, 5).map(b => (
+                  <div key={b.id as string} style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", display: "flex", gap: 12, alignItems: "center" }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--accent-dim)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🗓️</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                       <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{(b.serviceName as string) || "Session"}</div>
+                       <div style={{ fontSize: 11, color: "var(--muted)" }}>{(b.date as string)} · {(b.timeSlot as string) || "TBD"}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Pro Context Card (Conditional) */}
+          {isPro && proBookings.length > 0 && (
+            <div className="card" style={{ border: "2px solid var(--accent2)", padding: 16, background: "rgba(var(--accent2-rgb), 0.02)" }}>
+               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ fontWeight: 700, color: "var(--accent2)", fontSize: 13 }}>NEW REQUESTS</span>
+                  <span className="badge badge-error" style={{ fontSize: 10 }}>{proBookings.length}</span>
+               </div>
+               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {proBookings.slice(0, 2).map(b => (
+                    <div key={b.id as string} style={{ background: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{(b.clientName as string) || "Client"}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{((b.serviceName as string) || "Consultation")}</div>
+                      <button className="btn btn-ghost btn-xs" style={{ width: "100%", marginTop: 8, paddingTop: 4 }} onClick={() => navigate("/bookings")}>Review Request →</button>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          )}
+
+        </div>
+      </div>
     </div>
   );
 }
@@ -485,16 +464,10 @@ export default function Dashboard() {
   const isMobile = useIsMobile();
   const [upcomingBookings, setUpcomingBookings] = useState<Record<string, unknown>[]>([]);
   const [proBookings, setProBookings] = useState<Record<string, unknown>[]>([]);
-  const [proTransactions, setProTransactions] = useState<Record<string, unknown>[]>([]);
   const [lastBookedPro, setLastBookedPro] = useState<Record<string, unknown> | null>(null);
   const [lastCompletedBooking, setLastCompletedBooking] = useState<Record<string, unknown> | null>(null);
   const [loyaltyPreview, setLoyaltyPreview] = useState<LoyaltyPreview | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  const locality = (userProfile as { locality?: string } | null)?.locality;
-  const displayName = (userProfile as { displayName?: string } | null)?.displayName ||
-    (user as { displayName?: string } | null)?.displayName || "there";
 
   useEffect(() => {
     if (!user) return;
@@ -518,32 +491,6 @@ export default function Dashboard() {
     load();
   }, [user]);
 
-  useEffect(() => {
-    if (!user || (userProfile as { isServiceProvider?: boolean } | null)?.isServiceProvider !== true) return;
-    getTransactionsForPro(user.uid).then(setProTransactions).catch(() => { });
-  }, [user, userProfile]);
-
-  const earningsSummary = useMemo(() => {
-    if (!proTransactions.length) return { lifetime: 0, thisMonth: 0, lastMonth: 0 };
-    const now = new Date();
-    const thisMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
-    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthKey = `${lastMonthDate.getFullYear()}-${lastMonthDate.getMonth()}`;
-    let lifetime = 0, thisMonth = 0, lastMonth = 0;
-    proTransactions.forEach(t => {
-      const amount = (t.proEarning as number) || 0;
-      const ts = t.createdAt;
-      lifetime += amount;
-      if (ts instanceof Timestamp) {
-        const d = ts.toDate();
-        const key = `${d.getFullYear()}-${d.getMonth()}`;
-        if (key === thisMonthKey) thisMonth += amount;
-        if (key === lastMonthKey) lastMonth += amount;
-      }
-    });
-    return { lifetime, thisMonth, lastMonth };
-  }, [proTransactions]);
-
   if (isMobile) {
     return (
       <MobileDashboard
@@ -560,57 +507,15 @@ export default function Dashboard() {
   }
 
   return (
-    <>
-      <DesktopDashboard
-        userProfile={userProfile as Record<string, unknown> | null}
-        user={user as Record<string, unknown> | null}
-        upcomingBookings={upcomingBookings}
-        proBookings={proBookings}
-        earningsSummary={earningsSummary}
-        proTransactions={proTransactions}
-        loading={loading}
-      />
-
-      {/* Quick Re-book Banner */}
-      {lastBookedPro && lastCompletedBooking && !loading && (
-        <div style={{ background: "linear-gradient(135deg, var(--accent-dim), var(--surface-2))", borderRadius: "var(--radius)", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, border: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div className="avatar avatar-sm">
-              {(lastBookedPro.photoURL as string) ? <img src={lastBookedPro.photoURL as string} alt="" /> : ((lastBookedPro.displayName as string) || "?").slice(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>Quick Re-book</div>
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>Last consulted: {(lastBookedPro.displayName as string) || "Professional"}</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {loyaltyPreview && (
-              <div style={{ minWidth: 320 }}>
-                <LoyaltyStreakWidget
-                  streakCount={loyaltyPreview.streakCount}
-                  tier={loyaltyPreview.tier}
-                  cashbackPct={loyaltyPreview.cashbackPct}
-                  cashbackCoins={loyaltyPreview.cashbackCoins}
-                  nextTier={loyaltyPreview.nextTier}
-                  bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
-                  compact
-                  projected
-                />
-              </div>
-            )}
-            <button className="btn btn-primary btn-sm" onClick={() => navigate(`/book/${lastBookedPro.uid as string}${buildRecurringRebookQuery(lastCompletedBooking)}`)}>
-              Book Again →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Recommended Pros */}
-      {user && <RecommendedPros uid={user.uid} />}
-
-      {/* Local Feed */}
-      {user && <LocalFeedWidget uid={user.uid} displayName={displayName} locality={locality} />}
-    </>
+    <DesktopDashboard
+      userProfile={userProfile as Record<string, unknown> | null}
+      user={user as Record<string, unknown> | null}
+      upcomingBookings={upcomingBookings}
+      proBookings={proBookings}
+      loading={loading}
+      lastBookedPro={lastBookedPro}
+      lastCompletedBooking={lastCompletedBooking}
+      loyaltyPreview={loyaltyPreview}
+    />
   );
 }
-

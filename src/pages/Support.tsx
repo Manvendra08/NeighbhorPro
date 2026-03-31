@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, FormEvent } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createTicket, sendTicketMessage, subscribeTicketMessages,
-  getFAQs, getSLAHours, generateTicketNumber, updateTicketStatus,
+  getFAQs, generateTicketNumber, updateTicketStatus,
   subscribeUserTickets,
   type SupportTicket, type TicketMessage, type FAQ,
 } from "../services/supportService";
@@ -59,14 +59,14 @@ function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket;
         <button className="btn btn-ghost btn-sm" onClick={onBack}>← Back</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700 }}>{ticket.subject}</div>
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>#{ticket.ticketNumber || ticket.id?.slice(0, 8)} · SLA: {ticket.slaHours}h response</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>#{ticket.ticketNumber || ticket.id?.slice(0, 8)}</div>
         </div>
         <span className="badge" style={{ background: statusColors[localStatus] + "18", color: statusColors[localStatus], border: `1px solid ${statusColors[localStatus]}40` }}>
           {localStatus.replace("_", " ")}
         </span>
       </div>
       <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: 16, height: 340, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-        {messages.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", paddingTop: 40 }}>No messages yet. We'll reply within {ticket.slaHours}h.</div>}
+        {messages.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", paddingTop: 40 }}>No messages yet. We'll reply shortly.</div>}
         {messages.map(m => (
           <div key={m.id} style={{ alignSelf: m.senderRole === "user" ? "flex-end" : "flex-start", background: m.senderRole === "user" ? "var(--accent)" : "var(--surface)", color: m.senderRole === "user" ? "#fff" : "var(--text)", padding: "10px 16px", borderRadius: 14, maxWidth: "75%", fontSize: 14, border: m.senderRole === "admin" ? "1px solid var(--border)" : "none" }}>
             {m.senderRole === "admin" && <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, opacity: 0.7 }}>Support Team</div>}
@@ -104,12 +104,10 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
   const [category, setCategory] = useState<typeof CATEGORIES[number]>("general");
   const [description, setDesc] = useState("");
   const [ticketNumber, setTicketNumber] = useState("");
-  const [slaHours, setSla] = useState<number | null>(null);
   const [submitting, setSub] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getSLAHours("normal").then(setSla);
     generateTicketNumber().then(setTicketNumber);
   }, []);
 
@@ -118,22 +116,20 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
     if (!user || !userProfile) return;
     if (!subject.trim() || !description.trim()) { setError("Please fill all required fields."); return; }
     setSub(true); setError("");
-    const created = await createTicket({
+    const { id, ticketNumber: generatedNumber } = await createTicket({
       uid: user.uid, displayName: userProfile.displayName, email: userProfile.email,
-      subject: subject.trim(), category, priority: "normal",
+      subject: subject.trim(), category,
     });
-    await sendTicketMessage(created.id, { text: description.trim(), senderRole: "user", senderName: userProfile.displayName });
+    await sendTicketMessage(id, { text: description.trim(), senderRole: "user", senderName: userProfile.displayName });
     onCreated({
-      id: created.id,
-      ticketNumber: created.ticketNumber,
+      id: id,
+      ticketNumber: generatedNumber,
       uid: user.uid,
       displayName: userProfile.displayName,
       email: userProfile.email,
       subject: subject.trim(),
       category,
-      priority: "normal",
       status: "open",
-      slaHours: slaHours ?? 24,
       createdAt: null,
       updatedAt: null,
     });
@@ -144,7 +140,6 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
     <form onSubmit={handleSubmit} style={{ maxWidth: 560 }}>
       <div className="card">
         <h3 className="card-title" style={{ marginBottom: 4 }}>Open a Support Ticket</h3>
-        {slaHours && <p className="text-muted text-sm" style={{ marginBottom: 20 }}>We respond within {slaHours} hours for standard tickets.</p>}
         {error && <div className="error-box" style={{ marginBottom: 16 }}>{error}</div>}
         <div style={{ display: "flex", gap: 16 }}>
           <div className="form-group" style={{ flex: 1 }}>
@@ -278,7 +273,7 @@ export default function Support() {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{t.subject}</div>
                         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                          {CATEGORY_LABELS[t.category]} · #{t.ticketNumber || t.id?.slice(0, 8)} · SLA {t.slaHours}h
+                          {CATEGORY_LABELS[t.category]} · #{t.ticketNumber || t.id?.slice(0, 8)}
                         </div>
                       </div>
                       <span className="badge" style={{ background: statusColors[t.status] + "18", color: statusColors[t.status], border: `1px solid ${statusColors[t.status]}40` }}>

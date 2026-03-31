@@ -198,7 +198,7 @@ export function generateReferralCode(params: {
     .toUpperCase()
     .padEnd(3, "X");
 
-  const last = (parts[1] || parts[0] || "NBH")
+  const last = (parts[1] || "PRO")
     .replace(/[^a-zA-Z]/g, "")
     .slice(0, 3)
     .toUpperCase()
@@ -208,7 +208,7 @@ export function generateReferralCode(params: {
   const fallbackTail = uid.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase();
   const tail = (phoneTail || fallbackTail || "0000").padStart(4, "0");
 
-  return `${first}${last}${first}NC${tail}`;
+  return `${first}${last}${tail}`;
 }
 
 /**

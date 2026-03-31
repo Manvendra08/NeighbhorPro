@@ -10,9 +10,6 @@ import { logAudit } from "./AdminAuditLog";
 const STATUS_BADGE: Record<TicketStatus, string> = {
   open: "badge-error", in_progress: "badge-warning", resolved: "badge-success", closed: "badge-muted",
 };
-const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "var(--error)", high: "var(--warning)", normal: "var(--accent)", low: "var(--muted)",
-};
 
 export default function AdminTickets() {
   const { userProfile } = useAuth();
@@ -67,6 +64,11 @@ export default function AdminTickets() {
   const handleStatus = async (status: TicketStatus) => {
     if (!selected?.id) return;
     await updateTicketStatus(selected.id, status, adminId);
+    
+    // Auto-send a system message so the client is notified in their thread
+    const statusMsg = `[SYSTEM] Ticket status has been set to: ${status.replace("_", " ").toUpperCase()}`;
+    await sendTicketMessage(selected.id, { text: statusMsg, senderRole: "admin", senderName: "System" });
+    
     await logAudit("ticket.status", adminId, adminName, `Ticket ${selected.id.slice(0,8)} → ${status}`, selected.id);
     setSelected(prev => prev ? { ...prev, status } : null);
     load();
@@ -81,7 +83,7 @@ export default function AdminTickets() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Support Tickets</h1>
-          <p className="page-subtitle">All user tickets with SLA tracking</p>
+          <p className="page-subtitle">All user tickets</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {(["all","open","in_progress","resolved","closed"] as const).map(s => (
@@ -110,7 +112,7 @@ export default function AdminTickets() {
                   </div>
                   <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>{t.displayName || t.email}</div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 11, color: PRIORITY_COLOR[t.priority], fontWeight: 600 }}>{t.priority.toUpperCase()} · SLA {t.slaHours}h</span>
+                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>#{t.ticketNumber || t.id?.slice(0, 8)}</span>
                     <span style={{ fontSize: 11, color: "var(--muted)" }}>{formatTimestamp(t.createdAt)}</span>
                   </div>
                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>📂 {t.category}{t.bookingId ? ` · Booking ${t.bookingId.slice(0,8)}…` : ""}</div>
@@ -126,7 +128,7 @@ export default function AdminTickets() {
               <div style={{ padding: "12px 18px", borderBottom: "1px solid var(--border)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{selected.subject}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>{selected.displayName} · {selected.email} · SLA {selected.slaHours}h response</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>{selected.displayName} · {selected.email}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {(["open","in_progress","resolved","closed"] as TicketStatus[]).filter(s => s !== selected.status).map(s => (

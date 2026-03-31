@@ -1,12 +1,11 @@
 import {
-  collection, doc, getDoc, getDocs, addDoc, updateDoc,
+  collection, doc, getDocs, addDoc, updateDoc,
   query, where, orderBy, limit, onSnapshot, serverTimestamp, Unsubscribe,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FirestoreTimestamp } from "../types/firestore";
 
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
-export type TicketPriority = "low" | "normal" | "high" | "urgent";
 export type DisputeStatus = "raised" | "under_review" | "resolved_client" | "resolved_pro" | "dismissed";
 
 export interface SupportTicket {
@@ -18,9 +17,7 @@ export interface SupportTicket {
   subject: string;
   category: "general" | "booking" | "payment" | "account" | "dispute" | "other";
   bookingId?: string;
-  status: TicketStatus;
-  priority: TicketPriority;
-  slaHours: number;
+  status: "open" | "in_progress" | "resolved" | "closed";
   createdAt: FirestoreTimestamp;
   updatedAt: FirestoreTimestamp;
   resolvedAt?: FirestoreTimestamp;
@@ -57,33 +54,7 @@ export interface FAQ {
   active: boolean;
 }
 
-// SLA from appSettings (fallback)
-const DEFAULT_SLA: Record<TicketPriority, number> = { low: 72, normal: 24, high: 8, urgent: 2 };
-
-/** Session-scoped cache — SLA config changes rarely, no need for a Firestore read per ticket. */
-let _slaCache: Record<TicketPriority, number> | null = null;
-
-export async function getSLAHours(priority: TicketPriority): Promise<number> {
-  if (!_slaCache) {
-    try {
-      const snap = await getDoc(doc(db, "appSettings", "support"));
-      if (snap.exists()) {
-        _slaCache = {
-          low: snap.data()?.["sla_low"] ?? DEFAULT_SLA.low,
-          normal: snap.data()?.["sla_normal"] ?? DEFAULT_SLA.normal,
-          high: snap.data()?.["sla_high"] ?? DEFAULT_SLA.high,
-          urgent: snap.data()?.["sla_urgent"] ?? DEFAULT_SLA.urgent,
-        };
-      } else {
-        _slaCache = DEFAULT_SLA;
-      }
-    } catch {
-      _slaCache = DEFAULT_SLA;
-    }
-  }
-  return _slaCache[priority];
-}
-
+// ── Ticket Generation ──────────────────────────────────────────────────────
 /** Generates a ticket number in the format NP<ddmmyyyy><3-digit-sequence> */
 export async function generateTicketNumber(): Promise<string> {
   const now = new Date();
@@ -111,11 +82,10 @@ export async function generateTicketNumber(): Promise<string> {
 }
 
 // ── Tickets ──────────────────────────────────────────────────────────────
-export async function createTicket(data: Omit<SupportTicket, "id" | "ticketNumber" | "status" | "slaHours" | "createdAt" | "updatedAt">): Promise<{ id: string; ticketNumber: string }> {
-  const slaHours = await getSLAHours(data.priority);
+export async function createTicket(data: Omit<SupportTicket, "id" | "ticketNumber" | "status" | "createdAt" | "updatedAt">): Promise<{ id: string; ticketNumber: string }> {
   const ticketNumber = await generateTicketNumber();
   const ref = await addDoc(collection(db, "tickets"), {
-    ...data, ticketNumber, status: "open", slaHours, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    ...data, ticketNumber, status: "open", createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
   return { id: ref.id, ticketNumber };
 }
@@ -198,6 +168,16 @@ const STATIC_FAQS: FAQ[] = [
   { question: "How do I cash out my earnings?", answer: "Go to Wallet → Cash Out tab. Minimum 200 NC. Processed via UPI within 48 hours.", category: "payment", order: 6, active: true },
   { question: "Can I cancel a booking?", answer: "Yes — pending or confirmed bookings can be cancelled. NC is refunded fully if cancelled 2+ hours before the session.", category: "booking", order: 7, active: true },
   { question: "How do reviews work?", answer: "You can review a pro after a completed booking. All reviews are tied to verified bookings.", category: "booking", order: 8, active: true },
+  { question: "How do Referral Codes work?", answer: "Share your referral code from your Wallet page! When a friend registers and completes their first booking, both of you earn 100 NC.", category: "account", order: 9, active: true },
+  { question: "My NeighbourCoins top-up failed but money was deducted. What should I do?", answer: "Don't panic! Open a 'Payment' support ticket and provide the transaction reference. We'll manually resolve this within 24 hours.", category: "payment", order: 10, active: true },
+  { question: "How are disputes resolved?", answer: "If you have an issue with a completed session, open a 'Dispute' support ticket within 48 hours. Our team will mediate between you and the Pro.", category: "dispute", order: 11, active: true },
+  { question: "Can I edit my Professional Profile?", answer: "Yes! Navigate to your 'Profile' section. You can update your skills, hourly rate, and profile picture anytime.", category: "account", order: 12, active: true },
+  { question: "Why is the Pro I want unavailable?", answer: "Pros set their own availability calendar. If their slots are empty, they are either fully booked or have taken time off. Try messaging them!", category: "booking", order: 13, active: true },
+  { question: "What if the professional is late?", answer: "We recommend messaging them first. If they are more than 20 minutes late without notice, you can cancel for a full refund and report it via a support ticket.", category: "booking", order: 14, active: true },
+  { question: "Can I book a service for someone else?", answer: "Yes, but ensure you provide their details and exact location in the booking notes so the Pro knows who to expect.", category: "general", order: 15, active: true },
+  { question: "How do I update my registered society?", answer: "Go to Profile → Edit Profile. Note that changing your society may affect your verified status until re-confirmed by the new society admin.", category: "account", order: 16, active: true },
+  { question: "Is my personal data secure?", answer: "Absolutely. We use industry-standard encryption and never share your contact details with Pros until a booking is confirmed.", category: "general", order: 17, active: true },
+  { question: "How do I report inappropriate behavior?", answer: "Safety is our priority. Use the 'Dispute' category in Support or email safety@proneighbor.com immediately. Block the user in the chat settings.", category: "dispute", order: 18, active: true },
 ];
 
 export async function getFAQs(): Promise<FAQ[]> {

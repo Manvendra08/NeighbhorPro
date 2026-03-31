@@ -66,7 +66,8 @@ export default function BookingFlow() {
   useEffect(() => {
     if (!date || !proId || !proAvail) return;
     setCA(true);
-    const d = new Date(date);
+    const [year, month, day] = date.split('-');
+    const d = new Date(+year, +month - 1, +day);
     const dayName = d.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
 
     const dayAvail = proAvail[dayName];
@@ -284,7 +285,17 @@ export default function BookingFlow() {
             <div className="form-group" style={{ flex: 1 }}>
               <label className="form-label">Start Time <span style={{ color: "var(--error)" }}>*</span> {checkingAvail && <span style={{ fontSize: 10, color: "var(--accent)", marginLeft: 8 }}>Checking…</span>}</label>
               <select className="form-input" value={timeSlot} onChange={e => setTS(e.target.value)} required disabled={!date || checkingAvail}>
-                <option value="">{date ? (!checkingAvail && availableSlots.length === 0 ? "None" : "Select…") : "Pick date…"}</option>
+                <option value="">
+                  {date 
+                    ? (checkingAvail 
+                        ? "Checking availability..." 
+                        : (availableSlots.length === 0 
+                            ? (proAvail && proAvail[new Date(+date.split('-')[0], +date.split('-')[1]-1, +date.split('-')[2]).toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()]?.active === false 
+                                ? "Pro is off this day" 
+                                : "No slots available") 
+                            : "Select…")) 
+                    : "Pick date first"}
+                </option>
                 {availableSlots.map(t => (
                   <option key={t} value={t}>{t}</option>
                 ))}
