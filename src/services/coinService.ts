@@ -336,17 +336,34 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       const bookingRef = doc(db, "bookings", bookingId);
       const bookingSnap = await tx.get(bookingRef);
       if (!bookingSnap.exists()) throw new Error("BOOKING_NOT_FOUND");
-      const escrowCoins = (bookingSnap.data()?.escrowCoins as number) ?? 0;
-      if (bookingSnap.data()?.escrowStatus === "released") return;
-      if (escrowCoins === 0) return;
+      const data = bookingSnap.data()!;
+      // Idempotency guard: already released or completed — skip
+      if (data.escrowStatus === "released" || data.status === "completed") return;
+      const escrowCoins = (data.escrowCoins as number) ?? 0;
+      if (escrowCoins === 0) {
+        // No escrow but still mark completed atomically
+        tx.update(bookingRef, { status: "completed", updatedAt: serverTimestamp() });
+        return;
+      }
       const platformFee = Math.round(escrowCoins * platformFeePct);
       const proEarning = escrowCoins - platformFee;
       const proRef = doc(db, "users", proUid);
       const proSnap = await tx.get(proRef);
       const newProBal = ((proSnap.data()?.coinBalance as number) ?? 0) + proEarning;
+      // All writes in one atomic batch — status update included
       tx.update(proRef, { coinBalance: newProBal, updatedAt: serverTimestamp() });
-      tx.update(bookingRef, { escrowStatus: "released", platformFee, proEarning, paidInCoins: escrowCoins, updatedAt: serverTimestamp() });
-      tx.set(doc(collection(db, "coinLedger", proUid, "entries")), { uid: proUid, type: "booking_escrow_release", amount: proEarning, balanceAfter: newProBal, description: `Earned: ${serviceName} (10% platform fee deducted)`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
+      tx.update(bookingRef, {
+        status: "completed",
+        escrowStatus: "released",
+        platformFee, proEarning, paidInCoins: escrowCoins,
+        updatedAt: serverTimestamp(),
+      });
+      tx.set(doc(collection(db, "coinLedger", proUid, "entries")), {
+        uid: proUid, type: "booking_escrow_release", amount: proEarning,
+        balanceAfter: newProBal,
+        description: `Earned: ${serviceName} (10% platform fee deducted)`,
+        refId: bookingId, createdAt: serverTimestamp(),
+      } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {

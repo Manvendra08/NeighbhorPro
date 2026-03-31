@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  createBooking, getUserProfile, getServicesByUser, getOrCreateConversation,
+  createBooking, getPublicProfile, getServicesByUser, getOrCreateConversation,
   getProAvailability, getBookingsForProOnDate, uploadBookingAttachment
 } from "../services/firestoreService";
 import { holdEscrow, earnCoins } from "../services/coinService";
@@ -42,7 +42,7 @@ export default function BookingFlow() {
 
   useEffect(() => {
     if (!proId) return;
-    Promise.all([getUserProfile(proId), getServicesByUser(proId), getProAvailability(proId)])
+    Promise.all([getPublicProfile(proId), getServicesByUser(proId), getProAvailability(proId)])
       .then(([p, s, a]) => {
         if (!p) { setPNF(true); return; }
         setPro(p);

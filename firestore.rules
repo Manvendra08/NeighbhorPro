@@ -22,21 +22,45 @@ service cloud.firestore {
         && request.resource.data.balanceAfter >= 0;
     }
 
+    // Public-safe fields any signed-in user may read on another user's profile.
+    // Sensitive fields (phone, flat, coinBalance, fcmToken, etc.) are owner/admin only.
+    function publicUserFields() {
+      return ['uid', 'displayName', 'photoURL', 'bio', 'skills', 'isServiceProvider',
+              'rating', 'reviewCount', 'society', 'locality', 'tower',
+              'residentVerificationStatus', 'hourlyRate', 'isFreeConsultation',
+              'priceAfterQuote', 'role', 'disabled', 'createdAt'];
+    }
+
     match /users/{userId} {
-      allow read: if isSignedIn();
+      // Full document (incl. sensitive fields): owner or admin only.
+      // All other callers must read from /publicProfiles/{userId} instead.
+      allow get:    if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list:   if isAdmin();
       allow create: if isSignedIn() && isOwner(userId);
       allow update: if isSignedIn() && (
         (isOwner(userId) && (
-          // Standard metadata/profile updates
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'residentVerificationStatus', 'verificationMethod']) ||
-          // Specifically allow residency proof submission
           (
             request.resource.data.diff(resource.data).affectedKeys().hasAny(['residencyProofUrl', 'residentVerificationStatus']) &&
             request.resource.data.residentVerificationStatus == 'pending'
           )
-        )) || 
+        )) ||
         isAdmin()
       ) && noSensitiveFieldChange();
+      allow delete: if isAdmin();
+    }
+
+    // Public-safe profile mirror — only the fields safe to expose to any neighbor.
+    // Written by the owner on profile save; read by any signed-in user for Browse/ProDetail.
+    // Sensitive fields (phone, flat, coinBalance, fcmToken, referralCode) are never written here.
+    match /publicProfiles/{userId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin())
+                      && !request.resource.data.keys().hasAny([
+                           'phoneNumber', 'flatNumber', 'coinBalance',
+                           'fcmToken', 'referralCode', 'residencyProofUrl'
+                         ]);
       allow delete: if isAdmin();
     }
 
@@ -192,9 +216,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /auditLog/{logId} {
-      allow read: if isAdmin();
+    // auditLogs (plural) — matches collection name used in code
+    match /auditLogs/{logId} {
+      allow read:   if isAdmin();
       allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     // ── Activity Logs ─────────────────────────────────────

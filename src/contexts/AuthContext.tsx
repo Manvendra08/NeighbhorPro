@@ -10,6 +10,7 @@ import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "fir
 import { auth, db, googleProvider } from "../firebase";
 import { earnCoins, generateReferralCode } from "../services/coinService";
 import { logActivity } from "../services/activityService";
+import { mirrorPublicProfile } from "../services/firestoreService";
 import type { FirestoreTimestamp } from "../types/firestore";
 
 export interface UserProfile {
@@ -129,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: serverTimestamp(),
       };
       await setDoc(ref, profile);
+      await mirrorPublicProfile(u.uid, profile);
       await earnCoins(u.uid, "earn_signup_bonus", u.uid);
     }
   };
@@ -201,11 +203,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uid: auth.currentUser.uid,
       });
 
-      await updateDoc(userRef, {
+      const update = {
         phoneNumber: auth.currentUser.phoneNumber,
         referralCode,
         updatedAt: serverTimestamp(),
-      });
+      };
+      await updateDoc(userRef, update);
+      await mirrorPublicProfile(auth.currentUser.uid, update);
     }
     confirmationRef.current = null;
     recaptchaRef.current?.clear();
@@ -225,13 +229,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const originalSnap = await getDoc(userRef);
       const originalData = originalSnap.data();
 
-      await updateDoc(userRef, {
+      const deletionUpdate = {
         displayName: "Deleted User",
         email: `deleted_${auth.currentUser.uid}@ProNeighbor.in`,
         bio: "", photoURL: "", skills: [], society: "", flatNumber: "",
         phoneNumber: null, fcmToken: null,
         deleted: true, deletedAt: serverTimestamp(), updatedAt: serverTimestamp(),
-      });
+      };
+      await updateDoc(userRef, deletionUpdate);
+      await mirrorPublicProfile(auth.currentUser.uid, deletionUpdate);
 
       try {
         await deleteUser(auth.currentUser);

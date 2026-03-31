@@ -4,7 +4,8 @@ import {
   getAllUsers, 
   updateUserProfile, 
   updateResidentVerification,
-  getOrCreateConversation 
+  getOrCreateConversation,
+  mirrorPublicProfile
 } from "../../services/firestoreService";
 import { deleteDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
@@ -147,6 +148,7 @@ export default function AdminUsers() {
     setActionLoading(u.uid as string);
     try {
       await deleteDoc(doc(db, "users", u.uid as string));
+      await deleteDoc(doc(db, "publicProfiles", u.uid as string));
       await logAudit(
         "user.delete", adminId, adminName,
         `Deleted profile of: ${(u.displayName as string) || u.email as string}`,
@@ -506,13 +508,15 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
       await updateProfile(userCred.user, { displayName: form.displayName.trim() });
       await signOut(secondaryAuth);
 
-      await setDoc(doc(db, "users", uid), {
+      const profileData = {
         uid, displayName: form.displayName.trim(), email: form.email.trim(),
         society: form.society.trim(), role: form.role, isServiceProvider: form.isServiceProvider,
         photoURL: "", bio: "", skills: [], hourlyRate: 0, isFreeConsultation: true,
         rating: 0, reviewCount: 0, disabled: false, createdAt: serverTimestamp(),
         residentVerificationStatus: "none",
-      });
+      };
+      await setDoc(doc(db, "users", uid), profileData);
+      await mirrorPublicProfile(uid, profileData);
       await logAudit("user.create", adminId, adminName, `Created user record and Auth: ${form.displayName} (${form.email})`, uid);
       onDone();
     } catch (e: unknown) { 

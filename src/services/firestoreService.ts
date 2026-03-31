@@ -28,10 +28,62 @@ import { validateUpload } from "../utils/cloudinary";
 /* ═══════════════════════════════════════════
    USERS
 ═══════════════════════════════════════════ */
+
+// Fields safe to expose to any signed-in user. Sensitive fields
+// (phoneNumber, flatNumber, coinBalance, fcmToken, referralCode,
+// residencyProofUrl, email) are deliberately excluded.
+const PUBLIC_PROFILE_FIELDS = [
+  'uid', 'displayName', 'photoURL', 'bio', 'skills', 'isServiceProvider',
+  'rating', 'reviewCount', 'society', 'locality', 'tower',
+  'residentVerificationStatus', 'hourlyRate', 'isFreeConsultation',
+  'priceAfterQuote', 'role', 'disabled', 'createdAt', 'highestLoyaltyTier',
+] as const;
+
+/**
+ * Mirror safe fields to /publicProfiles on every profile mutation.
+ * Readable by any signed-in user; never contains sensitive data.
+ */
+export async function mirrorPublicProfile(uid: string, data: any): Promise<void> {
+  const safe: Record<string, unknown> = { uid };
+  for (const field of PUBLIC_PROFILE_FIELDS) {
+    if (field in data) safe[field] = data[field as string];
+  }
+  if (Object.keys(safe).length <= 1) return; // only uid, nothing to write
+  await setDoc(
+    doc(db, 'publicProfiles', uid),
+    { ...safe, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+}
+
+/**
+ * Read a user's FULL document — owner/admin only.
+ * For Browse, ProDetail, Messages sidebar, BookingFlow: use getPublicProfile.
+ */
 export async function getUserProfile(uid: string): Promise<Record<string, unknown> | null> {
-  const snap = await getDoc(doc(db, "users", uid));
+  const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists() ? { uid: snap.id, ...snap.data() } : null;
 }
+
+/**
+ * Read public-safe profile — accessible to any signed-in user.
+ * Falls back to /users with field-stripping for legacy accounts not yet mirrored.
+ */
+export async function getPublicProfile(uid: string): Promise<Record<string, unknown> | null> {
+  const snap = await getDoc(doc(db, 'publicProfiles', uid));
+  if (snap.exists()) return { uid: snap.id, ...snap.data() };
+  // Legacy fallback: strip sensitive fields from /users document
+  const userSnap = await getDoc(doc(db, 'users', uid));
+  if (!userSnap.exists()) return null;
+  const full = userSnap.data() as Record<string, unknown>;
+  const stripped: Record<string, unknown> = { uid };
+  for (const field of PUBLIC_PROFILE_FIELDS) {
+    if (field in full) stripped[field] = full[field as string];
+  }
+  return stripped;
+}
+
+
 
 export async function updateUserProfile(uid: string, data: Record<string, unknown>) {
   const userRef = doc(db, "users", uid);
@@ -51,6 +103,8 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   }
 
   await updateDoc(userRef, { ...nextData, updatedAt: serverTimestamp() });
+  // Mirror safe fields to /publicProfiles so other users never need /users
+  await mirrorPublicProfile(uid, { ...currentData, ...nextData });
 }
 
 export async function uploadProfilePhoto(uid: string, file: File) {
@@ -68,6 +122,7 @@ export async function uploadProfilePhoto(uid: string, file: File) {
   const photoURL = data.secure_url;
   if (auth.currentUser) await updateProfile(auth.currentUser, { photoURL });
   await updateDoc(doc(db, "users", uid), { photoURL, updatedAt: serverTimestamp() });
+  await mirrorPublicProfile(uid, { photoURL });
   return photoURL;
 }
 
@@ -93,11 +148,13 @@ export async function uploadResidencyProof(uid: string, file: File) {
   const data = await response.json();
   const residencyProofUrl = data.secure_url;
 
-  await updateDoc(doc(db, "users", uid), {
+  const update = {
     residencyProofUrl,
     residentVerificationStatus: "pending",
     updatedAt: serverTimestamp(),
-  });
+  };
+  await updateDoc(doc(db, "users", uid), update);
+  await mirrorPublicProfile(uid, update);
   return residencyProofUrl;
 }
 
@@ -106,11 +163,13 @@ export async function updateResidentVerification(
   status: "none" | "pending" | "verified",
   method: "manual" | "auto" | null
 ) {
-  await updateDoc(doc(db, "users", uid), {
+  const update = {
     residentVerificationStatus: status,
     verificationMethod: method,
     updatedAt: serverTimestamp(),
-  });
+  };
+  await updateDoc(doc(db, "users", uid), update);
+  await mirrorPublicProfile(uid, update);
 }
 
 /**
@@ -139,12 +198,13 @@ export async function listProfessionals(
   cursor?: QueryDocumentSnapshot<DocumentData> | null,
   filters?: { locality?: string; tower?: string }
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot<DocumentData> | null }> {
+  // Reads from /publicProfiles — safe fields only, accessible to any signed-in user.
   const constraints: Parameters<typeof query>[1][] = [orderBy("createdAt", "desc"), limit(BROWSE_PAGE_SIZE)];
   if (filters?.locality) constraints.unshift(where("locality", "==", filters.locality));
   if (filters?.tower) constraints.unshift(where("tower", "==", filters.tower));
   if (cursor) constraints.push(startAfter(cursor));
 
-  const q = query(collection(db, "users"), ...constraints);
+  const q = query(collection(db, "publicProfiles"), ...constraints);
   const snap = await getDocs(q);
   const data = snap.docs.map(d => ({ uid: d.id, ...d.data() } as Record<string, unknown>));
   const nextCursor = snap.docs.length === BROWSE_PAGE_SIZE ? snap.docs[snap.docs.length - 1] : null;
@@ -307,7 +367,9 @@ export async function getReviewsForUser(proId: string) {
 export async function recalculateProRating(proId: string) {
   const allReviews = await getReviewsForUser(proId);
   const avg = allReviews.length > 0 ? allReviews.reduce((s, r) => s + ((r.rating as number) || 0), 0) / allReviews.length : 0;
-  await updateDoc(doc(db, "users", proId), { rating: Math.round(avg * 10) / 10, reviewCount: allReviews.length });
+  const update = { rating: Math.round(avg * 10) / 10, reviewCount: allReviews.length };
+  await updateDoc(doc(db, "users", proId), update);
+  await mirrorPublicProfile(proId, update);
 }
 export async function checkSpamReviews(proId: string) {
   const q = query(collection(db, "reviews"), where("proId", "==", proId), orderBy("createdAt", "desc"), limit(3));
@@ -567,9 +629,9 @@ export async function trackProView(uid: string, proId: string) {
 export async function getRecommendedPros(
   uid: string, limit_: number = 4
 ): Promise<Record<string, unknown>[]> {
-  // Fetch 20 most-reviewed pros as recommendation baseline
+  // Reads from /publicProfiles — safe, no sensitive data exposure.
   const q = query(
-    collection(db, "users"),
+    collection(db, "publicProfiles"),
     where("isServiceProvider", "==", true),
     orderBy("reviewCount", "desc"),
     limit(limit_ * 5)

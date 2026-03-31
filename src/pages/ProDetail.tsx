@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  getUserProfile, getServicesByUser, getReviewsForUser, trackProView, formatTimestamp,
+  getPublicProfile, getServicesByUser, getReviewsForUser, trackProView, formatTimestamp,
 } from "../services/firestoreService";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -69,7 +69,7 @@ export default function ProDetail() {
     const load = async () => {
       try {
         const [profile, svcs, revs] = await Promise.all([
-          getUserProfile(id), getServicesByUser(id), getReviewsForUser(id),
+        getPublicProfile(id), getServicesByUser(id), getReviewsForUser(id),
         ]);
         if (!profile) { setError("not_found"); }
         else {

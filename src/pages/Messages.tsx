@@ -8,7 +8,7 @@ import {
   subscribeToMessages,
   sendMessage,
   uploadAttachment,
-  getUserProfile,
+  getPublicProfile,
   formatTimestampTime,
   markConversationRead,
   getAllUsers,
@@ -67,7 +67,7 @@ export default function Messages() {
         const participants = c.participants as string[];
         const otherId = participants.find((p) => p !== user.uid);
         if (otherId && !otherUsers[otherId]) {
-          getUserProfile(otherId).then((profile) => {
+          getPublicProfile(otherId).then((profile) => {
             if (profile) {
               setOtherUsers((prev) => ({ ...prev, [otherId]: profile }));
             }
