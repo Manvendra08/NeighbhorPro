@@ -1,6 +1,5 @@
-import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { db, functionsClient } from "../firebase";
+import { collection, query, where, orderBy, limit, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase";
 
 export type ActivityEvent =
   | "user.login"
@@ -30,6 +29,9 @@ export interface ActivityLog {
   timestamp: any; // Using any for simplicity as it could be serverTimestamp or plain object
 }
 
+const ACTIVITY_RATE_LIMIT_MS = 2000;
+const activityRateLimitCache = new Map<string, number>();
+
 /**
  * Log a user activity event via secure Cloud Function.
  * Implements server-side rate limiting to prevent write abuse.
@@ -41,12 +43,17 @@ export async function logActivity(
   metadata?: Record<string, unknown>
 ): Promise<void> {
   try {
-    const logFn = httpsCallable(functionsClient, "logActivityFunction");
-    await logFn({
+    const now = Date.now();
+    const last = activityRateLimitCache.get(userId) ?? 0;
+    if (now - last < ACTIVITY_RATE_LIMIT_MS) return;
+    activityRateLimitCache.set(userId, now);
+
+    await addDoc(collection(db, "activityLogs"), {
       userId,
       event,
-      details,
+      details: String(details || "").slice(0, 500),
       metadata: metadata ?? {},
+      timestamp: serverTimestamp(),
     });
   } catch (err) {
     console.error("Activity logging failed:", err);

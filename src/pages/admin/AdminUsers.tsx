@@ -224,6 +224,35 @@ export default function AdminUsers() {
     doVerify();
   };
 
+  const handleApproveEmailByMobile = (u: UserRow) => {
+    const name = (u.displayName as string) || (u.email as string) || (u.uid as string);
+    const phone = ((u.phoneNumber as string) || "").trim();
+    if (!phone) {
+      showToast("User must have a mobile number to use admin approval", "error");
+      return;
+    }
+    if ((u.emailVerified as boolean) === true) {
+      showToast("Email is already marked as verified");
+      return;
+    }
+
+    const ok = window.confirm(`Approve ${name} for app access without email validation based on mobile number ${phone}?`);
+    if (!ok) return;
+
+    doAction(
+      u.uid as string,
+      {
+        emailVerified: true,
+        emailVerificationMethod: "admin_mobile_override",
+        emailVerificationOverrideBy: adminId,
+        emailVerificationOverrideAt: serverTimestamp(),
+      },
+      "User approved via mobile verification",
+      "user.email_mobile_approve",
+      `Approved email verification bypass by mobile for: ${name} (${phone})`
+    );
+  };
+
   const handleDelete = async (u: UserRow) => {
     if (isSelfUser(u)) {
       showToast("You cannot delete your own admin account", "error");
@@ -453,6 +482,9 @@ export default function AdminUsers() {
                             <button className={`btn btn-sm ${u.disabled ? "btn-success" : "btn-danger"}`} onClick={() => handleToggleDisable(u)} disabled={busy}>{u.disabled ? "Enable" : "Disable"}</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleToggleRole(u)} disabled={busy}>{u.role === "admin" ? "Demote" : "Make Admin"}</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleTogglePro(u)} disabled={busy} style={{ color: u.isServiceProvider ? "var(--warning)" : "var(--accent)" }}>{u.isServiceProvider ? "Remove Pro" : "Set Pro"}</button>
+                            {!u.emailVerified && !!u.phoneNumber && (
+                              <button className="btn btn-warning btn-sm" onClick={() => handleApproveEmailByMobile(u)} disabled={busy}>Approve by Mobile</button>
+                            )}
                             <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(u)} disabled={busy}>🗑</button>
                           </div>
                         </td>

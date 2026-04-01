@@ -112,6 +112,10 @@ export default function BookingFlow() {
 
   const handleSubmit = async () => {
     if (!date || !timeSlot || !selectedSvc) { setError("Please select a service, date, and time slot."); return; }
+    if (userProfile?.residentVerificationStatus !== "verified") {
+      setError("Residency verification is mandatory before booking. Please upload proof in Profile and wait for approval.");
+      return;
+    }
     if (!hasEnough) { setError(`Insufficient balance. You need ${feeCoins} NC but have ${balance} NC.`); return; }
     setLoading(true); setError("");
     try {

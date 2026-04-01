@@ -38,7 +38,8 @@ export function ProtectedRoute({ children, adminOnly, userOnly, requireVerified 
 
   if (requireVerified && userProfile?.role !== "admin") {
     const isPasswordProvider = user.providerData?.some(p => p.providerId === "password");
-    if (isPasswordProvider && !user.emailVerified) {
+    const isEmailApprovedByAdmin = userProfile?.emailVerified === true;
+    if (isPasswordProvider && !user.emailVerified && !isEmailApprovedByAdmin) {
       return <Navigate to="/dashboard?verifyEmail=1" replace />;
     }
   }

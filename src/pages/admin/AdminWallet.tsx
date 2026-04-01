@@ -86,6 +86,7 @@ export default function AdminWallet() {
   const [payoutFilter, setPayoutFilter] = useState<"all" | "pending" | "processed" | "failed">("pending");
   const [payoutsLoading, setPayoutsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [revealedUpiIds, setRevealedUpiIds] = useState<Record<string, boolean>>({});
 
   /* ── User Ledger state ── */
   const [users, setUsers] = useState<Record<string, unknown>[]>([]);
@@ -128,6 +129,46 @@ export default function AdminWallet() {
     const res = await getAllPayouts(200);
     setPayouts(res.data);
     setPayoutsLoading(false);
+  };
+
+  const toggleRevealUpi = (payoutId: string) => {
+    setRevealedUpiIds(prev => ({ ...prev, [payoutId]: !prev[payoutId] }));
+  };
+
+  const copyUpi = async (upiId: string) => {
+    if (!upiId) {
+      showToast("UPI ID not available", "error");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(upiId);
+      showToast("UPI ID copied");
+    } catch {
+      showToast("Copy failed", "error");
+    }
+  };
+
+  const initiateGatewayPayout = (payout: CoinPayout) => {
+    const upiId = (payout.upiId || "").trim();
+    if (!upiId) {
+      showToast("UPI ID not available", "error");
+      return;
+    }
+
+    const payee = encodeURIComponent((payout.displayName || "Pro").toString());
+    const amount = Number(payout.amountRs || 0);
+    const ref = encodeURIComponent((payout.id || "payout").toString());
+    const note = encodeURIComponent(`ProNeighbor payout ${payout.coinsRedeemed} NC`);
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${payee}&am=${amount}&cu=INR&tr=${ref}&tn=${note}`;
+
+    const opened = window.open(upiUrl, "_blank");
+    if (!opened) {
+      // Popup blockers or unsupported environment: copy details for manual gateway transfer.
+      navigator.clipboard.writeText(`UPI: ${upiId}\nAmount: ${amount}\nReference: ${payout.id}`).catch(() => {});
+      showToast("Gateway app not opened. Payout details copied for manual transfer.", "error");
+    } else {
+      showToast("Opening payout in payment app");
+    }
   };
 
   const loadUsers = async () => {
@@ -418,8 +459,19 @@ export default function AdminWallet() {
                     </div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{p.displayName}</div>
-                      <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>UPI: <span style={{ fontFamily: "monospace" }}>{p.upiMasked || maskUpiId(p.upiId || "")}</span></div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>
+                        UPI: <span style={{ fontFamily: "monospace" }}>{revealedUpiIds[p.id || ""] ? (p.upiId || "—") : (p.upiMasked || maskUpiId(p.upiId || ""))}</span>
+                      </div>
                       <div style={{ fontSize: "0.76rem", color: "var(--muted)", marginTop: 2 }}>Requested: {formatTimestamp(p.createdAt)}</div>
+                      {p.status === "pending" && (
+                        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => toggleRevealUpi(p.id || "")}>
+                            {revealedUpiIds[p.id || ""] ? "Hide UPI" : "Show UPI"}
+                          </button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => copyUpi(p.upiId || "")}>Copy UPI</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => initiateGatewayPayout(p)}>Initiate Gateway Payout</button>
+                        </div>
+                      )}
                     </div>
                   </div>
 

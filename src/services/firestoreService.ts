@@ -194,25 +194,20 @@ export async function uploadProfilePhoto(uid: string, file: File) {
 export async function uploadResidencyProof(uid: string, file: File) {
   validateUpload(file, "residencyProof"); // throws if invalid
 
-  // 1. Call Cloud Function to get signed upload parameters
-  const { httpsCallable } = await import("firebase/functions");
-  const { functionsClient } = await import("../firebase");
-  const generateSig = httpsCallable<{ /* no arguments needed */ }, { signature: string, timestamp: number, folder: string, apiKey: string }>(functionsClient, "generateCloudinarySignature");
-
-  const { data: sigData } = await generateSig();
-
-  // 2. Upload directly to Cloudinary using the authenticated parameters
+  // Spark-safe fallback: unsigned upload via preset (no callable function required).
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_RESIDENCY_UPLOAD_PRESET || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName) {
     throw new Error("Cloudinary configuration is missing. Please contact support.");
+  }
+  if (!uploadPreset) {
+    throw new Error("Cloudinary upload preset is missing. Please contact support.");
   }
 
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("api_key", sigData.apiKey);
-  formData.append("timestamp", sigData.timestamp.toString());
-  formData.append("signature", sigData.signature);
-  formData.append("folder", sigData.folder);
+  formData.append("upload_preset", uploadPreset);
+  formData.append("folder", "ProNeighbor/residency-proofs");
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
   if (!response.ok) {

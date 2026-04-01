@@ -11,13 +11,14 @@ import RecommendedPros from "./RecommendedPros";
 
 export default function DesktopDashboard({
   userProfile, user, upcomingBookings, proBookings,
-  loading, reviewDistribution, lastBookedPro, lastCompletedBooking, loyaltyPreview,
+  loading, computedRating, reviewDistribution, lastBookedPro, lastCompletedBooking, loyaltyPreview,
 }: {
   userProfile: Record<string, unknown> | null;
   user: any;
   upcomingBookings: Record<string, unknown>[];
   proBookings: Record<string, unknown>[];
   loading: boolean;
+  computedRating: number | null;
   reviewDistribution: Record<number, number>;
   lastBookedPro: Record<string, unknown> | null;
   lastCompletedBooking: Record<string, unknown> | null;
@@ -27,7 +28,7 @@ export default function DesktopDashboard({
   const isPro = (userProfile as { isServiceProvider?: boolean } | null)?.isServiceProvider === true;
   const firstName = ((userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "there").split(" ")[0];
   const coins = (userProfile as { coinBalance?: number } | null)?.coinBalance ?? 0;
-  const rating = (userProfile as { rating?: number } | null)?.rating ?? null;
+  const rating = computedRating ?? (userProfile as { rating?: number } | null)?.rating ?? null;
   const uid = user!.uid as string;
   const displayName = (userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "User";
   const locality = (userProfile as { locality?: string } | null)?.locality;

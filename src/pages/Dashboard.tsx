@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [lastCompletedBooking, setLastCompletedBooking] = useState<Record<string, unknown> | null>(null);
   const [loyaltyPreview, setLoyaltyPreview] = useState<LoyaltyPreview | null>(null);
   const [reviewDistribution, setReviewDistribution] = useState<Record<number, number>>({ 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 });
+  const [computedRating, setComputedRating] = useState<number | null>(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -35,8 +36,16 @@ export default function Dashboard() {
         if ((profile.isServiceProvider as boolean) === true) {
           const reviewData = await getReviewDistribution(user.uid);
           setReviewDistribution(reviewData);
+          const total = Object.values(reviewData).reduce((sum, count) => sum + count, 0);
+          if (total > 0) {
+            const weighted = (5 * reviewData[5]) + (4 * reviewData[4]) + (3 * reviewData[3]) + (2 * reviewData[2]) + (1 * reviewData[1]);
+            setComputedRating(Math.round((weighted / total) * 10) / 10);
+          } else {
+            setComputedRating(((profile.rating as number) ?? null));
+          }
         } else {
           setReviewDistribution({ 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 });
+          setComputedRating(((profile.rating as number) ?? null));
         }
 
         const [upcoming, proReqs, lastCompleted] = await Promise.all([
@@ -77,6 +86,7 @@ export default function Dashboard() {
           upcomingBookings={upcomingBookings}
           proBookings={proBookings}
           loading={loading}
+          computedRating={computedRating}
           reviewDistribution={reviewDistribution}
           lastBookedPro={lastBookedPro}
           lastCompletedBooking={lastCompletedBooking}
@@ -89,6 +99,7 @@ export default function Dashboard() {
           upcomingBookings={upcomingBookings}
           proBookings={proBookings}
           loading={loading}
+          computedRating={computedRating}
           reviewDistribution={reviewDistribution}
           lastBookedPro={lastBookedPro}
           lastCompletedBooking={lastCompletedBooking}

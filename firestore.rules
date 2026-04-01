@@ -17,7 +17,11 @@ service cloud.firestore {
     function validLedgerEntry(uid) {
       return request.resource.data.uid == uid
         && request.resource.data.uid == request.auth.uid
+        && request.resource.data.type is string
+        && request.resource.data.description is string
         && request.resource.data.amount is int
+        && request.resource.data.amount > -100000
+        && request.resource.data.amount < 100000
         && request.resource.data.balanceAfter is int
         && request.resource.data.balanceAfter >= 0;
     }
@@ -133,14 +137,29 @@ service cloud.firestore {
     match /coinPurchases/{purchaseId} {
       allow list: if isAdmin();
       allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.status == "pending"
+                    && request.resource.data.amountPaid is int
+                    && request.resource.data.amountPaid > 0
+                    && request.resource.data.coinsGranted is int
+                    && request.resource.data.coinsGranted > 0;
       allow update, delete: if isAdmin();
     }
     match /coinPayouts/{payoutId} {
       allow list: if isAdmin();
       allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isAdmin();
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && resource.data.uid == request.auth.uid
+                        && resource.data.status == "pending"
+                        && request.resource.data.uid == resource.data.uid
+                        && request.resource.data.status == "cancelled_by_user"
+                        && request.resource.data.coinsRedeemed == resource.data.coinsRedeemed
+                        && request.resource.data.amountRs == resource.data.amountRs
+                        && request.resource.data.upiId == resource.data.upiId
+                        && request.resource.data.displayName == resource.data.displayName);
       allow delete: if false;
     }
 

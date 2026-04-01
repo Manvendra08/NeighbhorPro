@@ -2,9 +2,9 @@
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Requirements definition
 Plan: -
-Status: Defining requirements
+Status: In progress
 Last activity: 2026-04-01 - Milestone v1.0 started
 
 ## Project Reference

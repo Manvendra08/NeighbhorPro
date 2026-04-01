@@ -63,7 +63,12 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 function isProfileComplete(profile: Partial<UserProfile>): boolean {
-  return !!(profile.displayName?.trim() && profile.bio?.trim() && profile.society?.trim() && (profile.skills?.length ?? 0) > 0);
+  return !!(
+    profile.displayName?.trim() &&
+    profile.society?.trim() &&
+    profile.phoneNumber?.trim() &&
+    (profile.skills?.length ?? 0) > 0
+  );
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

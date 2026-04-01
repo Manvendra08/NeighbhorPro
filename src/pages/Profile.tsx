@@ -114,7 +114,7 @@ export default function Profile() {
   const [priceAfterQuote, setPriceAfterQuote] = useState(false);
   const [society, setSociety] = useState("");
   const [societies, setSocieties] = useState<Record<string, unknown>[]>([]);
-  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string; tower?: string }>({});
+  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string; tower?: string; phoneNumber?: string }>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -189,9 +189,7 @@ export default function Profile() {
     }
     const cleanedBio = bio.trim();
     const looksPlaceholder = /^(x|xy|xyz|test|bio|na|n\/a|none|hello)$/i.test(cleanedBio);
-    if (!cleanedBio) {
-      nextErrors.bio = "Bio is required.";
-    } else if (cleanedBio.length < 20 || looksPlaceholder) {
+    if (cleanedBio && (cleanedBio.length < 20 || looksPlaceholder)) {
       nextErrors.bio = "Write a meaningful bio (minimum 20 characters, no placeholders).";
     }
     if (!society.trim()) {
@@ -202,8 +200,14 @@ export default function Profile() {
     }
     // Indian phone validation: +91- followed by 10 digits starting with 6-9
     const phoneRegex = /^\+91-[6-9]\d{9}$/;
-    if (phoneNumber && phoneNumber !== "+91-" && !phoneRegex.test(phoneNumber.replace(/\s/g, ""))) {
-      (nextErrors as any).phoneNumber = "Invalid Indian mobile number.";
+    const sanitizedPhone = phoneNumber.replace(/\s/g, "");
+    if (!sanitizedPhone || sanitizedPhone === "+91-") {
+      nextErrors.phoneNumber = "Mobile number is required.";
+    } else if (!phoneRegex.test(sanitizedPhone)) {
+      nextErrors.phoneNumber = "Invalid Indian mobile number.";
+    }
+    if (isServiceProvider && userProfile?.residentVerificationStatus !== "verified") {
+      nextErrors.bio = "Residency verification is required to enable Service Provider mode.";
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
@@ -236,6 +240,10 @@ export default function Profile() {
 
   const handleServiceSave = async () => {
     if (!user || !svcTitle.trim()) return;
+    if (userProfile?.residentVerificationStatus !== "verified") {
+      alert("Residency verification is required before listing services.");
+      return;
+    }
     const payload = {
       userId: user.uid,
       title: svcTitle,
@@ -328,7 +336,19 @@ export default function Profile() {
             </div>
           </div>
           <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: 48, height: 26 }}>
-            <input type="checkbox" checked={isServiceProvider} onChange={(e) => setIsServiceProvider(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+            <input
+              type="checkbox"
+              checked={isServiceProvider}
+              onChange={(e) => {
+                const next = e.target.checked;
+                if (next && userProfile?.residentVerificationStatus !== "verified") {
+                  alert("Residency verification is mandatory before enabling Service Provider mode.");
+                  return;
+                }
+                setIsServiceProvider(next);
+              }}
+              style={{ opacity: 0, width: 0, height: 0 }}
+            />
             <span className="slider" style={{ position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isServiceProvider ? "#4ADE80" : "var(--surface-3)", transition: ".4s", borderRadius: 26, border: "1px solid var(--border)" }}>
               <span style={{ position: "absolute", height: 20, width: 20, left: 2, bottom: 2, backgroundColor: "white", transition: ".4s", borderRadius: "50%", transform: isServiceProvider ? "translateX(22px)" : "none", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}></span>
             </span>
@@ -359,7 +379,7 @@ export default function Profile() {
 
           <div className="form-group">
             <label className="form-label">
-              Bio <span style={{ color: "var(--error)" }}>*</span>
+              Bio <span style={{ color: "var(--muted)", fontSize: "0.75rem", fontWeight: "normal" }}>(optional)</span>
             </label>
             <textarea
               className="form-input"
@@ -373,7 +393,7 @@ export default function Profile() {
 
           <div className="form-group">
             <label className="form-label">
-              Phone Number <span style={{ color: "var(--muted)", fontSize: "0.75rem", fontWeight: "normal" }}>(Indian Carriers)</span>
+              Phone Number <span style={{ color: "var(--error)" }}>*</span> <span style={{ color: "var(--muted)", fontSize: "0.75rem", fontWeight: "normal" }}>(Indian Carriers)</span>
             </label>
             <input
               className="form-input"
@@ -464,7 +484,7 @@ export default function Profile() {
           <div style={{ borderTop: "1px solid var(--border)", marginTop: 16, paddingTop: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div>
-                <label className="form-label" style={{ marginBottom: 4 }}>Residency Proof (optional)</label>
+                <label className="form-label" style={{ marginBottom: 4 }}>Residency Proof (required to book, enable Pro mode, and list services)</label>
                 <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Upload maintenance bill, rental agreement, etc.</p>
               </div>
               {userProfile?.residentVerificationStatus === "verified" && (
