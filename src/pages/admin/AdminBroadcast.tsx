@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, doc, updateDoc } from "firebase/firestore";
+import EmojiPicker from "emoji-picker-react";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getAllUserRows, getAllSocieties } from "../../services/firestoreService";
@@ -9,6 +10,27 @@ type Announcement = Record<string, unknown>;
 
 const MSG_TYPES = ["Announcement", "Maintenance Alert", "New Feature", "Promotional", "Security Notice"];
 const TARGETS = ["All Users", "Service Professionals", "Admins Only", "Society-Specific"];
+const DISPLAY_MODES = ["topbar", "popup"] as const;
+
+type DisplayMode = (typeof DISPLAY_MODES)[number];
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
+
+function sanitizeAnnouncementHtml(rawHtml: string): string {
+  if (!rawHtml) return "";
+  return rawHtml
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "")
+    .replace(/<(?!\/?(b|strong|i|em|u|p|br|ul|ol|li)\b)[^>]*>/gi, "");
+}
 
 export default function AdminBroadcast() {
   const { userProfile } = useAuth();
@@ -21,11 +43,20 @@ export default function AdminBroadcast() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [toast, setToast] = useState("");
+  const editorRef = useRef<HTMLDivElement | null>(null);
 
   const [form, setForm] = useState({
-    title: "", body: "", type: "Announcement", target: "All Users",
-    targetSociety: "", priority: "normal",
+    title: "",
+    body: "",
+    bodyHtml: "",
+    imageUrl: "",
+    type: "Announcement",
+    target: "All Users",
+    targetSociety: "",
+    priority: "normal",
+    displayMode: "topbar" as DisplayMode,
   });
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -40,7 +71,9 @@ export default function AdminBroadcast() {
       setUserCount(users.length);
       setSocieties(socRes.data);
       setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
     setLoading(false);
   };
 
@@ -52,7 +85,9 @@ export default function AdminBroadcast() {
       await updateDoc(doc(db, "announcements", id), { status: "inactive" });
       await logAudit("broadcast.deactivate", adminId, adminName, `Deactivated broadcast ${id}`, id);
       load();
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -75,28 +110,69 @@ export default function AdminBroadcast() {
 
   const canSubmit =
     !!form.title.trim() &&
-    !!form.body.trim() &&
+    !!stripHtml(form.bodyHtml || form.body).trim() &&
     (form.target !== "Society-Specific" || !!form.targetSociety);
+
+  const execRichTextCommand = (command: "bold" | "italic" | "underline" | "insertUnorderedList") => {
+    editorRef.current?.focus();
+    document.execCommand(command);
+    const nextHtml = editorRef.current?.innerHTML || "";
+    setForm((prev) => ({ ...prev, bodyHtml: nextHtml, body: stripHtml(nextHtml) }));
+  };
+
+  const insertEmoji = (emoji: string) => {
+    editorRef.current?.focus();
+    document.execCommand("insertText", false, emoji);
+    const nextHtml = editorRef.current?.innerHTML || "";
+    setForm((prev) => ({ ...prev, bodyHtml: nextHtml, body: stripHtml(nextHtml) }));
+    setShowEmojiPicker(false);
+  };
 
   const handleSend = async () => {
     if (!canSubmit) return;
     setSending(true);
     try {
+      const safeHtml = sanitizeAnnouncementHtml(form.bodyHtml || "");
+      const plainBody = stripHtml(safeHtml);
       const ref = await addDoc(collection(db, "announcements"), {
-        title: form.title.trim(), body: form.body.trim(), type: form.type,
-        target: form.target, targetSociety: form.targetSociety || null,
-        priority: form.priority, sentAt: serverTimestamp(), createdAt: serverTimestamp(), status: "active",
+        title: form.title.trim(),
+        body: plainBody,
+        bodyHtml: safeHtml,
+        imageUrl: (form.imageUrl || "").trim() || null,
+        displayMode: form.displayMode,
+        type: form.type,
+        target: form.target,
+        targetSociety: form.targetSociety || null,
+        priority: form.priority,
+        sentAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        status: "active",
       });
       await logAudit(
-        "broadcast.send", adminId, adminName,
-        `Sent "${form.type}" broadcast: "${form.title.trim()}" → ${form.target} [${form.priority}]`,
+        "broadcast.send",
+        adminId,
+        adminName,
+        `Sent "${form.type}" broadcast: "${form.title.trim()}" → ${form.target} [${form.priority}] [${form.displayMode}]`,
         ref.id
       );
-      setForm({ title: "", body: "", type: "Announcement", target: "All Users", targetSociety: "", priority: "normal" });
+      setForm({
+        title: "",
+        body: "",
+        bodyHtml: "",
+        imageUrl: "",
+        type: "Announcement",
+        target: "All Users",
+        targetSociety: "",
+        priority: "normal",
+        displayMode: "topbar",
+      });
+      if (editorRef.current) editorRef.current.innerHTML = "";
       setShowPreviewModal(false);
       showToast("✓ Broadcast sent successfully");
       load();
-    } catch { showToast("Failed to send"); }
+    } catch {
+      showToast("Failed to send");
+    }
     setSending(false);
   };
 
@@ -139,8 +215,33 @@ export default function AdminBroadcast() {
 
           <div className="form-group">
             <label className="form-label">Message *</label>
-            <textarea className="form-input" placeholder="Write your announcement here…" value={form.body} onChange={e => set("body", e.target.value)} rows={4} maxLength={500} />
-            <span className="form-hint">{form.body.length}/500</span>
+            <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--surface)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderBottom: "1px solid var(--border)", background: "var(--surface-2)", flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => execRichTextCommand("bold")} title="Bold"><strong>B</strong></button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => execRichTextCommand("italic")} title="Italic"><em>I</em></button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => execRichTextCommand("underline")} title="Underline"><u>U</u></button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => execRichTextCommand("insertUnorderedList")} title="Bullet List">• List</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowEmojiPicker(v => !v)} title="Emoji">😊 Emoji</button>
+              </div>
+              {showEmojiPicker && (
+                <div style={{ borderBottom: "1px solid var(--border)" }}>
+                  <EmojiPicker height={320} width="100%" onEmojiClick={(e) => insertEmoji(e.emoji)} />
+                </div>
+              )}
+              <div
+                ref={editorRef}
+                className="form-input"
+                contentEditable
+                suppressContentEditableWarning
+                style={{ minHeight: 120, border: "none", borderRadius: 0, whiteSpace: "pre-wrap" }}
+                onInput={(e) => {
+                  const html = (e.currentTarget as HTMLDivElement).innerHTML;
+                  setForm(prev => ({ ...prev, bodyHtml: html, body: stripHtml(html) }));
+                }}
+                data-placeholder="Write your announcement here…"
+              />
+            </div>
+            <span className="form-hint">{stripHtml(form.bodyHtml || "").length}/500</span>
           </div>
 
           <div className="grid grid-2" style={{ gap: 14, marginBottom: 18 }}>
@@ -160,6 +261,20 @@ export default function AdminBroadcast() {
             </div>
           </div>
 
+          <div className="grid grid-2" style={{ gap: 14, marginBottom: 18 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Display Mode</label>
+              <select className="form-input" value={form.displayMode} onChange={e => set("displayMode", e.target.value)}>
+                <option value="topbar">Top Bar Text</option>
+                <option value="popup">On-screen Pop-up</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Image URL (optional)</label>
+              <input className="form-input" placeholder="https://..." value={form.imageUrl} onChange={e => set("imageUrl", e.target.value)} />
+            </div>
+          </div>
+
           {form.target === "Society-Specific" && (
             <div className="form-group">
               <label className="form-label">Select Society</label>
@@ -170,19 +285,23 @@ export default function AdminBroadcast() {
             </div>
           )}
 
-          {(form.title || form.body) && (
+          {(form.title || form.bodyHtml) && (
             <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "14px 16px", marginBottom: 16 }}>
               <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Preview</div>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                 <div style={{ fontSize: 22 }}>📣</div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{form.title || "Title"}</div>
-                  <div style={{ fontSize: 13, color: "var(--muted)" }}>{form.body || "Message body…"}</div>
+                  <div style={{ fontSize: 13, color: "var(--muted)" }} dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(form.bodyHtml || "Message body…") }} />
+                  {!!form.imageUrl.trim() && (
+                    <img src={form.imageUrl.trim()} alt="Broadcast" style={{ marginTop: 8, maxWidth: 220, maxHeight: 140, borderRadius: 8, border: "1px solid var(--border)" }} />
+                  )}
                   <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                     <span className={`badge ${typeColors[form.type] || "badge-muted"}`} style={{ fontSize: 10 }}>{form.type}</span>
                     <span style={{ fontSize: 11, color: "var(--muted)" }}>
                       → {form.target === "Society-Specific" && selectedSocietyName ? `${selectedSocietyName}` : form.target} {priorityIcon(form.priority)}
                     </span>
+                    <span className="badge badge-muted" style={{ fontSize: 10 }}>{form.displayMode === "popup" ? "Popup" : "Top Bar"}</span>
                   </div>
                 </div>
               </div>
@@ -225,6 +344,8 @@ export default function AdminBroadcast() {
                   <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--muted)", alignItems: "center" }}>
                     <span>→ {a.target as string}</span>
                     <span>{priorityIcon(a.priority as string)}</span>
+                    <span>{(a.displayMode as string) === "popup" ? "Popup" : "Top Bar"}</span>
+                    {(a.imageUrl as string) ? <span>🖼</span> : null}
                     <span className={`badge ${a.status === "active" ? "badge-success" : "badge-muted"}`} style={{ fontSize: 10 }}>
                       {a.status === "active" ? "Active" : "Inactive"}
                     </span>
@@ -260,7 +381,10 @@ export default function AdminBroadcast() {
                   <div style={{ fontSize: 22 }}>📣</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{form.title || "Title"}</div>
-                    <div style={{ fontSize: 13, color: "var(--muted)" }}>{form.body || "Message body…"}</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)" }} dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(form.bodyHtml || "Message body…") }} />
+                    {!!form.imageUrl.trim() && (
+                      <img src={form.imageUrl.trim()} alt="Broadcast preview" style={{ marginTop: 8, maxWidth: 220, maxHeight: 140, borderRadius: 8, border: "1px solid var(--border)" }} />
+                    )}
                   </div>
                 </div>
               </div>
@@ -273,6 +397,7 @@ export default function AdminBroadcast() {
                   </strong>
                 </div>
                 <div>Priority: <strong style={{ color: "var(--text)" }}>{priorityIcon(form.priority)} {form.priority}</strong></div>
+                <div>Display: <strong style={{ color: "var(--text)" }}>{form.displayMode === "popup" ? "On-screen Pop-up" : "Top Bar Text"}</strong></div>
                 <div>Estimated reach: <strong style={{ color: "var(--text)" }}>{estimateReach()}</strong></div>
               </div>
 
@@ -295,4 +420,3 @@ export default function AdminBroadcast() {
     </div>
   );
 }
-

@@ -12,11 +12,37 @@ type BroadcastDoc = {
   id: string;
   title: string;
   body: string;
+  bodyHtml?: string;
+  imageUrl?: string | null;
+  displayMode?: "topbar" | "popup";
   type: string;
   target: string;
   priority: string;
   targetSociety?: string | null;
 };
+
+function sanitizeBroadcastHtml(rawHtml: string): string {
+  if (!rawHtml) return "";
+  return rawHtml
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "")
+    .replace(/<(?!\/?(b|strong|i|em|u|p|br|ul|ol|li)\b)[^>]*>/gi, "");
+}
+
+function isRelevantBroadcast(doc: BroadcastDoc, userProfile: ReturnType<typeof useAuth>["userProfile"]): boolean {
+  if (doc.target === "All Users") return true;
+  if (doc.target === "Admins Only") return userProfile?.role === "admin";
+  if (doc.target === "Service Professionals") return !!userProfile?.isServiceProvider;
+  if (doc.target === "Society-Specific") {
+    return !!doc.targetSociety && (
+      userProfile?.society === doc.targetSociety ||
+      userProfile?.locality === doc.targetSociety
+    );
+  }
+  return true;
+}
 
 // ── Broadcast Flash Banner ─────────────────────────────────────────────────
 // Sits above the TopBar; real-time, audience-filtered, dismissable per session.
@@ -41,19 +67,8 @@ function BroadcastBanner() {
     );
     const unsub = onSnapshot(q, snap => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as BroadcastDoc));
-      const relevant = docs.filter(doc => {
-        if (doc.target === "All Users") return true;
-        if (doc.target === "Admins Only") return userProfile?.role === "admin";
-        if (doc.target === "Service Professionals") return !!userProfile?.isServiceProvider;
-        if (doc.target === "Society-Specific") {
-          return !!doc.targetSociety && (
-            userProfile?.society === doc.targetSociety ||
-            userProfile?.locality === doc.targetSociety
-          );
-        }
-        return true;
-      });
-      setBanners(relevant);
+      const relevant = docs.filter(doc => isRelevantBroadcast(doc, userProfile));
+      setBanners(relevant.filter(doc => (doc.displayMode || "topbar") === "topbar"));
     });
     return unsub;
   }, [userProfile]);
@@ -89,7 +104,8 @@ function BroadcastBanner() {
             <span style={{ color: s.color, fontWeight: 600, flex: 1, minWidth: 0 }}>
               {s.icon}&nbsp;
               <strong>{b.title}</strong>
-              {b.body ? ` — ${b.body}` : ""}
+              {(b.bodyHtml || b.body) ? " — " : ""}
+              <span dangerouslySetInnerHTML={{ __html: sanitizeBroadcastHtml((b.bodyHtml || b.body || "").trim()) }} />
             </span>
             <button
               onClick={() => dismiss(b.id)}
@@ -103,6 +119,71 @@ function BroadcastBanner() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function BroadcastPopup() {
+  const { userProfile } = useAuth();
+  const [popups, setPopups] = useState<BroadcastDoc[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem("pn_dismissed_broadcast_popups");
+      return raw ? new Set(JSON.parse(raw)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "announcements"),
+      where("status", "==", "active"),
+      orderBy("createdAt", "desc"),
+      limit(10)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as BroadcastDoc));
+      const relevant = docs.filter(doc => isRelevantBroadcast(doc, userProfile));
+      setPopups(relevant.filter(doc => (doc.displayMode || "topbar") === "popup"));
+    });
+    return unsub;
+  }, [userProfile]);
+
+  const visible = popups.filter(p => !dismissed.has(p.id));
+  if (!visible.length) return null;
+
+  const active = visible[0];
+  const dismiss = (id: string) => {
+    const next = new Set([...dismissed, id]);
+    setDismissed(next);
+    sessionStorage.setItem("pn_dismissed_broadcast_popups", JSON.stringify([...next]));
+  };
+
+  const priorityStyle: Record<string, { bg: string; border: string; color: string; icon: string }> = {
+    urgent: { bg: "#fff1f1", border: "#ef9a9a", color: "#b71c1c", icon: "🔴" },
+    high: { bg: "#fff7ed", border: "#fdba74", color: "#9a3412", icon: "🟠" },
+    normal: { bg: "#f0f9ff", border: "#7dd3fc", color: "#0369a1", icon: "📣" },
+  };
+  const s = priorityStyle[active.priority] ?? priorityStyle.normal;
+
+  return (
+    <div style={{ position: "fixed", right: 20, bottom: 20, zIndex: 1200, maxWidth: 420, width: "calc(100vw - 40px)" }}>
+      <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: `1px solid ${s.border}` }}>
+          <strong style={{ color: s.color, fontSize: 13 }}>{s.icon} Broadcast</strong>
+          <button onClick={() => dismiss(active.id)} style={{ background: "none", border: "none", cursor: "pointer", color: s.color, fontSize: 16, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ padding: 12 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>{active.title}</div>
+          {(active.bodyHtml || active.body) && (
+            <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: sanitizeBroadcastHtml(active.bodyHtml || active.body || "") }} />
+          )}
+          {!!active.imageUrl && (
+            <img src={active.imageUrl} alt="Broadcast" style={{ marginTop: 8, width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -131,6 +212,7 @@ export default function TopBar() {
 
   return (
     <>
+      <BroadcastPopup />
       <BroadcastBanner />
       <header className="topbar">
         <div className="topbar-left">
