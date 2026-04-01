@@ -626,48 +626,103 @@ export async function getCoinEconomySummary() {
     "earn_free_consult", "earn_groupsession", "earn_ondemand", "earn_milestone",
   ];
 
-  const [
-    completedPurchaseNC,
-    completedPurchaseRevenue,
-    processedPayoutNC,
-    pendingPayoutNC,
-    pendingPayoutCount,
-    totalEarnedNC,
-  ] = await Promise.all([
-    getAggregateFromServer(
-      query(collection(db, "coinPurchases"), where("status", "==", "completed")),
-      { total: sum("coinsGranted") }
-    ),
-    getAggregateFromServer(
-      query(collection(db, "coinPurchases"), where("status", "==", "completed")),
-      { total: sum("amountPaid") }
-    ),
-    getAggregateFromServer(
-      query(collection(db, "coinPayouts"), where("status", "==", "processed")),
-      { total: sum("coinsRedeemed") }
-    ),
-    getAggregateFromServer(
-      query(collection(db, "coinPayouts"), where("status", "==", "pending")),
-      { total: sum("coinsRedeemed") }
-    ),
-    getAggregateFromServer(
-      query(collection(db, "coinPayouts"), where("status", "==", "pending")),
-      { total: count() }
-    ),
-    getAggregateFromServer(
-      query(collectionGroup(db, "entries"), where("type", "in", earnTypes)),
-      { total: sum("amount") }
-    ),
-  ]);
+  try {
+    const [
+      completedPurchaseNC,
+      completedPurchaseRevenue,
+      processedPayoutNC,
+      pendingPayoutNC,
+      pendingPayoutCount,
+      totalEarnedNC,
+    ] = await Promise.all([
+      getAggregateFromServer(
+        query(collection(db, "coinPurchases"), where("status", "==", "completed")),
+        { total: sum("coinsGranted") }
+      ),
+      getAggregateFromServer(
+        query(collection(db, "coinPurchases"), where("status", "==", "completed")),
+        { total: sum("amountPaid") }
+      ),
+      getAggregateFromServer(
+        query(collection(db, "coinPayouts"), where("status", "==", "processed")),
+        { total: sum("coinsRedeemed") }
+      ),
+      getAggregateFromServer(
+        query(collection(db, "coinPayouts"), where("status", "==", "pending")),
+        { total: sum("coinsRedeemed") }
+      ),
+      getAggregateFromServer(
+        query(collection(db, "coinPayouts"), where("status", "==", "pending")),
+        { total: count() }
+      ),
+      getAggregateFromServer(
+        query(collectionGroup(db, "entries"), where("type", "in", earnTypes)),
+        { total: sum("amount") }
+      ),
+    ]);
 
-  return {
-    totalPurchasedNC: completedPurchaseNC.data().total ?? 0,
-    totalPurchaseRevenue: completedPurchaseRevenue.data().total ?? 0,
-    totalPayoutNC: processedPayoutNC.data().total ?? 0,
-    totalEarnedNC: totalEarnedNC.data().total ?? 0,
-    pendingPayoutNC: pendingPayoutNC.data().total ?? 0,
-    pendingPayoutCount: pendingPayoutCount.data().total ?? 0,
-  };
+    return {
+      totalPurchasedNC: completedPurchaseNC.data().total ?? 0,
+      totalPurchaseRevenue: completedPurchaseRevenue.data().total ?? 0,
+      totalPayoutNC: processedPayoutNC.data().total ?? 0,
+      totalEarnedNC: totalEarnedNC.data().total ?? 0,
+      pendingPayoutNC: pendingPayoutNC.data().total ?? 0,
+      pendingPayoutCount: pendingPayoutCount.data().total ?? 0,
+    };
+  } catch (error) {
+    console.warn("Aggregate query failed in getCoinEconomySummary; using fallback totals", error);
+
+    const completedPurchasesSnap = await getDocs(
+      query(collection(db, "coinPurchases"), where("status", "==", "completed"))
+    );
+    const processedPayoutsSnap = await getDocs(
+      query(collection(db, "coinPayouts"), where("status", "==", "processed"))
+    );
+    const pendingPayoutsSnap = await getDocs(
+      query(collection(db, "coinPayouts"), where("status", "==", "pending"))
+    );
+
+    const totalPurchasedNC = completedPurchasesSnap.docs.reduce((sumNC, d) => {
+      return sumNC + (Number(d.data()?.coinsGranted) || 0);
+    }, 0);
+
+    const totalPurchaseRevenue = completedPurchasesSnap.docs.reduce((sumRs, d) => {
+      return sumRs + (Number(d.data()?.amountPaid) || 0);
+    }, 0);
+
+    const totalPayoutNC = processedPayoutsSnap.docs.reduce((sumNC, d) => {
+      return sumNC + (Number(d.data()?.coinsRedeemed) || 0);
+    }, 0);
+
+    const pendingPayoutNC = pendingPayoutsSnap.docs.reduce((sumNC, d) => {
+      return sumNC + (Number(d.data()?.coinsRedeemed) || 0);
+    }, 0);
+
+    const pendingPayoutCount = pendingPayoutsSnap.size;
+
+    let totalEarnedNC = 0;
+    try {
+      const earnedEntriesSnap = await getDocs(
+        query(collectionGroup(db, "entries"), where("type", "in", earnTypes))
+      );
+      totalEarnedNC = earnedEntriesSnap.docs.reduce((sumNC, d) => {
+        return sumNC + (Number(d.data()?.amount) || 0);
+      }, 0);
+    } catch (earnError) {
+      // If the collectionGroup query path is unavailable due index state, keep dashboard operational.
+      console.warn("Failed to compute totalEarnedNC fallback; defaulting to 0", earnError);
+      totalEarnedNC = 0;
+    }
+
+    return {
+      totalPurchasedNC,
+      totalPurchaseRevenue,
+      totalPayoutNC,
+      totalEarnedNC,
+      pendingPayoutNC,
+      pendingPayoutCount,
+    };
+  }
 }
 
 export { getLedger as adminGetLedger };
