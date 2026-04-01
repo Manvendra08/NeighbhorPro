@@ -9,13 +9,14 @@ import FeedComposer from "./FeedComposer";
 
 export default function MobileDashboard({
   userProfile, user, upcomingBookings, proBookings,
-  loading, lastBookedPro, lastCompletedBooking, loyaltyPreview,
+  loading, reviewDistribution: _reviewDistribution, lastBookedPro, lastCompletedBooking, loyaltyPreview,
 }: {
   userProfile: Record<string, unknown> | null;
   user: any;
   upcomingBookings: Record<string, unknown>[];
   proBookings: Record<string, unknown>[];
   loading: boolean;
+  reviewDistribution: Record<number, number>;
   lastBookedPro: Record<string, unknown> | null;
   lastCompletedBooking: Record<string, unknown> | null;
   loyaltyPreview: LoyaltyPreview | null;

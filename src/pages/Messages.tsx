@@ -50,6 +50,12 @@ export default function Messages() {
     return participants.find((p) => p !== user?.uid) || "";
   }, [user]);
 
+  const fallbackDisplayNameFromUid = useCallback((uid: string) => {
+    if (!uid) return "Member";
+    const suffix = uid.slice(-4).toUpperCase();
+    return `Member ${suffix}`;
+  }, []);
+
   // Subscribe to conversations
   useEffect(() => {
     if (!user) return;
@@ -80,7 +86,7 @@ export default function Messages() {
             if (profile) {
               setOtherUsers((prev) => ({ ...prev, [otherId]: profile }));
             } else {
-              const fallbackName = (c.participantNames as Record<string, string> | undefined)?.[otherId] || "User";
+              const fallbackName = (c.participantNames as Record<string, string> | undefined)?.[otherId] || fallbackDisplayNameFromUid(otherId);
               const fallbackPhoto = (c.participantPhotos as Record<string, string> | undefined)?.[otherId] || "";
               setOtherUsers((prev) => ({
                 ...prev,
@@ -96,7 +102,7 @@ export default function Messages() {
       });
     });
     return unsub;
-  }, [user]);
+  }, [user, fallbackDisplayNameFromUid]);
 
   // Set active conversation from URL param
   useEffect(() => {
@@ -294,7 +300,7 @@ export default function Messages() {
             filteredConvos.map((conv) => {
               const otherId = getOtherUserId(conv);
               const other = otherUsers[otherId];
-              const fallbackName = ((conv.participantNames as Record<string, string> | undefined)?.[otherId] as string | undefined) || "User";
+              const fallbackName = ((conv.participantNames as Record<string, string> | undefined)?.[otherId] as string | undefined) || fallbackDisplayNameFromUid(otherId);
               const fallbackPhoto = ((conv.participantPhotos as Record<string, string> | undefined)?.[otherId] as string | undefined) || "";
               const displayName = (other?.displayName as string) || fallbackName;
               const displayPhoto = (other?.photoURL as string) || fallbackPhoto;
@@ -359,7 +365,7 @@ export default function Messages() {
                 const conv = conversations.find((c) => c.id === activeConv);
                 const otherId = conv ? getOtherUserId(conv) : "";
                 const other = otherUsers[otherId];
-                const fallbackName = ((conv?.participantNames as Record<string, string> | undefined)?.[otherId] as string | undefined) || "User";
+                const fallbackName = ((conv?.participantNames as Record<string, string> | undefined)?.[otherId] as string | undefined) || fallbackDisplayNameFromUid(otherId);
                 const fallbackPhoto = ((conv?.participantPhotos as Record<string, string> | undefined)?.[otherId] as string | undefined) || "";
                 const displayName = (other?.displayName as string) || fallbackName;
                 const displayPhoto = (other?.photoURL as string) || fallbackPhoto;

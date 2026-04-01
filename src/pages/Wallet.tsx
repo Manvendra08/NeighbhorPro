@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   COIN_PACKS, EARN_RULES, MIN_PAYOUT_COINS, getLedger, requestPayout,
+  getPendingPayoutForUser, cancelPayoutRequest,
   formatNC, ledgerColor, ledgerSign, getNCTerms, applyReferralCode,
   maskUpiId,
-  type LedgerEntry, type NCTerms,
+  type LedgerEntry, type NCTerms, type CoinPayout,
 } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 import { initiateTopUp, type PaymentStatus } from "../services/razorpayService";
@@ -35,6 +36,8 @@ export default function Wallet() {
   const [saveUpi, setSaveUpi]     = useState(true);
   const [payoutLoading, setPL]    = useState(false);
   const [payoutMsg, setPayoutMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [pendingPayout, setPendingPayout] = useState<CoinPayout | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [ncTerms, setNcTerms]     = useState<NCTerms | null>(null);
   const [refCode, setRefCode]     = useState("");
   const [refMsg, setRefMsg]       = useState<{ type: "success"|"error"; text: string }|null>(null);
@@ -75,6 +78,14 @@ export default function Wallet() {
     }
   }, [userProfile]);
 
+  useEffect(() => {
+    if (!user || !isPro) {
+      setPendingPayout(null);
+      return;
+    }
+    getPendingPayoutForUser(user.uid).then(setPendingPayout).catch(() => setPendingPayout(null));
+  }, [user, isPro, tab, payoutMsg]);
+
   const handleBuy = async () => {
     if (!user || !userProfile || isBusy) return;
     setPayError("");
@@ -90,6 +101,10 @@ export default function Wallet() {
 
   const handlePayout = async () => {
     if (!user || !userProfile) return;
+    if (pendingPayout) {
+      setPayoutMsg({ type: "error", text: "You already have a pending payout request. Cancel it before creating a new one." });
+      return;
+    }
     const coins = parseInt(payoutCoins);
     if (!coins || isNaN(coins))  { setPayoutMsg({ type: "error", text: "Enter a valid amount." }); return; }
     if (!upiId.includes("@"))    { setPayoutMsg({ type: "error", text: "Enter a valid UPI ID." }); return; }
@@ -107,6 +122,22 @@ export default function Wallet() {
       setPC(""); setUpi("");
     }
     setPL(false);
+  };
+
+  const handleCancelPayout = async () => {
+    if (!user || !pendingPayout?.id || cancelLoading) return;
+    const ok = window.confirm("Cancel this payout request and refund the coins back to your wallet?");
+    if (!ok) return;
+
+    setCancelLoading(true);
+    const res = await cancelPayoutRequest(user.uid, pendingPayout.id);
+    if (res.success) {
+      setPayoutMsg({ type: "success", text: "Payout request cancelled and coins refunded to your balance." });
+      setPendingPayout(null);
+    } else {
+      setPayoutMsg({ type: "error", text: res.reason ?? "Failed to cancel payout request." });
+    }
+    setCancelLoading(false);
   };
 
   const handleApplyReferral = async () => {
@@ -315,6 +346,27 @@ export default function Wallet() {
           <div className="card">
             <h3 className="card-title" style={{ marginBottom: 4 }}>Cash Out Your Earnings</h3>
             <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Min {MIN_PAYOUT_COINS} NC · Processed within 48 hrs via UPI</p>
+            {pendingPayout && (
+              <div style={{
+                background: "rgba(27,107,138,0.08)",
+                border: "1px solid rgba(27,107,138,0.25)",
+                borderRadius: 10,
+                padding: "12px 14px",
+                marginBottom: 16,
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Pending payout request</div>
+                <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: 10 }}>
+                  ₹{(pendingPayout.amountRs || 0).toLocaleString("en-IN")} ({pendingPayout.coinsRedeemed || 0} NC) to {pendingPayout.upiMasked || maskUpiId(pendingPayout.upiId || "")}
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleCancelPayout}
+                  disabled={cancelLoading}
+                >
+                  {cancelLoading ? "Cancelling..." : "Cancel Payout Request"}
+                </button>
+              </div>
+            )}
             <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 16px", marginBottom: 20 }}>
               <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Available to withdraw</div>
               <div style={{ fontWeight: 800, fontSize: "1.4rem", color: "#1B6B8A" }}>{formatNC(balance)} = ₹{balance.toLocaleString("en-IN")}</div>
@@ -335,7 +387,7 @@ export default function Wallet() {
               </div>
             </div>
             <Msg m={payoutMsg} />
-            <button className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={handlePayout} disabled={payoutLoading || balance < MIN_PAYOUT_COINS}>
+            <button className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={handlePayout} disabled={payoutLoading || !!pendingPayout || balance < MIN_PAYOUT_COINS}>
               {payoutLoading ? "Submitting…" : "Request Payout"}
             </button>
             {balance < MIN_PAYOUT_COINS && <p style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center", marginTop: 8 }}>Minimum {MIN_PAYOUT_COINS} NC required.</p>}

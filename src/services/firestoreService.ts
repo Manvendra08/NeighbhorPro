@@ -272,6 +272,20 @@ export async function getPendingVerifications(): Promise<Record<string, unknown>
 
 export const BROWSE_PAGE_SIZE = 20;
 
+function toEpochMillis(value: unknown): number {
+  if (!value) return 0;
+  if (value instanceof Timestamp) return value.toDate().getTime();
+  if (typeof value === "object" && value !== null && "seconds" in (value as Record<string, unknown>)) {
+    const seconds = Number((value as { seconds?: number }).seconds);
+    return Number.isFinite(seconds) ? seconds * 1000 : 0;
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
 /**
  * Paginated professional listing ordered by createdAt desc.
  * Server-side locality/tower filtering uses Firestore where() clauses
@@ -282,17 +296,33 @@ export async function listProfessionals(
   cursor?: QueryDocumentSnapshot<DocumentData> | null,
   filters?: { locality?: string; tower?: string }
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot<DocumentData> | null }> {
-  // Reads from /publicProfiles — safe fields only, accessible to any signed-in user.
+  // Primary source: /publicProfiles — safe fields only, accessible to signed-in users.
   const constraints: Parameters<typeof query>[1][] = [orderBy("createdAt", "desc"), limit(BROWSE_PAGE_SIZE)];
   if (filters?.locality) constraints.unshift(where("locality", "==", filters.locality));
   if (filters?.tower) constraints.unshift(where("tower", "==", filters.tower));
   if (cursor) constraints.push(startAfter(cursor));
 
-  const q = query(collection(db, "publicProfiles"), ...constraints);
-  const snap = await getDocs(q);
-  const data = snap.docs.map(d => normalizeProfileData({ uid: d.id, ...d.data() }));
-  const nextCursor = snap.docs.length === BROWSE_PAGE_SIZE ? snap.docs[snap.docs.length - 1] : null;
-  return { data, nextCursor };
+  const primary = await getDocs(query(collection(db, "publicProfiles"), ...constraints));
+  if (!primary.empty || cursor) {
+    const data = primary.docs.map(d => normalizeProfileData({ uid: d.id, ...d.data() }));
+    const nextCursor = primary.docs.length === BROWSE_PAGE_SIZE ? primary.docs[primary.docs.length - 1] : null;
+    return { data, nextCursor };
+  }
+
+  // Fallback for older data where mirror docs were not created yet.
+  const fallbackQuery = query(
+    collection(db, "users"),
+    where("isServiceProvider", "==", true),
+    orderBy("createdAt", "desc"),
+    limit(BROWSE_PAGE_SIZE)
+  );
+  const fallbackSnap = await getDocs(fallbackQuery).catch(async () => {
+    return getDocs(query(collection(db, "users"), where("isServiceProvider", "==", true), limit(BROWSE_PAGE_SIZE)));
+  });
+
+  const fallbackData = fallbackSnap.docs.map(d => normalizeProfileData({ uid: d.id, ...d.data() }));
+  const nextCursor = fallbackSnap.docs.length === BROWSE_PAGE_SIZE ? fallbackSnap.docs[fallbackSnap.docs.length - 1] : null;
+  return { data: fallbackData, nextCursor };
 }
 
 export async function getAllUsers(
@@ -352,9 +382,23 @@ export async function updateBookingStatus(bookingId: string, status: string) {
   await updateDoc(doc(db, "bookings", bookingId), { status, updatedAt: serverTimestamp() });
 }
 export async function getBookingsForUser(uid: string) {
-  const q = query(collection(db, "bookings"), where("clientId", "==", uid), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  const primaryQuery = query(collection(db, "bookings"), where("clientId", "==", uid), orderBy("createdAt", "desc"));
+  const [primarySnap, legacySnap] = await Promise.all([
+    getDocs(primaryQuery),
+    getDocs(query(collection(db, "bookings"), where("clientUid", "==", uid), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] } as any)),
+  ]);
+
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const d of primarySnap.docs) {
+    merged.set(d.id, { id: d.id, ...d.data() } as Record<string, unknown>);
+  }
+  for (const d of legacySnap.docs) {
+    if (!merged.has(d.id)) {
+      merged.set(d.id, { id: d.id, ...d.data() } as Record<string, unknown>);
+    }
+  }
+
+  return Array.from(merged.values()).sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt));
 }
 export async function getBookingsForPro(uid: string) {
   const primaryQuery = query(collection(db, "bookings"), where("proId", "==", uid), orderBy("createdAt", "desc"));
@@ -373,7 +417,7 @@ export async function getBookingsForPro(uid: string) {
     }
   }
 
-  return Array.from(merged.values());
+  return Array.from(merged.values()).sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt));
 }
 export async function getAllBookings(
   limit_ = 50,
@@ -498,6 +542,17 @@ export async function getReviewsForUser(proId: string) {
   const q = query(collection(db, "reviews"), where("proId", "==", proId), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+}
+export async function getReviewDistribution(proId: string): Promise<Record<number, number>> {
+  const reviews = await getReviewsForUser(proId);
+  const distribution: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  for (const review of reviews) {
+    const rating = Number(review.rating);
+    if (Number.isFinite(rating) && rating >= 1 && rating <= 5) {
+      distribution[Math.round(rating)] += 1;
+    }
+  }
+  return distribution;
 }
 export async function recalculateProRating(proId: string) {
   const allReviews = await getReviewsForUser(proId);

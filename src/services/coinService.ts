@@ -8,7 +8,7 @@ import type { FirestoreTimestamp } from "../types/firestore";
 
 export type LedgerType =
   | "topup" | "booking_debit" | "booking_refund" | "booking_escrow"
-  | "booking_escrow_release" | "payout"
+  | "booking_escrow_release" | "payout" | "payout_cancelled"
   | "earn_review" | "earn_referral" | "earn_free_consult" | "earn_profile"
   | "earn_milestone" | "earn_groupsession" | "earn_ondemand" | "earn_signup_bonus"
   | "loyalty_cashback" | "pro_loyalty_bonus"
@@ -46,9 +46,10 @@ export interface CoinPayout {
   amountRs: number;
   upiId: string;
   upiMasked?: string;
-  status: "pending" | "processed" | "failed";
+  status: "pending" | "processed" | "failed" | "cancelled_by_user";
   processedBy?: string;
   processedAt?: FirestoreTimestamp;
+  cancelledAt?: FirestoreTimestamp;
   createdAt: FirestoreTimestamp;
 }
 
@@ -84,6 +85,7 @@ export const EARN_RULES: Record<LedgerType, { coins: number; label: string }> = 
   booking_escrow_release: { coins: 0, label: "Session earnings" },
   booking_refund: { coins: 0, label: "Booking refund" },
   payout: { coins: 0, label: "Payout processed" },
+  payout_cancelled: { coins: 0, label: "Payout cancelled" },
   loyalty_cashback: { coins: 0, label: "Loyalty cashback" },
   pro_loyalty_bonus: { coins: 0, label: "Loyalty pro bonus" },
   admin_credit: { coins: 0, label: "Admin credit" },
@@ -202,23 +204,19 @@ export function generateReferralCode(params: {
   const { displayName = "", phoneNumber = "", uid = "" } = params;
   const parts = displayName.trim().split(/\s+/).filter(Boolean);
 
-  const first = (parts[0] || "PNB")
-    .replace(/[^a-zA-Z]/g, "")
-    .slice(0, 3)
+  // Required format: "PN" + 6 uppercase alphanumeric characters.
+  const initials = parts
+    .map(part => part.replace(/[^a-zA-Z]/g, "").charAt(0))
+    .join("")
     .toUpperCase()
-    .padEnd(3, "X");
-
-  const last = (parts[1] || "PRO")
-    .replace(/[^a-zA-Z]/g, "")
-    .slice(0, 3)
-    .toUpperCase()
-    .padEnd(3, "X");
+    .slice(0, 2);
 
   const phoneTail = phoneNumber.replace(/\D/g, "").slice(-4);
-  const fallbackTail = uid.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase();
-  const tail = (phoneTail || fallbackTail || "0000").padStart(4, "0");
+  const uidTail = uid.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(-4);
+  const seed = `${initials}${phoneTail || uidTail}`.replace(/[^A-Z0-9]/g, "");
+  const body = seed.padEnd(6, "X").slice(0, 6);
 
-  return `${first}${last}${tail}`;
+  return `PN${body}`;
 }
 
 /**
@@ -516,6 +514,62 @@ export async function requestPayout(uid: string, displayName: string, coins: num
   }
 }
 
+export async function getPendingPayoutForUser(uid: string): Promise<CoinPayout | null> {
+  const primary = await getDocs(
+    query(
+      collection(db, "coinPayouts"),
+      where("uid", "==", uid),
+      where("status", "==", "pending"),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    )
+  ).catch(async () => {
+    return getDocs(query(collection(db, "coinPayouts"), where("uid", "==", uid), where("status", "==", "pending"), limit(1)));
+  });
+
+  if (primary.empty) return null;
+  const payout = { id: primary.docs[0].id, ...primary.docs[0].data() } as CoinPayout;
+  return { ...payout, upiMasked: payout.upiMasked || maskUpiId(payout.upiId || "") };
+}
+
+export async function cancelPayoutRequest(uid: string, payoutId: string): Promise<{ success: boolean; reason?: string }> {
+  try {
+    await runTransaction(db, async tx => {
+      const payoutRef = doc(db, "coinPayouts", payoutId);
+      const payoutSnap = await tx.get(payoutRef);
+      if (!payoutSnap.exists()) throw new Error("PAYOUT_NOT_FOUND");
+
+      const payout = payoutSnap.data() as CoinPayout;
+      if (payout.uid !== uid) throw new Error("UNAUTHORIZED");
+      if (payout.status !== "pending") throw new Error("NOT_PENDING");
+
+      const userRef = doc(db, "users", uid);
+      const userSnap = await tx.get(userRef);
+      const currentBalance = (userSnap.data()?.coinBalance as number) ?? 0;
+      const refundedBalance = currentBalance + (payout.coinsRedeemed || 0);
+
+      tx.update(userRef, { coinBalance: refundedBalance, updatedAt: serverTimestamp() });
+      tx.update(payoutRef, { status: "cancelled_by_user", cancelledAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      tx.set(doc(collection(db, "coinLedger", uid, "entries")), {
+        uid,
+        type: "payout_cancelled",
+        amount: payout.coinsRedeemed,
+        balanceAfter: refundedBalance,
+        description: `Payout cancelled (refund): ₹${payout.amountRs}`,
+        refId: payoutId,
+        createdAt: serverTimestamp(),
+      } as LedgerEntry);
+    });
+    return { success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "NOT_PENDING") return { success: false, reason: "Only pending payouts can be cancelled." };
+    if (msg === "UNAUTHORIZED") return { success: false, reason: "You can cancel only your own payout." };
+    if (msg === "PAYOUT_NOT_FOUND") return { success: false, reason: "Payout request not found." };
+    return { success: false, reason: "Failed to cancel payout request." };
+  }
+}
+
 /* ── Admin ── */
 export async function getAllCoinPurchases(pageLimit = 100, cursor?: any): Promise<{ data: CoinPurchase[]; nextCursor: any }> {
   const constraints: any[] = [orderBy("createdAt", "desc"), limit(pageLimit)];
@@ -619,7 +673,7 @@ export async function getCoinEconomySummary() {
 export { getLedger as adminGetLedger };
 export function formatNC(coins: number): string { return `${coins.toLocaleString("en-IN")} NC`; }
 export function ledgerColor(type: LedgerType): string {
-  return type.startsWith("earn") || type === "topup" || type === "booking_refund" || type === "booking_escrow_release" || type === "admin_credit" ? "#16a34a" : "#dc2626";
+  return type.startsWith("earn") || type === "topup" || type === "booking_refund" || type === "booking_escrow_release" || type === "admin_credit" || type === "payout_cancelled" ? "#16a34a" : "#dc2626";
 }
 export function ledgerSign(amount: number): string {
   return amount >= 0 ? `+${amount.toLocaleString("en-IN")}` : amount.toLocaleString("en-IN");

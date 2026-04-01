@@ -11,13 +11,14 @@ import RecommendedPros from "./RecommendedPros";
 
 export default function DesktopDashboard({
   userProfile, user, upcomingBookings, proBookings,
-  loading, lastBookedPro, lastCompletedBooking, loyaltyPreview,
+  loading, reviewDistribution, lastBookedPro, lastCompletedBooking, loyaltyPreview,
 }: {
   userProfile: Record<string, unknown> | null;
   user: any;
   upcomingBookings: Record<string, unknown>[];
   proBookings: Record<string, unknown>[];
   loading: boolean;
+  reviewDistribution: Record<number, number>;
   lastBookedPro: Record<string, unknown> | null;
   lastCompletedBooking: Record<string, unknown> | null;
   loyaltyPreview: LoyaltyPreview | null;
@@ -54,7 +55,15 @@ export default function DesktopDashboard({
       </div>
 
       {/* ── Stats Strip ── */}
-      <StatsStrip coins={coins} upcoming={upcomingBookings.length} proRequests={proBookings.length} rating={rating} isPro={isPro} loading={loading} />
+      <StatsStrip
+        coins={coins}
+        upcoming={upcomingBookings.length}
+        proRequests={proBookings.length}
+        rating={rating}
+        reviewDistribution={reviewDistribution}
+        isPro={isPro}
+        loading={loading}
+      />
 
       {/* ── 2-Column Layout ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 28, marginTop: 28, alignItems: "flex-start" }}>

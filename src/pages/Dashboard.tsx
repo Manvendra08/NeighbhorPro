@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { getBookingsForPro, getUserProfile, getBookingsForUser } from "../services/firestoreService";
+import { getBookingsForPro, getUserProfile, getBookingsForUser, getReviewDistribution } from "../services/firestoreService";
 import { getLoyaltyPreview, type LoyaltyPreview } from "../services/loyaltyService";
 import DesktopDashboard from "../components/dashboard/DesktopDashboard";
 import MobileDashboard from "../components/dashboard/MobileDashboard";
@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [lastBookedPro, setLastBookedPro] = useState<Record<string, unknown> | null>(null);
   const [lastCompletedBooking, setLastCompletedBooking] = useState<Record<string, unknown> | null>(null);
   const [loyaltyPreview, setLoyaltyPreview] = useState<LoyaltyPreview | null>(null);
+  const [reviewDistribution, setReviewDistribution] = useState<Record<number, number>>({ 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 });
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -30,6 +31,13 @@ export default function Dashboard() {
         const profile = await getUserProfile(user.uid);
         if (!profile) throw new Error("User profile not found");
         setUserProfile(profile);
+
+        if ((profile.isServiceProvider as boolean) === true) {
+          const reviewData = await getReviewDistribution(user.uid);
+          setReviewDistribution(reviewData);
+        } else {
+          setReviewDistribution({ 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 });
+        }
 
         const [upcoming, proReqs, lastCompleted] = await Promise.all([
           getBookingsForUser(user.uid),
@@ -69,6 +77,7 @@ export default function Dashboard() {
           upcomingBookings={upcomingBookings}
           proBookings={proBookings}
           loading={loading}
+          reviewDistribution={reviewDistribution}
           lastBookedPro={lastBookedPro}
           lastCompletedBooking={lastCompletedBooking}
           loyaltyPreview={loyaltyPreview}
@@ -80,6 +89,7 @@ export default function Dashboard() {
           upcomingBookings={upcomingBookings}
           proBookings={proBookings}
           loading={loading}
+          reviewDistribution={reviewDistribution}
           lastBookedPro={lastBookedPro}
           lastCompletedBooking={lastCompletedBooking}
           loyaltyPreview={loyaltyPreview}
