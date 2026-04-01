@@ -30,7 +30,33 @@ export interface ActivityLog {
 }
 
 const ACTIVITY_RATE_LIMIT_MS = 2000;
-const activityRateLimitCache = new Map<string, number>();
+const CRITICAL_EVENT_ALLOWLIST = new Set([
+  "payment.success",
+  "booking.created",
+  "verification.approved",
+  "booking.completed",
+]);
+
+// Bounded rate limit cache with LRU eviction (max 5000 entries)
+class BoundedRateLimitCache {
+  private cache = new Map<string, number>();
+  private readonly maxSize = 5000;
+
+  get(key: string): number | undefined {
+    return this.cache.get(key);
+  }
+
+  set(key: string, value: number): void {
+    if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
+      // Remove oldest entry (first one in iteration order)
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey);
+    }
+    this.cache.set(key, value);
+  }
+}
+
+const activityRateLimitCache = new BoundedRateLimitCache();
 
 /**
  * Log a user activity event via secure Cloud Function.
@@ -43,10 +69,15 @@ export async function logActivity(
   metadata?: Record<string, unknown>
 ): Promise<void> {
   try {
-    const now = Date.now();
-    const last = activityRateLimitCache.get(userId) ?? 0;
-    if (now - last < ACTIVITY_RATE_LIMIT_MS) return;
-    activityRateLimitCache.set(userId, now);
+    // Bypass rate limiting for critical events
+    if (!CRITICAL_EVENT_ALLOWLIST.has(event)) {
+      // Include event type in rate limit key for per-event-type limiting
+      const cacheKey = `${userId}:${event}`;
+      const now = Date.now();
+      const last = activityRateLimitCache.get(cacheKey) ?? 0;
+      if (now - last < ACTIVITY_RATE_LIMIT_MS) return;
+      activityRateLimitCache.set(cacheKey, now);
+    }
 
     await addDoc(collection(db, "activityLogs"), {
       userId,

@@ -134,12 +134,12 @@ O1	Dashboard	"2,450+ neighbors are using ProNeighbor right now!" ticker appears 
 O2	Dashboard	Commission card shows ₹0 and Pro Earnings ₹0 despite completed bookings (₹300 Completed booking). Revenue reconciliation appears to have a calculation bug.
 O3	Wallet Admin	Manual NC Adjustment form says "irreversible" but doesn't confirm the final amount before submission. A secondary "Review & Confirm" step would reduce fat-finger errors on financial adjustments.
 O4	Tickets	No "Assign Ticket to Admin" feature — all tickets are unassigned. For multi-admin teams this creates accountability gaps.
-O5	Audit Log	Filter is available (by action type), but there is no date-range filter. For compliance and investigation this is a critical missing tool.
+O5	Audit Log	**[MEDIUM]** Date-range filter missing. For compliance, regulatory investigations, and audit trails, this is a critical tool. **Recommendation:** Add date-range picker (start/end) with preset shortcuts (Last 7d, 30d, 90d) and CSV export with filtered results for compliance reporting.
 O6	Broadcast	No preview of how the broadcast will appear to users before sending. A "Preview" step before "Send Broadcast" would prevent content errors.
 O7	Verification Tab	Shows 0 pending verifications. The UI placeholder exists, suggesting the workflow is incomplete or not yet activated.
 O8	Services	No bulk moderation — checkboxes exist on the service list but no "Bulk Approve" or "Bulk Reject" action bar appears when items are selected.
-O9	Settings	Commission Rate slider is capped at 30% (max). No warning shown to admin about the business/legal implications of changing commission mid-operation (affects existing pro earnings).
-O10	Users	"Set Pro" action has no confirmation dialog and no verification requirement. A user can be granted Pro status without document verification.
+O9	Settings	**[MEDIUM]** Commission Rate slider is capped at 30% (max). No warning/confirmation shown to admin about contractual and financial implications of mid-operation commission changes (affects existing pro earnings retroactively). **Recommendation:** Add warning banner before adjustment, require confirmation dialog, and log all commission changes with timestamp and admin name for audit trail.
+O10	Users	**[MEDIUM]** "Set Pro" action has no confirmation dialog and no verification requirement. A user can be granted Pro status without document verification, creating fraud/liability risk. **Recommendation:** Enforce residency/KYC verification before Set Pro is allowed, add confirmation dialog with verification status display, and log all Pro status changes.
 
 SUMMARY RISK MATRIX
 

@@ -59,8 +59,10 @@ Exceptions: none
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px | 400 | 1.6 |
-| Label | 13px | 600 | 1.4 |
+| Label | 14px | 600 | 1.4 |
 | Heading | 26px | 800 | 1.2 |
+
+**Label Typography Note:** Minimum 14px ensures sufficient contrast and supports browser zoom/accessibility scaling (200% zoom minimum). All labels must meet WCAG AA contrast ratio (4.5:1 for text).
 | Display | 42px | 700 | 1.1 |
 
 Constraints:

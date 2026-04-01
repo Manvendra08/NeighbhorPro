@@ -38,7 +38,8 @@ export default function Dashboard() {
           setReviewDistribution(reviewData);
           const total = Object.values(reviewData).reduce((sum, count) => sum + count, 0);
           if (total > 0) {
-            const weighted = (5 * reviewData[5]) + (4 * reviewData[4]) + (3 * reviewData[3]) + (2 * reviewData[2]) + (1 * reviewData[1]);
+            // Defensively default missing rating buckets to 0 to prevent NaN
+            const weighted = (5 * (Number(reviewData[5]) || 0)) + (4 * (Number(reviewData[4]) || 0)) + (3 * (Number(reviewData[3]) || 0)) + (2 * (Number(reviewData[2]) || 0)) + (1 * (Number(reviewData[1]) || 0));
             setComputedRating(Math.round((weighted / total) * 10) / 10);
           } else {
             setComputedRating(((profile.rating as number) ?? null));

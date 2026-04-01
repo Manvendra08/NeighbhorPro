@@ -157,6 +157,11 @@ export default function AdminWallet() {
 
     const payee = encodeURIComponent((payout.displayName || "Pro").toString());
     const amount = Number(payout.amountRs || 0);
+    // Validate amount is positive before building URL
+    if (amount <= 0 || isNaN(amount)) {
+      showToast("Invalid payout amount — cannot initiate transfer", "error");
+      return;
+    }
     const ref = encodeURIComponent((payout.id || "payout").toString());
     const note = encodeURIComponent(`ProNeighbor payout ${payout.coinsRedeemed} NC`);
     const upiUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${payee}&am=${amount}&cu=INR&tr=${ref}&tn=${note}`;
@@ -164,8 +169,13 @@ export default function AdminWallet() {
     const opened = window.open(upiUrl, "_blank");
     if (!opened) {
       // Popup blockers or unsupported environment: copy details for manual gateway transfer.
-      navigator.clipboard.writeText(`UPI: ${upiId}\nAmount: ${amount}\nReference: ${payout.id}`).catch(() => {});
-      showToast("Gateway app not opened. Payout details copied for manual transfer.", "error");
+      navigator.clipboard.writeText(`UPI: ${upiId}\nAmount: ${amount}\nReference: ${payout.id}`)
+        .then(() => {
+          showToast("Gateway app not opened. Payout details copied for manual transfer.", "error");
+        })
+        .catch(() => {
+          showToast("Unable to copy payout details to clipboard — please copy manually from the UPI field", "error");
+        });
     } else {
       showToast("Opening payout in payment app");
     }

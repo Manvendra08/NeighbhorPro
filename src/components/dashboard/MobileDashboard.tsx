@@ -65,7 +65,7 @@ export default function MobileDashboard({
         {[
           { label: "Upcoming", value: loading ? "…" : String(upcomingBookings.length), icon: "📅" },
           ...(isPro ? [{ label: "Requests", value: loading ? "…" : String(proBookings.length), icon: "🔔" }] : []),
-          { label: "Rating", value: rating ? `${rating}★` : "—", icon: "⭐" },
+          { label: "Rating", value: rating !== null && rating !== undefined ? `${rating}★` : "—", icon: "⭐" },
         ].map(s => (
           <div key={s.label} style={{
             background: "#fff", border: "1px solid var(--border)", borderRadius: 10,

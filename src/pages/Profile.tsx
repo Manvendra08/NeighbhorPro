@@ -114,7 +114,7 @@ export default function Profile() {
   const [priceAfterQuote, setPriceAfterQuote] = useState(false);
   const [society, setSociety] = useState("");
   const [societies, setSocieties] = useState<Record<string, unknown>[]>([]);
-  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string; tower?: string; phoneNumber?: string }>({});
+  const [errors, setErrors] = useState<{ displayName?: string; bio?: string; society?: string; tower?: string; phoneNumber?: string; serviceProvider?: string }>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -207,7 +207,7 @@ export default function Profile() {
       nextErrors.phoneNumber = "Invalid Indian mobile number.";
     }
     if (isServiceProvider && userProfile?.residentVerificationStatus !== "verified") {
-      nextErrors.bio = "Residency verification is required to enable Service Provider mode.";
+      nextErrors.serviceProvider = "Residency verification is required to enable Service Provider mode.";
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
@@ -217,7 +217,7 @@ export default function Profile() {
     try {
       await updateUserProfile(user.uid, {
         displayName, bio, skills, hourlyRate, isServiceProvider,
-        priceAfterQuote, society, locality, tower, flatNumber, phoneNumber,
+        priceAfterQuote, society, locality, tower, flatNumber, phoneNumber: sanitizedPhone,
       });
       logActivity(user.uid, "user.profile_update", `Profile updated: ${displayName}`, { isServiceProvider, skillCount: skills.length, society });
       setSaved(true);
@@ -327,7 +327,7 @@ export default function Profile() {
 
       <form onSubmit={handleSave}>
         {/* Service Provider Toggle */}
-        <div className="card" style={{ marginTop: 32, marginBottom: 32, display: "flex", alignItems: "center", justifyContent: "space-between", border: isServiceProvider ? "1px solid var(--success)" : "1px solid var(--border)" }}>
+        <div className="card" style={{ marginTop: 32, marginBottom: errors.serviceProvider ? 8 : 32, display: "flex", alignItems: "center", justifyContent: "space-between", border: errors.serviceProvider ? "1px solid var(--error)" : isServiceProvider ? "1px solid var(--success)" : "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ fontSize: 24, color: isServiceProvider ? "var(--success)" : "var(--muted)" }}>💼</div>
             <div>
@@ -354,6 +354,11 @@ export default function Profile() {
             </span>
           </label>
         </div>
+        {errors.serviceProvider && (
+          <div className="text-sm" style={{ color: "var(--error)", marginBottom: 32 }}>
+            {errors.serviceProvider}
+          </div>
+        )}
 
         {/* Basic info */}
         <div className="card" style={{ marginBottom: 24 }}>
