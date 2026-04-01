@@ -73,14 +73,16 @@ const bookingAlertFromStatus = (
         if (status === "cancelled") return { title: "Booking cancelled", priority: "high" };
         if (status === "completed") return { title: "Service marked complete", priority: "normal" };
         if (status === "reviewed") return { title: "Review submitted", priority: "normal" };
+        if (status === "disputed") return { title: "Booking dispute raised", priority: "urgent" };
         return null;
     }
 
     if (status === "pending") return { title: "New booking request", priority: "urgent" };
-    if (status === "confirmed") return { title: "Booking confirmed", priority: "normal" };
+    if (status === "confirmed") return { title: "Booking confirmed", priority: "high" };
     if (status === "cancelled") return { title: "Booking cancelled", priority: "high" };
     if (status === "completed") return { title: "Booking completed", priority: "normal" };
     if (status === "reviewed") return { title: "Client submitted review", priority: "normal" };
+    if (status === "disputed") return { title: "Booking dispute raised", priority: "urgent" };
     return null;
 };
 
@@ -379,8 +381,12 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
                             const data = d.data() as Record<string, unknown>;
                             const createdAt = toMillis(data.createdAt);
                             const priorityRaw = asString(data.priority, "normal");
-                            const priority: "normal" | "high" | "urgent" =
+                            const requestedPriority: "normal" | "high" | "urgent" =
                                 priorityRaw === "high" || priorityRaw === "urgent" ? priorityRaw : "normal";
+                            const priority: "normal" | "high" | "urgent" =
+                                userProfile?.role === "admin"
+                                    ? requestedPriority
+                                    : (requestedPriority === "urgent" ? "urgent" : "normal");
 
                             return {
                                 id: `broadcast-${d.id}-${createdAt}`,

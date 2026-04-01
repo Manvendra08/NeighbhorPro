@@ -21,11 +21,12 @@ import {
   getLedger,
   ledgerColor,
   ledgerSign,
+  maskUpiId,
   type CoinPurchase,
   type CoinPayout,
   type LedgerEntry,
 } from "../../services/coinService";
-import { getAllUsers, formatTimestamp } from "../../services/firestoreService";
+import { getAllUserRows, formatTimestamp } from "../../services/firestoreService";
 import { logAudit } from "./AdminAuditLog";
 
 type Tab = "overview" | "purchases" | "payouts" | "ledger" | "adjustments";
@@ -131,8 +132,8 @@ export default function AdminWallet() {
 
   const loadUsers = async () => {
     if (users.length) return;
-    const res = await getAllUsers();
-    setUsers(res.data);
+    const rows = await getAllUserRows();
+    setUsers(rows);
   };
 
   const loadLedger = async (uid: string) => {
@@ -146,9 +147,10 @@ export default function AdminWallet() {
   const handlePayoutAction = async (payout: CoinPayout, status: "processed" | "failed") => {
     setActionLoading(payout.id!);
     await updatePayoutStatus(payout.id!, status, adminUid);
+    const payoutUpi = payout.upiMasked || maskUpiId(payout.upiId || "");
     await logAudit(
       `payout.${status}`, adminUid, adminName,
-      `${status === "processed" ? "Approved" : "Rejected"} payout of ${payout.coinsRedeemed} NC (₹${payout.amountRs}) for ${payout.displayName} → ${payout.upiId}`,
+      `${status === "processed" ? "Approved" : "Rejected"} payout of ${payout.coinsRedeemed} NC (₹${payout.amountRs}) for ${payout.displayName} -> ${payoutUpi}`,
       payout.uid
     );
     showToast(status === "processed" ? "Payout marked as processed" : "Payout rejected");
@@ -165,12 +167,16 @@ export default function AdminWallet() {
     if (!adjReason.trim())         { showToast("Enter a reason", "error"); return; }
 
     const finalAmount = adjType === "debit" ? -Math.abs(amount) : Math.abs(amount);
+    const targetUser = users.find(u => u.uid === adjUid);
+    const targetName = (targetUser?.displayName as string) || adjUid;
+    const confirmText = `${adjType === "credit" ? "Credit" : "Debit"} ${Math.abs(amount)} NC ${adjType === "credit" ? "to" : "from"} ${targetName}?\n\nReason: ${adjReason.trim()}\n\nThis action is irreversible.`;
+    const ok = window.confirm(confirmText);
+    if (!ok) return;
+
     setAdjLoading(true);
 
     const res = await adminAdjustCoins(adjUid, finalAmount, adjReason.trim(), adminUid);
     if (res.success) {
-      const targetUser = users.find(u => u.uid === adjUid);
-      const targetName = (targetUser?.displayName as string) || adjUid;
       await logAudit(
         `wallet.admin_${adjType}`, adminUid, adminName,
         `${adjType === "credit" ? "Credited" : "Debited"} ${Math.abs(amount)} NC ${adjType === "credit" ? "to" : "from"} ${targetName}. Reason: ${adjReason}`,
@@ -412,7 +418,7 @@ export default function AdminWallet() {
                     </div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{p.displayName}</div>
-                      <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>UPI: <span style={{ fontFamily: "monospace" }}>{p.upiId}</span></div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>UPI: <span style={{ fontFamily: "monospace" }}>{p.upiMasked || maskUpiId(p.upiId || "")}</span></div>
                       <div style={{ fontSize: "0.76rem", color: "var(--muted)", marginTop: 2 }}>Requested: {formatTimestamp(p.createdAt)}</div>
                     </div>
                   </div>

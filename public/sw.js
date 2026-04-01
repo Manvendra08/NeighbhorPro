@@ -1,7 +1,7 @@
-// ProNeighbour Service Worker
+// ProNeighbor Service Worker
 // Caches app shell for offline/fast load. Firebase data always fetches fresh.
 
-const CACHE_NAME = 'proneighbour-v1';
+const CACHE_NAME = 'proneighbor-v1';
 
 // App shell files to pre-cache
 const PRECACHE = [

@@ -4,10 +4,10 @@ export default function StatsStrip({ coins, upcoming, proRequests, rating, isPro
   coins: number; upcoming: number; proRequests: number; rating: number | null; isPro: boolean; loading: boolean;
 }) {
   const items = [
-    { label: "NC Balance", value: coins.toLocaleString("en-IN"), icon: "🪙", to: "/wallet", color: "#C4882A" },
-    { label: "Upcoming", value: loading ? "…" : String(upcoming), icon: "📅", to: "/bookings", color: "#1B6B8A" },
-    ...(isPro ? [{ label: "Requests", value: loading ? "…" : String(proRequests), icon: "🔔", to: "/bookings", color: "#D45C3B" }] : []),
-    { label: "Rating", value: rating ? `${rating}★` : "—", icon: "⭐", to: "/profile", color: "#D4A03B" },
+    { label: "NC Balance", value: coins.toLocaleString("en-IN"), icon: "🪙", to: "/wallet", color: "#C4882A", helper: "Wallet balance" },
+    { label: "Upcoming", value: loading ? "…" : String(upcoming), icon: "📅", to: "/bookings", color: "#1B6B8A", helper: "Scheduled sessions" },
+    ...(isPro ? [{ label: "Requests", value: loading ? "…" : String(proRequests), icon: "🔔", to: "/bookings", color: "#D45C3B", helper: "Pending confirmations" }] : []),
+    { label: "Rating", value: rating ? `${rating}★` : "—", icon: "⭐", to: "/profile", color: "#D4A03B", helper: "After completed reviews" },
   ];
 
   return (
@@ -28,6 +28,7 @@ export default function StatsStrip({ coins, upcoming, proRequests, rating, isPro
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", lineHeight: 1.1 }}>{item.value}</div>
             <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{item.label}</div>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{item.helper}</div>
           </div>
         </Link>
       ))}

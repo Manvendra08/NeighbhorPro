@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { updateUserProfile } from "../services/firestoreService";
 import Profile from "./Profile";
@@ -75,6 +77,7 @@ function DeleteAccountPanel() {
 // ── Main page ──────────────────────────────────────────────────────────────
 export default function MyAccount() {
   const { user, userProfile, logout } = useAuth();
+  const [searchParams] = useSearchParams();
   const [tab, setTab]         = useState<Tab>("profile");
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
@@ -86,6 +89,13 @@ export default function MyAccount() {
   });
   const up = userProfile as Record<string, unknown> | null;
   const { pct, missing } = profileCompleteness(up);
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "availability" && userProfile?.isServiceProvider) {
+      setTab("availability");
+    }
+  }, [searchParams, userProfile?.isServiceProvider]);
 
   const handleTabChange = async (t: Tab) => {
     setTab(t);
@@ -131,7 +141,10 @@ export default function MyAccount() {
             <div style={{ height: "100%", width: `${pct}%`, background: pct >= 80 ? "#16a34a" : pct >= 50 ? "#C4882A" : "#dc2626", borderRadius: 3, transition: "width 0.4s" }} />
           </div>
           {missing.length > 0 && pct < 100 && (
-            <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 6 }}>Missing: {missing.slice(0, 2).join(", ")}{missing.length > 2 ? ` +${missing.length - 2}` : ""}</div>
+            <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 6 }}>
+              Missing: {missing.slice(0, 2).join(", ")}{missing.length > 2 ? ` +${missing.length - 2}` : ""}
+              {missing.includes("Locality") && <span> · Add Society in Profile to auto-fill Locality.</span>}
+            </div>
           )}
         </div>
       </div>

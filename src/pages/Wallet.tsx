@@ -4,11 +4,12 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   COIN_PACKS, EARN_RULES, MIN_PAYOUT_COINS, getLedger, requestPayout,
   formatNC, ledgerColor, ledgerSign, getNCTerms, applyReferralCode,
+  maskUpiId,
   type LedgerEntry, type NCTerms,
 } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 import { initiateTopUp, type PaymentStatus } from "../services/razorpayService";
-import { formatTimestamp } from "../services/firestoreService";
+import { formatTimestamp, updateUserProfile } from "../services/firestoreService";
 
 type Tab = "overview" | "buy" | "earn" | "referral" | "payout" | "history" | "terms";
 
@@ -31,6 +32,7 @@ export default function Wallet() {
   const [payError, setPayError]   = useState("");
   const [payoutCoins, setPC]      = useState("");
   const [upiId, setUpi]           = useState("");
+  const [saveUpi, setSaveUpi]     = useState(true);
   const [payoutLoading, setPL]    = useState(false);
   const [payoutMsg, setPayoutMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [ncTerms, setNcTerms]     = useState<NCTerms | null>(null);
@@ -66,6 +68,13 @@ export default function Wallet() {
     getNCTerms().then(setNcTerms);
   }, [tab]);
 
+  useEffect(() => {
+    const savedUpi = ((userProfile as unknown as Record<string, unknown> | null)?.preferredUpiId as string) || "";
+    if (savedUpi) {
+      setUpi(savedUpi);
+    }
+  }, [userProfile]);
+
   const handleBuy = async () => {
     if (!user || !userProfile || isBusy) return;
     setPayError("");
@@ -90,7 +99,11 @@ export default function Wallet() {
       ? { type: "success", text: `Payout of ₹${coins} requested! Processed within 48 hrs.` }
       : { type: "error",   text: res.reason ?? "Failed. Try again." });
     if (res.success) {
-      logActivity(user.uid, "wallet.withdrawal", `Payout requested: ${coins} NC (₹${coins}) to UPI ${upiId}`, { coins, upiId });
+      const maskedUpi = maskUpiId(upiId);
+      logActivity(user.uid, "wallet.withdrawal", `Payout requested: ${coins} NC (₹${coins}) to UPI ${maskedUpi}`, { coins, upiMasked: maskedUpi });
+      if (saveUpi) {
+        await updateUserProfile(user.uid, { preferredUpiId: upiId.trim() });
+      }
       setPC(""); setUpi("");
     }
     setPL(false);
@@ -224,24 +237,29 @@ export default function Wallet() {
             <h3 className="card-title" style={{ marginBottom: 4 }}>Ways to Earn NeighbourCoins</h3>
             <p className="text-muted text-sm" style={{ marginBottom: 24 }}>Earned coins capped at 20% of monthly transaction value.</p>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              {(Object.entries(EARN_RULES) as [string, { coins: number; label: string }][]).filter(([, r]) => r.coins > 0).map(([type, rule], i, arr) => (
-                <div key={type} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 4px", borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
+              {(Object.entries(EARN_RULES) as [string, { coins: number; label: string }][]).filter(([, r]) => r.coins > 0).map(([type, rule], i, arr) => {
+                const isComingSoon = type === "earn_groupsession" || type === "earn_ondemand";
+                return (
+                <div key={type} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 4px", borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none", opacity: isComingSoon ? 0.75 : 1 }}>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: "0.92rem" }}>{rule.label}</div>
+                    <div style={{ fontWeight: 600, fontSize: "0.92rem", display: "flex", alignItems: "center", gap: 8 }}>
+                      {rule.label}
+                      {isComingSoon && <span className="badge badge-muted" style={{ fontSize: "0.65rem" }}>Coming Soon</span>}
+                    </div>
                     <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>
                       {type === "earn_signup_bonus" && "Credited automatically on first login"}
                       {type === "earn_profile"      && "Complete all profile fields"}
                       {type === "earn_review"       && "Write a review after a completed booking"}
                       {type === "earn_referral"     && "Both you and referral get 100 NC on first booking"}
                       {type === "earn_free_consult" && "Pro who marks session as free"}
-                      {type === "earn_groupsession" && "Per group session attended (Phase 2)"}
-                      {type === "earn_ondemand"     && "Pro who fulfils urgent request (Phase 2)"}
+                      {type === "earn_groupsession" && "Per group session attended (Phase 2, not yet active)"}
+                      {type === "earn_ondemand"     && "Pro who fulfils urgent request (Phase 2, not yet active)"}
                       {type === "earn_milestone"    && "Society reaches 50 active users — everyone rewarded"}
                     </div>
                   </div>
-                  <div style={{ background: "rgba(22,163,74,0.1)", color: "#16a34a", border: "1px solid rgba(22,163,74,0.2)", borderRadius: 50, padding: "4px 14px", fontWeight: 700, fontSize: "0.88rem", whiteSpace: "nowrap", flexShrink: 0 }}>+{rule.coins} NC</div>
+                  <div style={{ background: isComingSoon ? "var(--surface-2)" : "rgba(22,163,74,0.1)", color: isComingSoon ? "var(--muted)" : "#16a34a", border: isComingSoon ? "1px solid var(--border)" : "1px solid rgba(22,163,74,0.2)", borderRadius: 50, padding: "4px 14px", fontWeight: 700, fontSize: "0.88rem", whiteSpace: "nowrap", flexShrink: 0 }}>+{rule.coins} NC</div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         </div>
@@ -310,6 +328,10 @@ export default function Wallet() {
               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                 <label className="form-label">UPI ID</label>
                 <input className="form-input" type="text" placeholder="yourname@upi" value={upiId} onChange={e => setUpi(e.target.value)} />
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: "0.8rem", color: "var(--muted)" }}>
+                  <input type="checkbox" checked={saveUpi} onChange={e => setSaveUpi(e.target.checked)} />
+                  Save this UPI ID for future payouts
+                </label>
               </div>
             </div>
             <Msg m={payoutMsg} />

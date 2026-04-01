@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { getAllBookings } from "../../services/firestoreService";
+import { getAllBookings, updateBookingStatus } from "../../services/firestoreService";
+import { cancelBookingAndRefund, releaseEscrow } from "../../services/coinService";
 import { logAudit } from "./AdminAuditLog";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -16,6 +16,8 @@ export default function AdminBookings() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<FilterTab>("all");
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingRow | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
@@ -36,6 +38,62 @@ export default function AdminBookings() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const handleConfirmBooking = async (b: BookingRow) => {
+    const id = b.id as string;
+    const ok = window.confirm(`Confirm booking #${id.slice(-6).toUpperCase()}?`);
+    if (!ok) return;
+    setActionLoading(id);
+    try {
+      await updateBookingStatus(id, "confirmed");
+      await logAudit("booking.admin_confirm", adminId, adminName, `Admin confirmed booking ${id}`, id);
+      showToast("Booking confirmed");
+      await load();
+    } catch {
+      showToast("Failed to confirm booking", "error");
+    }
+    setActionLoading(null);
+  };
+
+  const handleCancelAndRefund = async (b: BookingRow) => {
+    const id = b.id as string;
+    const reason = window.prompt("Cancellation reason (required):");
+    if (!reason || !reason.trim()) return;
+    const ok = window.confirm(`Cancel booking #${id.slice(-6).toUpperCase()} and process refund if escrow exists?`);
+    if (!ok) return;
+
+    setActionLoading(id);
+    try {
+      const result = await cancelBookingAndRefund(adminId, id, "pro");
+      if (!result.success) throw new Error(result.reason || "CANCEL_FAILED");
+      await logAudit("booking.admin_cancel", adminId, adminName, `Admin cancelled booking ${id} | Reason: ${reason.trim()}`, id);
+      showToast("Booking cancelled and refund processed if applicable");
+      await load();
+    } catch {
+      showToast("Failed to cancel booking", "error");
+    }
+    setActionLoading(null);
+  };
+
+  const handleForceComplete = async (b: BookingRow) => {
+    const id = b.id as string;
+    const proId = b.proId as string;
+    const serviceName = (b.serviceName as string) || "Booking";
+    const ok = window.confirm(`Force complete booking #${id.slice(-6).toUpperCase()}? This may release escrow earnings.`);
+    if (!ok) return;
+
+    setActionLoading(id);
+    try {
+      const result = await releaseEscrow(proId, id, serviceName, 0.10);
+      if (!result.success) throw new Error(result.reason || "COMPLETE_FAILED");
+      await logAudit("booking.admin_force_complete", adminId, adminName, `Admin force-completed booking ${id}`, id);
+      showToast("Booking marked completed");
+      await load();
+    } catch {
+      showToast("Failed to complete booking", "error");
+    }
+    setActionLoading(null);
+  };
 
   const counts = {
     all: bookings.length,
@@ -127,15 +185,20 @@ export default function AdminBookings() {
                 <th>Date & Time</th>
                 <th>Price</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(b => (
                 <tr key={b.id as string}>
                   <td className="text-muted" style={{ fontFamily: "monospace", fontSize: 13 }}>
-                    <Link to={`/bookings/${b.id}`} style={{ color: "var(--accent)" }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ color: "var(--accent)", padding: 0 }}
+                      onClick={() => setSelectedBooking(b)}
+                    >
                       #{((b.id as string) || "").slice(-6).toUpperCase()}
-                    </Link>
+                    </button>
                   </td>
                   <td style={{ fontWeight: 500 }}>{(b.serviceName as string) || "Consultation"}</td>
                   <td>{(b.clientName as string) || "—"}</td>
@@ -150,10 +213,55 @@ export default function AdminBookings() {
                       {(b.status as string) || "Unknown"}
                     </span>
                   </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {(b.status as string) === "pending" && (
+                        <button className="btn btn-success btn-sm" onClick={() => handleConfirmBooking(b)} disabled={actionLoading === (b.id as string)}>Confirm</button>
+                      )}
+                      {(["pending", "confirmed"] as string[]).includes((b.status as string) || "") && (
+                        <button className="btn btn-danger btn-sm" onClick={() => handleCancelAndRefund(b)} disabled={actionLoading === (b.id as string)}>Cancel + Refund</button>
+                      )}
+                      {(b.status as string) === "confirmed" && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleForceComplete(b)} disabled={actionLoading === (b.id as string)}>Force Complete</button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {selectedBooking && (
+        <div className="modal-overlay" onClick={() => setSelectedBooking(null)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Admin Booking Detail</h3>
+              <button className="modal-close" onClick={() => setSelectedBooking(null)}>✕</button>
+            </div>
+            <div style={{ display: "grid", gap: 10, fontSize: 14 }}>
+              <div><strong>ID:</strong> {(selectedBooking.id as string) || "—"}</div>
+              <div><strong>Service:</strong> {(selectedBooking.serviceName as string) || "Consultation"}</div>
+              <div><strong>Client:</strong> {(selectedBooking.clientName as string) || "—"}</div>
+              <div><strong>Professional:</strong> {(selectedBooking.proName as string) || "—"}</div>
+              <div><strong>Date:</strong> {(selectedBooking.date as string) || "—"} {(selectedBooking.time as string) || (selectedBooking.timeSlot as string) || ""}</div>
+              <div><strong>Status:</strong> {(selectedBooking.status as string) || "Unknown"}</div>
+              <div><strong>Amount:</strong> {(selectedBooking.amount as number) === 0 ? "Free" : `₹${selectedBooking.amount}`}</div>
+            </div>
+            <div className="modal-actions">
+              {(selectedBooking.status as string) === "pending" && (
+                <button className="btn btn-success btn-sm" onClick={() => { handleConfirmBooking(selectedBooking); setSelectedBooking(null); }}>Confirm</button>
+              )}
+              {(["pending", "confirmed"] as string[]).includes((selectedBooking.status as string) || "") && (
+                <button className="btn btn-danger btn-sm" onClick={() => { handleCancelAndRefund(selectedBooking); setSelectedBooking(null); }}>Cancel + Refund</button>
+              )}
+              {(selectedBooking.status as string) === "confirmed" && (
+                <button className="btn btn-secondary btn-sm" onClick={() => { handleForceComplete(selectedBooking); setSelectedBooking(null); }}>Force Complete</button>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={() => setSelectedBooking(null)}>Close</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

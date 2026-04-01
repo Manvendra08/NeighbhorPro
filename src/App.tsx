@@ -53,13 +53,13 @@ export default function App() {
             <Route path="/dashboard"        element={<ProtectedRoute userOnly><Dashboard /></ProtectedRoute>} />
             <Route path="/browse"           element={<ProtectedRoute userOnly><BrowsePros /></ProtectedRoute>} />
             <Route path="/pro/:id"          element={<ProtectedRoute userOnly><ProDetail /></ProtectedRoute>} />
-            <Route path="/book/:id"         element={<ProtectedRoute userOnly><BookingFlow /></ProtectedRoute>} />
-            <Route path="/bookings"         element={<ProtectedRoute userOnly><MyBookings /></ProtectedRoute>} />
-            <Route path="/bookings/:id"     element={<ProtectedRoute userOnly><BookingDetail /></ProtectedRoute>} />
+            <Route path="/book/:id"         element={<ProtectedRoute userOnly requireVerified><BookingFlow /></ProtectedRoute>} />
+            <Route path="/bookings"         element={<ProtectedRoute userOnly requireVerified><MyBookings /></ProtectedRoute>} />
+            <Route path="/bookings/:id"     element={<ProtectedRoute userOnly requireVerified><BookingDetail /></ProtectedRoute>} />
             <Route path="/wallet"           element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
             <Route path="/profile"          element={<Navigate to="/account" replace />} />
             <Route path="/account"          element={<ProtectedRoute><MyAccount /></ProtectedRoute>} />
-            <Route path="/messages"         element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+            <Route path="/messages"         element={<ProtectedRoute requireVerified><Messages /></ProtectedRoute>} />
             <Route path="/support"          element={<ProtectedRoute><Support /></ProtectedRoute>} />
 
             <Route path="/admin"                element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />

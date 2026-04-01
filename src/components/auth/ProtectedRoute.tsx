@@ -5,9 +5,10 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
   userOnly?: boolean;
+  requireVerified?: boolean;
 }
 
-export function ProtectedRoute({ children, adminOnly, userOnly }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, adminOnly, userOnly, requireVerified }: ProtectedRouteProps) {
   const { user, userProfile, loading } = useAuth();
 
   if (loading) {
@@ -33,6 +34,13 @@ export function ProtectedRoute({ children, adminOnly, userOnly }: ProtectedRoute
   }
   if (userOnly && userProfile?.role === "admin") {
     return <Navigate to="/admin" replace />;
+  }
+
+  if (requireVerified && userProfile?.role !== "admin") {
+    const isPasswordProvider = user.providerData?.some(p => p.providerId === "password");
+    if (isPasswordProvider && !user.emailVerified) {
+      return <Navigate to="/dashboard?verifyEmail=1" replace />;
+    }
   }
 
   return <>{children}</>;

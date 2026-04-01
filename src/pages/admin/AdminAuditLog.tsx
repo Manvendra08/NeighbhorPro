@@ -21,6 +21,22 @@ export default function AdminAuditLog() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  const toMillis = (value: unknown): number => {
+    if (!value) return 0;
+    if (typeof value === "object" && value !== null) {
+      const maybeTimestamp = value as { toDate?: () => Date; seconds?: number };
+      if (typeof maybeTimestamp.toDate === "function") {
+        return maybeTimestamp.toDate().getTime();
+      }
+      if (typeof maybeTimestamp.seconds === "number") {
+        return maybeTimestamp.seconds * 1000;
+      }
+    }
+    return 0;
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -40,7 +56,23 @@ export default function AdminAuditLog() {
       ((l.action as string) || "").includes(q) ||
       ((l.adminName as string) || "").toLowerCase().includes(q) ||
       ((l.details as string) || "").toLowerCase().includes(q);
-    return matchFilter && matchSearch;
+    const createdAtMillis = toMillis(l.createdAt);
+
+    let inDateRange = true;
+    if (fromDate) {
+      const from = new Date(`${fromDate}T00:00:00`).getTime();
+      if (!Number.isNaN(from)) {
+        inDateRange = inDateRange && createdAtMillis >= from;
+      }
+    }
+    if (toDate) {
+      const to = new Date(`${toDate}T23:59:59.999`).getTime();
+      if (!Number.isNaN(to)) {
+        inDateRange = inDateRange && createdAtMillis <= to;
+      }
+    }
+
+    return matchFilter && matchSearch && inDateRange;
   });
 
   const actionColor = (action: string) => {
@@ -69,7 +101,7 @@ export default function AdminAuditLog() {
         </div>
         <button className="btn btn-secondary btn-sm" onClick={() => {
           const csv = ["Timestamp,Admin,Action,Details,Target"]
-            .concat(logs.map(l => `"${formatTimestamp(l.createdAt)}","${l.adminName}","${l.action}","${l.details}","${l.targetId || ""}"` ))
+            .concat(filtered.map(l => `"${formatTimestamp(l.createdAt)}","${l.adminName}","${l.action}","${l.details}","${l.targetId || ""}"` ))
             .join("\n");
           const a = document.createElement("a");
           a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
@@ -89,6 +121,33 @@ export default function AdminAuditLog() {
         <select className="form-input" style={{ maxWidth: 200, padding: "8px 12px" }} value={filter} onChange={e => setFilter(e.target.value)}>
           {ACTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
+        <input
+          className="form-input"
+          type="date"
+          value={fromDate}
+          onChange={e => setFromDate(e.target.value)}
+          style={{ maxWidth: 170, padding: "8px 12px" }}
+          aria-label="Filter from date"
+        />
+        <input
+          className="form-input"
+          type="date"
+          value={toDate}
+          onChange={e => setToDate(e.target.value)}
+          style={{ maxWidth: 170, padding: "8px 12px" }}
+          aria-label="Filter to date"
+        />
+        {(fromDate || toDate) && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => {
+              setFromDate("");
+              setToDate("");
+            }}
+          >
+            Clear Dates
+          </button>
+        )}
         <span style={{ fontSize: 13, color: "var(--muted)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  getAllUsers, 
+  getAllUserRows, 
+  getPendingVerifications,
   updateUserProfile, 
   updateResidentVerification,
   getOrCreateConversation,
@@ -26,6 +27,7 @@ export default function AdminUsers() {
   const adminName = userProfile?.displayName || "Admin";
 
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [verificationQueue, setVerificationQueue] = useState<UserRow[]>([]);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<FilterTab>("all");
   const [loading, setLoading] = useState(true);
@@ -46,8 +48,12 @@ export default function AdminUsers() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await getAllUsers();
-      setUsers(res.data);
+      const [rows, pendingRows] = await Promise.all([
+        getAllUserRows(300),
+        getPendingVerifications(),
+      ]);
+      setUsers(rows);
+      setVerificationQueue(pendingRows as UserRow[]);
     } catch { /* ignore */ }
     setLoading(false);
   };
@@ -60,20 +66,23 @@ export default function AdminUsers() {
     disabled: users.filter((u: UserRow) => !!u.disabled).length,
     admins: users.filter((u: UserRow) => u.role === "admin").length,
     pros: users.filter((u: UserRow) => !!u.isServiceProvider).length,
-    verification: users.filter((u: UserRow) => u.residentVerificationStatus === "pending").length,
+    verification: verificationQueue.length,
   };
 
-  const filtered = users.filter((u: UserRow) => {
+  const sourceRows = tab === "verification" ? verificationQueue : users;
+
+  const filtered = sourceRows.filter((u: UserRow) => {
     const q = search.toLowerCase();
     const matchSearch = !q ||
       ((u.displayName as string) || "").toLowerCase().includes(q) ||
       ((u.email as string) || "").toLowerCase().includes(q) ||
-      ((u.society as string) || "").toLowerCase().includes(q);
+      ((u.society as string) || "").toLowerCase().includes(q) ||
+      ((u.locality as string) || "").toLowerCase().includes(q);
     const matchTab =
       tab === "all" ? true : tab === "active" ? !u.disabled :
       tab === "disabled" ? !!u.disabled : tab === "admins" ? u.role === "admin" :
       tab === "pros" ? !!u.isServiceProvider :
-      tab === "verification" ? u.residentVerificationStatus === "pending" : true;
+      tab === "verification" ? true : true;
     return matchSearch && matchTab;
   });
 
@@ -91,9 +100,23 @@ export default function AdminUsers() {
     setActionLoading(null);
   };
 
+  const getActiveAdminCount = () =>
+    users.filter((u: UserRow) => u.role === "admin" && !u.disabled).length;
+
+  const isSelfUser = (u: UserRow) => (u.uid as string) === adminId;
+
   const handleToggleDisable = (u: UserRow) => {
+    if (isSelfUser(u)) {
+      showToast("You cannot disable your own admin account", "error");
+      return;
+    }
     const disabled = !u.disabled;
     const name = (u.displayName as string) || (u.email as string) || u.uid as string;
+    const ok = window.confirm(
+      `${disabled ? "Disable" : "Enable"} ${name}? ${disabled ? "They will lose access immediately." : "They can log in again immediately."}`
+    );
+    if (!ok) return;
+
     doAction(
       u.uid as string, { disabled },
       disabled ? "User disabled" : "User enabled",
@@ -105,6 +128,28 @@ export default function AdminUsers() {
   const handleToggleRole = (u: UserRow) => {
     const role = u.role === "admin" ? "user" : "admin";
     const name = (u.displayName as string) || (u.email as string) || u.uid as string;
+
+    if (u.role === "admin" && getActiveAdminCount() <= 1) {
+      showToast("At least one active admin must remain", "error");
+      return;
+    }
+
+    if (isSelfUser(u) && u.role === "admin") {
+      showToast("You cannot demote your own admin account", "error");
+      return;
+    }
+
+    if (role === "admin") {
+      const phrase = window.prompt(`Type MAKE ADMIN to grant full admin access to ${name}.`);
+      if (phrase !== "MAKE ADMIN") {
+        showToast("Admin role change cancelled", "error");
+        return;
+      }
+    } else {
+      const ok = window.confirm(`Demote ${name} to regular user?`);
+      if (!ok) return;
+    }
+
     doAction(
       u.uid as string, { role },
       role === "admin" ? "Elevated to Admin" : "Role reverted to User",
@@ -116,6 +161,17 @@ export default function AdminUsers() {
   const handleTogglePro = (u: UserRow) => {
     const isServiceProvider = !u.isServiceProvider;
     const name = (u.displayName as string) || (u.email as string) || u.uid as string;
+
+    if (isServiceProvider && u.residentVerificationStatus !== "verified") {
+      showToast("User must be residency verified before Pro status can be granted", "error");
+      return;
+    }
+
+    const ok = window.confirm(
+      `${isServiceProvider ? "Set" : "Remove"} Pro status for ${name}?`
+    );
+    if (!ok) return;
+
     doAction(
       u.uid as string, { isServiceProvider },
       isServiceProvider ? "Marked as Service Pro" : "Pro status removed",
@@ -126,14 +182,38 @@ export default function AdminUsers() {
 
   const handleVerifyResident = (u: UserRow, action: "verified" | "none") => {
     const name = (u.displayName as string) || (u.email as string) || u.uid as string;
+    if (action === "verified") {
+      const ok = window.confirm(`Approve residency verification for ${name}?`);
+      if (!ok) return;
+    }
+
+    let reviewNote = "";
+    if (action === "none") {
+      const noteInput = window.prompt("Add rejection note (required):", "Proof is unclear or invalid");
+      if (noteInput === null) return;
+      reviewNote = noteInput.trim();
+      if (!reviewNote) {
+        showToast("Rejection note is required", "error");
+        return;
+      }
+      const ok = window.confirm(`Reject residency verification for ${name}?`);
+      if (!ok) return;
+    }
+
     const doVerify = async () => {
       setActionLoading(u.uid as string);
       try {
-        await updateResidentVerification(u.uid as string, action, action === "verified" ? "manual" : null);
+        await updateResidentVerification(
+          u.uid as string,
+          action,
+          action === "verified" ? "manual" : null,
+          adminId,
+          reviewNote || undefined
+        );
         await logAudit(
           action === "verified" ? "user.verify_resident" : "user.reject_resident",
           adminId, adminName,
-          `${action === "verified" ? "Verified" : "Rejected"} resident verification for: ${name}`,
+          `${action === "verified" ? "Verified" : "Rejected"} resident verification for: ${name}${reviewNote ? ` | Note: ${reviewNote}` : ""}`,
           u.uid as string
         );
         showToast(action === "verified" ? "Resident verified" : "Verification rejected");
@@ -145,6 +225,15 @@ export default function AdminUsers() {
   };
 
   const handleDelete = async (u: UserRow) => {
+    if (isSelfUser(u)) {
+      showToast("You cannot delete your own admin account", "error");
+      return;
+    }
+    if (u.role === "admin" && getActiveAdminCount() <= 1) {
+      showToast("Cannot delete the last active admin", "error");
+      return;
+    }
+
     setActionLoading(u.uid as string);
     try {
       await deleteDoc(doc(db, "users", u.uid as string));
@@ -252,21 +341,35 @@ export default function AdminUsers() {
             </button>
           ))}
         </div>
-        <input className="form-input" placeholder="Search name, email, society…" value={search}
-          onChange={e => setSearch(e.target.value)} style={{ maxWidth: 280, padding: "8px 12px" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {tab === "verification" && (
+            <button className="btn btn-ghost btn-sm" onClick={() => load()}>↻ Refresh Queue</button>
+          )}
+          <input className="form-input" placeholder="Search name, email, society…" value={search}
+            onChange={e => setSearch(e.target.value)} style={{ maxWidth: 280, padding: "8px 12px" }} />
+        </div>
       </div>
       <div style={{ borderBottom: "1px solid var(--border)", marginBottom: 20 }} />
+
+      {tab === "verification" && (
+        <div className="card" style={{ marginBottom: 14, padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>
+          Pending queue includes only users with uploaded proof and status set to pending. Approve or reject each request with an audit trail.
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
       ) : filtered.length === 0 ? (
-        <div className="empty-state"><div className="empty-state-icon">👤</div><div className="empty-state-title">No users found</div></div>
+        <div className="empty-state">
+          <div className="empty-state-icon">👤</div>
+          <div className="empty-state-title">{tab === "verification" ? "No pending verification requests" : "No users found"}</div>
+        </div>
       ) : (
         <div className="table-wrap">
           <table className="table">
             <thead>
               {tab === "verification" ? (
-                <tr><th>User</th><th>Society / Flat</th><th>Submitted</th><th>Proof Document</th><th>Actions</th></tr>
+                <tr><th>User</th><th>Society / Flat</th><th>Submitted</th><th>Method</th><th>Proof Document</th><th>Actions</th></tr>
               ) : (
                 <tr><th>User</th><th>Email</th><th>Locality</th><th>Role</th><th>Pro</th><th>Resident</th><th>Status</th><th>Actions</th></tr>
               )}
@@ -297,7 +400,12 @@ export default function AdminUsers() {
                             {u.tower ? `Tower ${u.tower}` : ""} {u.flatNumber ? `Flat ${u.flatNumber}` : ""}
                           </div>
                         </td>
-                        <td>{formatTs(u.updatedAt)}</td>
+                        <td>{formatTs((u.verificationSubmittedAt as unknown) || (u.updatedAt as unknown) || (u.createdAt as unknown))}</td>
+                        <td>
+                          <span className="badge badge-muted" style={{ fontSize: 10 }}>
+                            {((u.verificationMethod as string) || "manual").toUpperCase()}
+                          </span>
+                        </td>
                         <td>
                           {u.residencyProofUrl ? (
                             <a 
@@ -496,6 +604,7 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
   const handleSubmit = async () => {
     if (!form.displayName.trim() || !form.email.trim() || !form.password) { setError("Name, email, and password are required"); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters"); return; }
+    if (form.role !== "user") { setError("New users can only be created as role: user."); return; }
     setSaving(true);
     let secondaryApp;
     try {
@@ -549,6 +658,7 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
         <div className="form-group">
           <label className="form-label">Temporary Password *</label>
           <input className="form-input" placeholder="Min 6 chars" type="password" value={form.password} onChange={e => set("password", e.target.value)} />
+          <span className="form-hint">User should change this password after first login.</span>
         </div>
         <div className="form-group">
           <label className="form-label">Society</label>
@@ -557,8 +667,9 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
         <div className="form-group">
           <label className="form-label">Role</label>
           <select className="form-input" value={form.role} onChange={e => set("role", e.target.value)}>
-            <option value="user">User</option><option value="admin">Admin</option>
+            <option value="user">User</option>
           </select>
+          <span className="form-hint">Admin elevation must be done separately via protected role-change flow.</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <input type="checkbox" id="ispro" checked={form.isServiceProvider} onChange={e => set("isServiceProvider", e.target.checked)} style={{ width: 16, height: 16 }} />

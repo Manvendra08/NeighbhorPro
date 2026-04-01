@@ -12,6 +12,7 @@
  */
 
 import * as functions from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import Razorpay from "razorpay";
@@ -285,5 +286,67 @@ export const logActivityFunction = functions.onCall(
     });
 
     return { success: true };
+  }
+);
+
+/* ═══════════════════════════════════════════════════════
+   5. flagSpamReviews — server-side automated review abuse signal
+═══════════════════════════════════════════════════════ */
+export const flagSpamReviews = onDocumentCreated(
+  {
+    document: "reviews/{reviewId}",
+    region: "asia-south1",
+  },
+  async (event) => {
+    const review = event.data?.data();
+    const proId = review?.proId;
+
+    if (typeof proId !== "string" || !proId) {
+      return;
+    }
+
+    const recentReviews = await db
+      .collection("reviews")
+      .where("proId", "==", proId)
+      .orderBy("createdAt", "desc")
+      .limit(3)
+      .get();
+
+    if (recentReviews.size < 3) {
+      return;
+    }
+
+    const allOneStar = recentReviews.docs.every(doc => {
+      const rating = Number(doc.data().rating ?? 0);
+      return rating <= 1;
+    });
+
+    if (!allOneStar) {
+      return;
+    }
+
+    const existingFlag = await db
+      .collection("reports")
+      .where("proId", "==", proId)
+      .where("reason", "==", "Automated Spam Flag")
+      .where("status", "==", "pending")
+      .limit(1)
+      .get();
+
+    if (!existingFlag.empty) {
+      return;
+    }
+
+    await db.collection("reports").add({
+      proId,
+      reason: "Automated Spam Flag",
+      comment: "3 consecutive 1-star reviews detected rapidly.",
+      reporterId: "system",
+      source: "review_spam_trigger",
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    logger.info("Automated spam review flag created", { proId });
   }
 );

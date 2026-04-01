@@ -120,14 +120,31 @@ export default function MyBookings() {
 
   const bookings = tab === "client" ? clientBookings : proBookings;
 
+  const parseBookingDate = (b: Record<string, unknown>) => {
+    const rawDate = (b.date as string) || "";
+    if (!rawDate) return null;
+    const parsed = new Date(`${rawDate}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const isPastBooking = (b: Record<string, unknown>) => {
+    const status = (b.status as string) || "";
+    if (["completed", "reviewed", "cancelled"].includes(status)) return true;
+    const bookingDate = parseBookingDate(b);
+    if (!bookingDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return bookingDate < today;
+  };
+
   const filtered = bookings.filter(b => {
     // search match
     const match = !searchQ || [b.serviceCategory, b.proName, b.clientName, b.serviceName]
       .some(val => (val as string)?.toLowerCase().includes(searchQ.toLowerCase()));
 
     // subtab match
-    const isPast = ["completed", "reviewed", "cancelled"].includes(b.status as string);
-    const isUpcoming = ["pending", "confirmed"].includes(b.status as string);
+    const isPast = isPastBooking(b);
+    const isUpcoming = !isPast;
     const subMatch = subTab === "upcoming" ? isUpcoming : isPast;
 
     return match && subMatch;
@@ -198,6 +215,8 @@ export default function MyBookings() {
                 const busy = actionLoading === id;
                 const status = b.status as string;
                 const escrowCoins = (b.escrowCoins as number) || 0;
+                const amountCoins = (b.amount as number) || 0;
+                const billedCoins = amountCoins > 0 ? amountCoins : escrowCoins;
                 const otherUid = tab === "client" ? (b.proId as string) : (b.clientId as string);
                 const loyaltyTier = (((b.loyaltyTier as string) || "none") as LoyaltyTier);
                 const streakCount = (b.streakCount as number) || 0;
@@ -218,9 +237,9 @@ export default function MyBookings() {
                         <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
                           <span className="text-sm">📅 {(b.date as string) || formatTimestamp(b.createdAt)}</span>
                           <span className="text-sm">🕐 {(b.timeSlot as string) || "TBD"}</span>
-                          {escrowCoins > 0 ? (
+                          {billedCoins > 0 ? (
                             <span className="text-sm">
-                              🔒 {escrowCoins} NC {status === "completed" || status === "reviewed" ? "released" : "in escrow"}
+                              🔒 {billedCoins} NC {status === "completed" || status === "reviewed" ? "released" : "in escrow"}
                             </span>
                           ) : (
                             <span className="text-sm" style={{ color: "var(--accent2)" }}>Free</span>

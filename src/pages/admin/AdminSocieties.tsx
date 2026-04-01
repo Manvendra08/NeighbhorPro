@@ -21,6 +21,10 @@ export default function AdminSocieties() {
   const [city, setCity] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<Record<string, unknown> | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [editSociety, setEditSociety] = useState<Record<string, unknown> | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editCity, setEditCity] = useState("");
   const [toast, setToast] = useState("");
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
@@ -47,6 +51,13 @@ export default function AdminSocieties() {
 
   const handleCreate = async () => {
     if (!name.trim()) return;
+    const normalized = name.trim().toLowerCase();
+    const duplicate = societies.some(s => ((s.name as string) || "").trim().toLowerCase() === normalized);
+    if (duplicate) {
+      showToast("A society with this name already exists");
+      return;
+    }
+
     try {
       const id = await createSociety({ name: name.trim(), address, city });
       await logAudit("society.create", adminId, adminName, `Created society: ${name.trim()}, ${city}`, id);
@@ -76,6 +87,40 @@ export default function AdminSocieties() {
       setDeleteConfirm(null);
       load();
     } catch { showToast("Delete failed"); }
+  };
+
+  const openEdit = (s: Record<string, unknown>) => {
+    setEditSociety(s);
+    setEditName((s.name as string) || "");
+    setEditAddress((s.address as string) || "");
+    setEditCity((s.city as string) || "");
+  };
+
+  const handleEditSave = async () => {
+    if (!editSociety?.id || !editName.trim()) return;
+    const normalized = editName.trim().toLowerCase();
+    const duplicate = societies.some(s =>
+      (s.id as string) !== (editSociety.id as string) &&
+      ((s.name as string) || "").trim().toLowerCase() === normalized
+    );
+    if (duplicate) {
+      showToast("Another society with this name already exists");
+      return;
+    }
+
+    try {
+      await updateSociety(editSociety.id as string, {
+        name: editName.trim(),
+        address: editAddress.trim(),
+        city: editCity.trim(),
+      });
+      await logAudit("society.update", adminId, adminName, `Updated society: ${editName.trim()}`, editSociety.id as string);
+      showToast(`"${editName.trim()}" updated`);
+      setEditSociety(null);
+      await load();
+    } catch {
+      showToast("Failed to update society");
+    }
   };
 
   const counts = {
@@ -185,6 +230,13 @@ export default function AdminSocieties() {
                       >
                         <button
                           className="btn btn-ghost btn-sm"
+                          style={{ width: "100%", justifyContent: "flex-start" }}
+                          onClick={() => { openEdit(s); setActiveMenu(null); }}
+                        >
+                          ✏ Edit
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
                           style={{ width: "100%", justifyContent: "flex-start", color: "var(--error)" }}
                           onClick={() => { setDeleteConfirm(s); setActiveMenu(null); }}
                         >
@@ -228,6 +280,33 @@ export default function AdminSocieties() {
             <div className="modal-actions">
               <button className="btn btn-secondary btn-sm" onClick={() => setDeleteConfirm(null)}>Cancel</button>
               <button className="btn btn-danger btn-sm" onClick={() => handleDelete(deleteConfirm)}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editSociety && (
+        <div className="modal-overlay" onClick={() => setEditSociety(null)}>
+          <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Edit Society</h3>
+              <button className="modal-close" onClick={() => setEditSociety(null)}>✕</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Society Name</label>
+              <input className="form-input" value={editName} onChange={e => setEditName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Address</label>
+              <input className="form-input" value={editAddress} onChange={e => setEditAddress(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">City</label>
+              <input className="form-input" value={editCity} onChange={e => setEditCity(e.target.value)} />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary btn-sm" onClick={() => setEditSociety(null)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={handleEditSave} disabled={!editName.trim()}>Save</button>
             </div>
           </div>
         </div>

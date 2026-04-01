@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { getAllServices, getAllUsers } from "../../services/firestoreService";
-import { doc, updateDoc } from "firebase/firestore";
+import { getAllServices, getAllUserRows } from "../../services/firestoreService";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
@@ -27,9 +27,9 @@ export default function AdminServices() {
   const load = async () => {
     setLoading(true);
     try { 
-      const [svcRes, userRes] = await Promise.all([getAllServices(), getAllUsers()]);
+      const [svcRes, userRows] = await Promise.all([getAllServices(), getAllUserRows()]);
       setServices(svcRes.data);
-      setUsers(userRes.data);
+      setUsers(userRows);
     } catch { /* ignore */ }
     setLoading(false);
   };
@@ -39,10 +39,30 @@ export default function AdminServices() {
   const setStatus = async (s: ServiceRow, status: string) => {
     const id = s.id as string;
     const prevStatus = (s.status as string) || "pending";
-    await updateDoc(doc(db, "services", id), { status });
+    const title = (s.title as string) || id;
+
+    let moderationReason: string | null = null;
+    if (status === "rejected") {
+      const reason = window.prompt(`Provide rejection reason for "${title}" (required):`);
+      if (!reason || !reason.trim()) {
+        showToast("Rejection requires a reason");
+        return;
+      }
+      moderationReason = reason.trim();
+    }
+
+    const ok = window.confirm(`Change service "${title}" status from ${prevStatus} to ${status}?`);
+    if (!ok) return;
+
+    await updateDoc(doc(db, "services", id), {
+      status,
+      moderationReason,
+      moderatedBy: adminId,
+      moderatedAt: serverTimestamp(),
+    });
     await logAudit(
       `service.${status}`, adminId, adminName,
-      `Changed service "${s.title as string || id}" status: ${prevStatus} → ${status}`,
+      `Changed service "${title}" status: ${prevStatus} → ${status}${moderationReason ? ` | Reason: ${moderationReason}` : ""}`,
       id
     );
     showToast(`Service ${status}`);
@@ -51,8 +71,32 @@ export default function AdminServices() {
 
   const bulkStatus = async (status: string) => {
     if (selectedIds.length === 0) return;
-    await Promise.all(selectedIds.map(id => updateDoc(doc(db, "services", id), { status })));
-    await logAudit(`service.bulk_${status}`, adminId, adminName, `Bulk ${status} for ${selectedIds.length} services`, selectedIds.join(", "));
+    let moderationReason: string | null = null;
+    if (status === "rejected") {
+      const reason = window.prompt(`Provide rejection reason for ${selectedIds.length} selected services (required):`);
+      if (!reason || !reason.trim()) {
+        showToast("Bulk rejection requires a reason");
+        return;
+      }
+      moderationReason = reason.trim();
+    }
+
+    const ok = window.confirm(`Apply bulk status "${status}" to ${selectedIds.length} services?`);
+    if (!ok) return;
+
+    await Promise.all(selectedIds.map(id => updateDoc(doc(db, "services", id), {
+      status,
+      moderationReason,
+      moderatedBy: adminId,
+      moderatedAt: serverTimestamp(),
+    })));
+    await logAudit(
+      `service.bulk_${status}`,
+      adminId,
+      adminName,
+      `Bulk ${status} for ${selectedIds.length} services${moderationReason ? ` | Reason: ${moderationReason}` : ""}`,
+      selectedIds.join(", ")
+    );
     showToast(`Bulk updated to ${status}`);
     setSelectedIds([]);
     load();

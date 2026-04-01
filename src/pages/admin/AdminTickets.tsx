@@ -2,9 +2,10 @@ import { useEffect, useState, useRef } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   getAllTickets, sendTicketMessage, subscribeTicketMessages, updateTicketStatus,
+  assignTicketToAdmin, clearTicketAssignment,
   type SupportTicket, type TicketMessage, type TicketStatus,
 } from "../../services/supportService";
-import { formatTimestamp, formatTimestampTime } from "../../services/firestoreService";
+import { formatTimestamp, formatTimestampTime, getAllUserRows } from "../../services/firestoreService";
 import { logAudit } from "./AdminAuditLog";
 
 const STATUS_BADGE: Record<TicketStatus, string> = {
@@ -16,19 +17,46 @@ export default function AdminTickets() {
   const adminId   = userProfile?.uid || "admin";
   const adminName = userProfile?.displayName || "Admin";
 
+  type AdminAssignee = { uid: string; displayName: string; email?: string };
+
   const [tickets, setTickets]     = useState<SupportTicket[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminAssignee[]>([]);
   const [loading, setLoading]     = useState(true);
   const [selected, setSelected]   = useState<SupportTicket | null>(null);
   const [messages, setMessages]   = useState<TicketMessage[]>([]);
   const [reply, setReply]         = useState("");
   const [sending, setSending]     = useState(false);
   const [filter, setFilter]       = useState<TicketStatus | "all">("open");
+  const [assigneeScope, setAssigneeScope] = useState<"all" | "mine" | "unassigned">("all");
   const endRef                    = useRef<HTMLDivElement>(null);
   const unsubRef                  = useRef<(() => void) | null>(null);
 
   const load = async () => {
-    const data = await getAllTickets();
+    setLoading(true);
+    const [data, userRows] = await Promise.all([getAllTickets(), getAllUserRows(300)]);
+    const admins = userRows
+      .filter((u) => u.role === "admin" && !u.disabled)
+      .map((u) => ({
+        uid: (u.uid as string) || "",
+        displayName: ((u.displayName as string) || (u.email as string) || "Admin").trim(),
+        email: (u.email as string) || "",
+      }))
+      .filter((u) => !!u.uid);
+
+    const currentAdminPresent = admins.some((u) => u.uid === adminId);
+    const nextAdmins = currentAdminPresent
+      ? admins
+      : [{ uid: adminId, displayName: adminName, email: (userProfile?.email as string) || "" }, ...admins];
+
+    setAdminUsers(nextAdmins);
     setTickets(data);
+
+    if (selected?.id) {
+      const refreshed = data.find((t) => t.id === selected.id);
+      if (refreshed) {
+        setSelected(refreshed);
+      }
+    }
     setLoading(false);
   };
 
@@ -49,6 +77,16 @@ export default function AdminTickets() {
     setSending(true);
     await sendTicketMessage(selected.id, { text: reply.trim(), senderRole: "admin", senderName: adminName });
     await logAudit("ticket.reply", adminId, adminName, `Replied to ticket: ${selected.subject}`, selected.id);
+
+    if (!selected.assignedAdminId) {
+      await assignTicketToAdmin(selected.id, adminId, adminName);
+      await logAudit("ticket.assign", adminId, adminName, `Assigned ticket ${selected.id.slice(0, 8)} to ${adminName}`, selected.id);
+      setSelected(prev => prev ? {
+        ...prev,
+        assignedAdminId: adminId,
+        assignedAdminName: adminName,
+      } : null);
+    }
     
     if (selected.status === "open") {
       await updateTicketStatus(selected.id, "in_progress", adminId);
@@ -61,22 +99,76 @@ export default function AdminTickets() {
     setSending(false);
   };
 
+  const handleAssign = async (assigneeUid: string) => {
+    if (!selected?.id) return;
+    if (assigneeUid === ((selected.assignedAdminId as string) || "")) return;
+
+    if (!assigneeUid) {
+      await clearTicketAssignment(selected.id);
+      await logAudit("ticket.unassign", adminId, adminName, `Unassigned ticket ${selected.id.slice(0, 8)}`, selected.id);
+      setSelected(prev => prev ? {
+        ...prev,
+        assignedAdminId: undefined,
+        assignedAdminName: undefined,
+        assignedAt: undefined,
+      } : null);
+      await load();
+      return;
+    }
+
+    const assignee = adminUsers.find(u => u.uid === assigneeUid);
+    if (!assignee) return;
+
+    await assignTicketToAdmin(selected.id, assignee.uid, assignee.displayName);
+    await logAudit("ticket.assign", adminId, adminName, `Assigned ticket ${selected.id.slice(0, 8)} to ${assignee.displayName}`, selected.id);
+    setSelected(prev => prev ? {
+      ...prev,
+      assignedAdminId: assignee.uid,
+      assignedAdminName: assignee.displayName,
+    } : null);
+    await load();
+  };
+
   const handleStatus = async (status: TicketStatus) => {
     if (!selected?.id) return;
+    let adminNote = "";
+    if (status === "resolved" || status === "closed") {
+      const note = window.prompt(`Add resolution note before marking as ${status} (required):`);
+      if (!note || !note.trim()) return;
+      adminNote = note.trim();
+    }
+
+    const ok = window.confirm(`Change ticket status to ${status.replace("_", " ")}?`);
+    if (!ok) return;
+
     await updateTicketStatus(selected.id, status, adminId);
     
     // Auto-send a system message so the client is notified in their thread
-    const statusMsg = `[SYSTEM] Ticket status has been set to: ${status.replace("_", " ").toUpperCase()}`;
+    const statusMsg = `[SYSTEM] Ticket status has been set to: ${status.replace("_", " ").toUpperCase()}${adminNote ? ` | Note: ${adminNote}` : ""}`;
     await sendTicketMessage(selected.id, { text: statusMsg, senderRole: "admin", senderName: "System" });
     
-    await logAudit("ticket.status", adminId, adminName, `Ticket ${selected.id.slice(0,8)} → ${status}`, selected.id);
+    await logAudit("ticket.status", adminId, adminName, `Ticket ${selected.id.slice(0,8)} → ${status}${adminNote ? ` | Note: ${adminNote}` : ""}`, selected.id);
     setSelected(prev => prev ? { ...prev, status } : null);
     load();
   };
 
-  const visible = filter === "all" ? tickets : tickets.filter(t => t.status === filter);
+  const visible = tickets.filter(t => {
+    const matchStatus = filter === "all" ? true : t.status === filter;
+    const matchAssignee =
+      assigneeScope === "all"
+        ? true
+        : assigneeScope === "mine"
+          ? (t.assignedAdminId as string) === adminId
+          : !(t.assignedAdminId as string);
+    return matchStatus && matchAssignee;
+  });
   const counts: Record<string, number> = { all: tickets.length };
   (["open","in_progress","resolved","closed"] as TicketStatus[]).forEach(s => { counts[s] = tickets.filter(t => t.status === s).length; });
+  const assigneeCounts = {
+    all: tickets.length,
+    mine: tickets.filter(t => (t.assignedAdminId as string) === adminId).length,
+    unassigned: tickets.filter(t => !(t.assignedAdminId as string)).length,
+  };
 
   return (
     <div>
@@ -92,6 +184,23 @@ export default function AdminTickets() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {([
+          { key: "all", label: "All Tickets" },
+          { key: "mine", label: "Assigned to Me" },
+          { key: "unassigned", label: "Unassigned" },
+        ] as const).map(scope => (
+          <button
+            key={scope.key}
+            className={`chip${assigneeScope === scope.key ? " active" : ""}`}
+            style={{ fontSize: 11 }}
+            onClick={() => setAssigneeScope(scope.key)}
+          >
+            {scope.label} ({assigneeCounts[scope.key]})
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -115,7 +224,10 @@ export default function AdminTickets() {
                     <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>#{t.ticketNumber || t.id?.slice(0, 8)}</span>
                     <span style={{ fontSize: 11, color: "var(--muted)" }}>{formatTimestamp(t.createdAt)}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>📂 {t.category}{t.bookingId ? ` · Booking ${t.bookingId.slice(0,8)}…` : ""}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                    📂 {t.category}{t.bookingId ? ` · Booking ${t.bookingId.slice(0,8)}…` : ""}
+                    {t.assignedAdminName ? ` · Assignee: ${t.assignedAdminName as string}` : " · Unassigned"}
+                  </div>
                 </div>
               ))}
             </div>
@@ -129,8 +241,27 @@ export default function AdminTickets() {
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{selected.subject}</div>
                   <div style={{ fontSize: 12, color: "var(--muted)" }}>{selected.displayName} · {selected.email}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                    Assignee: {(selected.assignedAdminName as string) || "Unassigned"}
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <select
+                    className="form-input"
+                    style={{ minWidth: 180, padding: "6px 10px", fontSize: 12 }}
+                    value={(selected.assignedAdminId as string) || ""}
+                    onChange={(e) => { void handleAssign(e.target.value); }}
+                  >
+                    <option value="">Unassigned</option>
+                    {adminUsers.map(a => (
+                      <option key={a.uid} value={a.uid}>{a.displayName}</option>
+                    ))}
+                  </select>
+                  {((selected.assignedAdminId as string) || "") !== adminId && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => { void handleAssign(adminId); }} style={{ fontSize: 11 }}>
+                      Assign to Me
+                    </button>
+                  )}
                   {(["open","in_progress","resolved","closed"] as TicketStatus[]).filter(s => s !== selected.status).map(s => (
                     <button key={s} className="btn btn-secondary btn-sm" onClick={() => handleStatus(s)} style={{ fontSize: 11 }}>→ {s.replace("_"," ")}</button>
                   ))}

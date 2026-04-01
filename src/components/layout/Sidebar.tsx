@@ -109,6 +109,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
                         <div className="sidebar-section">
                             <Label>Operations</Label>
+                            <SLink to="/admin/bookings" icon="bookings" label="Bookings" />
                             <SLink to="/admin/broadcast" icon="broadcast" label="Broadcast" />
                             <SLink to="/admin/tickets" icon="tickets" label="Tickets" />
                         </div>

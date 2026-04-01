@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import type { LoyaltyTier } from "../types";
 import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview } from "../services/firestoreService";
-import { releaseEscrow, refundEscrow, earnCoins, rewardReferral } from "../services/coinService";
+import { releaseEscrow, earnCoins, rewardReferral, cancelBookingAndRefund } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 import LoyaltyStreakWidget from "../components/LoyaltyStreakWidget";
 import { buildRecurringRebookQuery, getLoyaltyTierLabel, processCompletedBookingLoyalty } from "../services/loyaltyService";
@@ -49,6 +49,10 @@ export default function BookingDetail() {
   const status = booking.status as string;
   const otherUid = isClient ? (booking.proId as string) : (booking.clientId as string);
   const escrowCoins = (booking.escrowCoins as number) || 0;
+  const amountCoins = (booking.amount as number) || 0;
+  const billedCoins = amountCoins > 0 ? amountCoins : escrowCoins;
+  const platformFee = (booking.platformFee as number) || 0;
+  const proEarning = (booking.proEarning as number) || 0;
   const streakCount = (booking.streakCount as number) || 0;
   const loyaltyTier = (((booking.loyaltyTier as string) || "none") as LoyaltyTier);
 
@@ -146,14 +150,23 @@ export default function BookingDetail() {
           <div>
             <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Price</div>
             <div style={{ fontWeight: 600 }}>
-              {(booking.isPaid as boolean) ? `${booking.amount as number} NC` : "Free"}
+              {billedCoins > 0 ? `${billedCoins} NC` : "Free"}
             </div>
           </div>
           <div>
             <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Payment Status</div>
             <div style={{ fontWeight: 600 }}>
-              {escrowCoins > 0 ? `Held in Escrow (${escrowCoins} NC)` : (booking.coinsPaid as boolean ? "Paid" : "Unpaid")}
+              {escrowCoins > 0
+                ? (status === "completed" || status === "reviewed"
+                  ? `Released (${escrowCoins} NC)`
+                  : `Held in Escrow (${escrowCoins} NC)`)
+                : (billedCoins > 0 ? "Paid" : "Unpaid")}
             </div>
+            {(status === "completed" || status === "reviewed") && platformFee > 0 && (
+              <div className="text-muted text-sm" style={{ marginTop: 6 }}>
+                Platform fee: {platformFee} NC · Pro payout: {proEarning} NC
+              </div>
+            )}
           </div>
         </div>
 

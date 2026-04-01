@@ -48,13 +48,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.razorpayWebhook = exports.createRazorpayOrder = void 0;
+exports.flagSpamReviews = exports.logActivityFunction = exports.generateCloudinarySignature = exports.razorpayWebhook = exports.createRazorpayOrder = void 0;
 const functions = __importStar(require("firebase-functions/v2/https"));
+const firestore_1 = require("firebase-functions/v2/firestore");
 const logger = __importStar(require("firebase-functions/logger"));
 const admin = __importStar(require("firebase-admin"));
 const razorpay_1 = __importDefault(require("razorpay"));
 const crypto = __importStar(require("crypto"));
-const firestore_1 = require("firebase-admin/firestore");
+const firestore_2 = require("firebase-admin/firestore");
 admin.initializeApp();
 const db = admin.firestore();
 /* ── Razorpay client (lazy-init so secrets are resolved at runtime) ── */
@@ -111,7 +112,7 @@ exports.createRazorpayOrder = functions.onCall({
         coinsGranted: pack.coins + pack.bonus,
         packLabel: pack.label,
         status: "pending",
-        createdAt: firestore_1.FieldValue.serverTimestamp(),
+        createdAt: firestore_2.FieldValue.serverTimestamp(),
     });
     return {
         orderId: order.id,
@@ -182,13 +183,13 @@ exports.razorpayWebhook = functions.onRequest({
         // Update user balance
         tx.update(userRef, {
             coinBalance: newBalance,
-            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedAt: firestore_2.FieldValue.serverTimestamp(),
         });
         // Mark purchase complete
         tx.update(purchaseRef, {
             status: "completed",
             paymentId,
-            completedAt: firestore_1.FieldValue.serverTimestamp(),
+            completedAt: firestore_2.FieldValue.serverTimestamp(),
         });
         // Append immutable ledger entry
         const ledgerRef = db
@@ -204,10 +205,123 @@ exports.razorpayWebhook = functions.onRequest({
             description: `${packLabel} Pack — ₹${amountPaid} → ${coinsGranted} NC`,
             refId: orderId,
             paymentId,
-            createdAt: firestore_1.FieldValue.serverTimestamp(),
+            createdAt: firestore_2.FieldValue.serverTimestamp(),
         });
     });
     logger.info("Coins credited", { uid, coinsGranted });
     res.status(200).send("OK");
+});
+/* ═══════════════════════════════════════════════════════
+   3. generateCloudinarySignature — Signed Uploads Validation
+═══════════════════════════════════════════════════════ */
+exports.generateCloudinarySignature = functions.onCall({
+    secrets: ["CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
+    region: "asia-south1",
+}, async (request) => {
+    if (!request.auth) {
+        throw new functions.HttpsError("unauthenticated", "Login required.");
+    }
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = "ProNeighbor/residency-proofs";
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    // Cloudinary signature does NOT include api_key or file in the string
+    // Format: folder=MyFolder&timestamp=12345678MySecret
+    const strToSign = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
+    const signature = crypto.createHash("sha1").update(strToSign).digest("hex");
+    return {
+        signature,
+        timestamp,
+        folder,
+        apiKey
+    };
+});
+/* ═══════════════════════════════════════════════════════
+   4. logActivityFunction — Rate-limited server-side logging
+═══════════════════════════════════════════════════════ */
+const activityRateLimitCache = new Map();
+exports.logActivityFunction = functions.onCall({
+    region: "asia-south1",
+}, async (request) => {
+    if (!request.auth) {
+        throw new functions.HttpsError("unauthenticated", "Login required.");
+    }
+    const { event, details, metadata } = request.data;
+    if (!event || !details) {
+        throw new functions.HttpsError("invalid-argument", "Missing required fields.");
+    }
+    const uid = request.auth.uid;
+    const now = Date.now();
+    const lastTime = activityRateLimitCache.get(uid);
+    // Enforce 2-second rate limit per instance to prevent spam
+    if (lastTime && now - lastTime < 2000) {
+        logger.warn("Activity log rate limited for user", { uid, event });
+        throw new functions.HttpsError("resource-exhausted", "Too many requests. Please wait.");
+    }
+    // Prune the map occasionally to prevent memory leaks in long-running instances
+    if (activityRateLimitCache.size > 1000) {
+        activityRateLimitCache.clear();
+    }
+    activityRateLimitCache.set(uid, now);
+    // Bypass client-side security rules by writing via Admin SDK
+    await db.collection("activityLogs").add({
+        userId: uid,
+        event,
+        details,
+        metadata: metadata || {},
+        timestamp: firestore_2.FieldValue.serverTimestamp(),
+    });
+    return { success: true };
+});
+/* ═══════════════════════════════════════════════════════
+   5. flagSpamReviews — server-side automated review abuse signal
+═══════════════════════════════════════════════════════ */
+exports.flagSpamReviews = (0, firestore_1.onDocumentCreated)({
+    document: "reviews/{reviewId}",
+    region: "asia-south1",
+}, async (event) => {
+    var _a;
+    const review = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
+    const proId = review === null || review === void 0 ? void 0 : review.proId;
+    if (typeof proId !== "string" || !proId) {
+        return;
+    }
+    const recentReviews = await db
+        .collection("reviews")
+        .where("proId", "==", proId)
+        .orderBy("createdAt", "desc")
+        .limit(3)
+        .get();
+    if (recentReviews.size < 3) {
+        return;
+    }
+    const allOneStar = recentReviews.docs.every(doc => {
+        var _a;
+        const rating = Number((_a = doc.data().rating) !== null && _a !== void 0 ? _a : 0);
+        return rating <= 1;
+    });
+    if (!allOneStar) {
+        return;
+    }
+    const existingFlag = await db
+        .collection("reports")
+        .where("proId", "==", proId)
+        .where("reason", "==", "Automated Spam Flag")
+        .where("status", "==", "pending")
+        .limit(1)
+        .get();
+    if (!existingFlag.empty) {
+        return;
+    }
+    await db.collection("reports").add({
+        proId,
+        reason: "Automated Spam Flag",
+        comment: "3 consecutive 1-star reviews detected rapidly.",
+        reporterId: "system",
+        source: "review_spam_trigger",
+        status: "pending",
+        createdAt: firestore_2.FieldValue.serverTimestamp(),
+    });
+    logger.info("Automated spam review flag created", { proId });
 });
 //# sourceMappingURL=index.js.map

@@ -47,10 +47,10 @@ export default function BrowsePros() {
       const { data, nextCursor } = await listProfessionals(reset ? null : cursorRef.current);
       cursorRef.current = nextCursor;
       setHasMore(nextCursor !== null);
-      const withSkills = data.filter(u =>
-        u.isServiceProvider && (u.skills as string[])?.length > 0 && u.uid !== user?.uid
+      const visiblePros = data.filter(u =>
+        u.isServiceProvider && u.uid !== user?.uid
       );
-      setAllPros(prev => reset ? withSkills : [...prev, ...withSkills]);
+      setAllPros(prev => reset ? visiblePros : [...prev, ...visiblePros]);
     } catch (err) { console.error("Browse load error:", err); }
     setLoading(false);
     setLoadingMore(false);
@@ -62,7 +62,8 @@ export default function BrowsePros() {
     let result = allPros;
     if (category !== "All") {
       result = result.filter(p =>
-        (p.skills as string[])?.some(s => s.toLowerCase().includes(category.toLowerCase()))
+        (Array.isArray(p.skills) && p.skills.some(s => typeof s === "string" && s.toLowerCase().includes(category.toLowerCase())))
+        || (((p.category as string) || "").toLowerCase().includes(category.toLowerCase()))
       );
     }
     if (localityFilter.trim()) {
@@ -80,7 +81,7 @@ export default function BrowsePros() {
         ((p.bio as string) || "").toLowerCase().includes(q) ||
         ((p.society as string) || "").toLowerCase().includes(q) ||
         ((p.locality as string) || "").toLowerCase().includes(q) ||
-        (p.skills as string[])?.some(s => s.toLowerCase().includes(q))
+        (Array.isArray(p.skills) && p.skills.some(s => typeof s === "string" && s.toLowerCase().includes(q)))
       );
     }
     setFiltered(sortProfessionalsByLoyalty(result));

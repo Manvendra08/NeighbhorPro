@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { updateUserProfile, createService, getServicesByUser, deleteService, uploadProfilePhoto, getAllSocieties, uploadResidencyProof } from "../services/firestoreService";
+import { updateUserProfile, createService, getServicesByUser, deleteService, updateService, uploadProfilePhoto, getAllSocieties, uploadResidencyProof } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
 
 // ── White-collar skills for gated-society professionals — Park Street, Wakad, Pune
@@ -127,6 +127,7 @@ export default function Profile() {
   // Services
   const [services, setServices] = useState<Record<string, unknown>[]>([]);
   const [showServiceForm, setShowServiceForm] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [svcTitle, setSvcTitle] = useState("");
   const [svcDesc, setSvcDesc] = useState("");
   const [svcIsFree, setSvcIsFree] = useState(false);
@@ -186,8 +187,12 @@ export default function Profile() {
     if (!displayName.trim()) {
       nextErrors.displayName = "Display name is required.";
     }
-    if (!bio.trim()) {
+    const cleanedBio = bio.trim();
+    const looksPlaceholder = /^(x|xy|xyz|test|bio|na|n\/a|none|hello)$/i.test(cleanedBio);
+    if (!cleanedBio) {
       nextErrors.bio = "Bio is required.";
+    } else if (cleanedBio.length < 20 || looksPlaceholder) {
+      nextErrors.bio = "Write a meaningful bio (minimum 20 characters, no placeholders).";
     }
     if (!society.trim()) {
       nextErrors.society = "Society is required.";
@@ -229,7 +234,7 @@ export default function Profile() {
     setSkills(skills.filter((s) => s !== skill));
   };
 
-  const handleAddService = async () => {
+  const handleServiceSave = async () => {
     if (!user || !svcTitle.trim()) return;
     const payload = {
       userId: user.uid,
@@ -241,7 +246,11 @@ export default function Profile() {
       duration: svcDuration,
       category: svcCategory,
     };
-    await createService(payload);
+    if (editingServiceId) {
+      await updateService(editingServiceId, payload);
+    } else {
+      await createService(payload);
+    }
     const updated = await getServicesByUser(user.uid);
     setServices(updated);
     setSvcTitle("");
@@ -251,7 +260,22 @@ export default function Profile() {
     setSvcQuote(false);
     setSvcDuration("30 min");
     setSvcCategory("");
+    setEditingServiceId(null);
     setShowServiceForm(false);
+  };
+
+  const startEditService = (svc: Record<string, unknown>) => {
+    setEditingServiceId(svc.id as string);
+    setSvcTitle((svc.title as string) || "");
+    setSvcDesc((svc.description as string) || "");
+    const quote = !!svc.quoteBased;
+    const free = !!svc.isFree || ((svc.price as number) || 0) === 0;
+    setSvcQuote(quote);
+    setSvcIsFree(!quote && free);
+    setSvcPrice(String((svc.price as number) || 0));
+    setSvcDuration((svc.duration as string) || "30 min");
+    setSvcCategory((svc.category as string) || "");
+    setShowServiceForm(true);
   };
 
   const handleDeleteService = async (id: string) => {
@@ -568,7 +592,14 @@ export default function Profile() {
         <div className="card" style={{ marginBottom: 24 }}>
           <div className="card-header">
             <h3 className="card-title">My Services</h3>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowServiceForm(!showServiceForm)}>
+            <button className="btn btn-primary btn-sm" onClick={() => {
+              if (showServiceForm) {
+                setShowServiceForm(false);
+                setEditingServiceId(null);
+              } else {
+                setShowServiceForm(true);
+              }
+            }}>
               {showServiceForm ? "Cancel" : "+ Add Service"}
             </button>
           </div>
@@ -614,8 +645,8 @@ export default function Profile() {
                   </select>
                 </div>
               </div>
-              <button className="btn btn-success" onClick={handleAddService} disabled={!svcTitle.trim()}>
-                Save Service
+              <button className="btn btn-success" onClick={handleServiceSave} disabled={!svcTitle.trim()}>
+                {editingServiceId ? "Update Service" : "Save Service"}
               </button>
             </div>
           )}
@@ -643,13 +674,16 @@ export default function Profile() {
                       {svc.category ? <span style={{ marginLeft: 8 }} className="badge badge-muted">{svc.category as string}</span> : null}
                     </div>
                   </div>
-                  <button
-                    className="btn btn-danger btn-sm btn-icon"
-                    onClick={() => handleDeleteService(svc.id as string)}
-                    title="Delete"
-                  >
-                    🗑
-                  </button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => startEditService(svc)} title="Edit">Edit</button>
+                    <button
+                      className="btn btn-danger btn-sm btn-icon"
+                      onClick={() => handleDeleteService(svc.id as string)}
+                      title="Delete"
+                    >
+                      🗑
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

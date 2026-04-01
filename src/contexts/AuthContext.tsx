@@ -73,8 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => {
+      // Keep protected routes in loading state while auth transitions settle.
+      setLoading(true);
       setUser(u);
-      if (!u) { setUserProfile(null); setLoading(false); }
+      if (!u) {
+        setUserProfile(null);
+        setLoading(false);
+      }
     });
     return unsub;
   }, []);
@@ -93,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileBonusClaimedRef.current = false;
       return;
     }
+    setLoading(true);
     const unsub = onSnapshot(doc(db, "users", user.uid), snap => {
       if (snap.exists()) {
         const data = normalizeProfileData({ uid: snap.id, ...snap.data() }) as unknown as UserProfile;
@@ -103,6 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             profileBonusClaimedRef.current = false;
           });
         }
+      } else {
+        setUserProfile(null);
       }
       setLoading(false);
     }, () => setLoading(false));

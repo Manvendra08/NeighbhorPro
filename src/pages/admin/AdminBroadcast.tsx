@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
-import { getAllUsers, getAllSocieties } from "../../services/firestoreService";
+import { getAllUserRows, getAllSocieties } from "../../services/firestoreService";
 import { logAudit } from "./AdminAuditLog";
 
 type Announcement = Record<string, unknown>;
@@ -20,6 +20,7 @@ export default function AdminBroadcast() {
   const [userCount, setUserCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [toast, setToast] = useState("");
 
   const [form, setForm] = useState({
@@ -32,11 +33,11 @@ export default function AdminBroadcast() {
 
   const load = async () => {
     try {
-      const [userRes, socRes, snap] = await Promise.all([
-        getAllUsers(), getAllSocieties(),
+      const [users, socRes, snap] = await Promise.all([
+        getAllUserRows(), getAllSocieties(),
         getDocs(query(collection(db, "announcements"), orderBy("createdAt", "desc"))),
       ]);
-      setUserCount(userRes.data.length);
+      setUserCount(users.length);
       setSocieties(socRes.data);
       setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch { /* ignore */ }
@@ -44,6 +45,9 @@ export default function AdminBroadcast() {
   };
 
   const handleDeactivate = async (id: string) => {
+    const ok = window.confirm("Stop this broadcast? It will no longer be shown to users.");
+    if (!ok) return;
+
     try {
       await updateDoc(doc(db, "announcements", id), { status: "inactive" });
       await logAudit("broadcast.deactivate", adminId, adminName, `Deactivated broadcast ${id}`, id);
@@ -64,8 +68,18 @@ export default function AdminBroadcast() {
     return "—";
   };
 
+  const selectedSocietyName =
+    form.target === "Society-Specific"
+      ? ((societies.find(s => s.id === form.targetSociety)?.name as string) || "Selected society")
+      : "";
+
+  const canSubmit =
+    !!form.title.trim() &&
+    !!form.body.trim() &&
+    (form.target !== "Society-Specific" || !!form.targetSociety);
+
   const handleSend = async () => {
-    if (!form.title.trim() || !form.body.trim()) return;
+    if (!canSubmit) return;
     setSending(true);
     try {
       const ref = await addDoc(collection(db, "announcements"), {
@@ -79,6 +93,7 @@ export default function AdminBroadcast() {
         ref.id
       );
       setForm({ title: "", body: "", type: "Announcement", target: "All Users", targetSociety: "", priority: "normal" });
+      setShowPreviewModal(false);
       showToast("✓ Broadcast sent successfully");
       load();
     } catch { showToast("Failed to send"); }
@@ -165,9 +180,14 @@ export default function AdminBroadcast() {
                   <div style={{ fontSize: 13, color: "var(--muted)" }}>{form.body || "Message body…"}</div>
                   <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                     <span className={`badge ${typeColors[form.type] || "badge-muted"}`} style={{ fontSize: 10 }}>{form.type}</span>
-                    <span style={{ fontSize: 11, color: "var(--muted)" }}>→ {form.target} {priorityIcon(form.priority)}</span>
+                    <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                      → {form.target === "Society-Specific" && selectedSocietyName ? `${selectedSocietyName}` : form.target} {priorityIcon(form.priority)}
+                    </span>
                   </div>
                 </div>
+              </div>
+              <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>
+                Sending is blocked until you confirm in the preview modal.
               </div>
             </div>
           )}
@@ -176,8 +196,8 @@ export default function AdminBroadcast() {
             <span style={{ fontSize: 13, color: "var(--muted)" }}>
               Estimated reach: <strong style={{ color: "var(--accent)" }}>{estimateReach()}</strong>
             </span>
-            <button className="btn btn-primary" onClick={handleSend} disabled={sending || !form.title.trim() || !form.body.trim()}>
-              {sending ? "Sending…" : "📡 Send Broadcast"}
+            <button className="btn btn-primary" onClick={() => setShowPreviewModal(true)} disabled={sending || !canSubmit}>
+              Preview & Send
             </button>
           </div>
         </div>
@@ -222,6 +242,56 @@ export default function AdminBroadcast() {
           )}
         </div>
       </div>
+
+      {showPreviewModal && (
+        <div className="modal-overlay" onClick={() => setShowPreviewModal(false)}>
+          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Broadcast Preview</h3>
+              <button className="modal-close" onClick={() => setShowPreviewModal(false)}>✕</button>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+                  User-Facing Preview
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ fontSize: 22 }}>📣</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{form.title || "Title"}</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)" }}>{form.body || "Message body…"}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 13, color: "var(--muted)", display: "grid", gap: 6 }}>
+                <div>Type: <strong style={{ color: "var(--text)" }}>{form.type}</strong></div>
+                <div>
+                  Target: <strong style={{ color: "var(--text)" }}>
+                    {form.target === "Society-Specific" && selectedSocietyName ? selectedSocietyName : form.target}
+                  </strong>
+                </div>
+                <div>Priority: <strong style={{ color: "var(--text)" }}>{priorityIcon(form.priority)} {form.priority}</strong></div>
+                <div>Estimated reach: <strong style={{ color: "var(--text)" }}>{estimateReach()}</strong></div>
+              </div>
+
+              {form.priority === "urgent" && (
+                <div className="badge badge-warning" style={{ display: "inline-flex", fontSize: 11 }}>
+                  Urgent notifications should be used only for time-sensitive incidents.
+                </div>
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowPreviewModal(false)} disabled={sending}>Back to Edit</button>
+              <button className="btn btn-primary btn-sm" onClick={handleSend} disabled={sending || !canSubmit}>
+                {sending ? "Sending..." : "Confirm & Send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

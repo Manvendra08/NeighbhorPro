@@ -34,6 +34,13 @@ export default function AdminReviews() {
 
   const handleFlag = async (r: Review) => {
     const nowFlagged = !r.flagged;
+    const ok = window.confirm(
+      nowFlagged
+        ? "Flag this review? It will be queued for moderation review."
+        : "Remove moderation flag from this review?"
+    );
+    if (!ok) return;
+
     await updateDoc(doc(db, "reviews", r.id as string), { flagged: nowFlagged });
     await logAudit(
       nowFlagged ? "review.flag" : "review.unflag", adminId, adminName,

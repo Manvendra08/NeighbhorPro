@@ -99,7 +99,24 @@ export default function AdminSettings() {
       <button 
         onClick={() => {
           if (k === "maintenanceMode") setShowMaintModal(true);
-          else set(k, !settings[k] as Settings[typeof k]);
+          else {
+            const highImpactFlags: (keyof Settings)[] = [
+              "allowNewRegistrations",
+              "allowBrowse",
+              "allowBookings",
+              "featureMessaging",
+              "featureReviews",
+              "featurePremiumSocieties",
+            ];
+            if (highImpactFlags.includes(k)) {
+              const nextValue = !settings[k];
+              const ok = window.confirm(
+                `${label}: ${nextValue ? "Enable" : "Disable"}? This change is staged until you click Save Changes.`
+              );
+              if (!ok) return;
+            }
+            set(k, !settings[k] as Settings[typeof k]);
+          }
         }}
         style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: settings[k] ? "var(--accent)" : "rgba(136,146,164,0.3)", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
         <span style={{ position: "absolute", top: 3, left: settings[k] ? 23 : 3, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left 0.2s", display: "block" }} />
@@ -156,6 +173,11 @@ export default function AdminSettings() {
                 <span style={{ fontWeight: 700, fontSize: 20, color: "var(--accent)", minWidth: 40, textAlign: "right" }}>{settings.commissionRate}%</span>
               </div>
               <span className="form-hint">Current: {settings.commissionRate}% of every completed booking</span>
+              {settings.commissionRate !== prevSettings.commissionRate && (
+                <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>
+                  Changing commission affects future booking settlement calculations. Review legal and policy implications before saving.
+                </div>
+              )}
             </div>
 
             <div className="grid grid-2" style={{ gap: 16 }}>
@@ -187,6 +209,9 @@ export default function AdminSettings() {
         <div>
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 8 }}>🚩 Feature Flags</h3>
+            <p className="text-muted text-sm" style={{ marginBottom: 10 }}>
+              Changes below are staged locally and apply only after clicking Save Changes.
+            </p>
             <Toggle label="New Registrations" desc="Allow new users to sign up" k="allowNewRegistrations" />
             <Toggle label="Browse Professionals" desc="Users can browse service pros" k="allowBrowse" />
             <Toggle label="Bookings" desc="Users can create new bookings" k="allowBookings" />

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { logActivity } from "../services/activityService";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
@@ -9,17 +9,19 @@ import {
   sendMessage,
   uploadAttachment,
   getPublicProfile,
-  formatTimestampTime,
+  getLatestBookingBetweenUsers,
   markConversationRead,
-  getAllUsers,
+  getAllUserRows,
   getOrCreateConversation,
 } from "../services/firestoreService";
 import { Timestamp } from "firebase/firestore";
 import { relativeTime } from "../utils/time";
+import { createTicket } from "../services/supportService";
 
 
 export default function Messages() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState<Record<string, unknown>[]>([]);
   const [activeConv, setActiveConv] = useState<string | null>(null);
@@ -40,6 +42,13 @@ export default function Messages() {
   const [userSearch, setUserSearch] = useState("");
   const [allUsers, setAllUsers] = useState<Record<string, unknown>[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
+  const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null);
+  const [reportingConversation, setReportingConversation] = useState(false);
+
+  const getOtherUserId = useCallback((conv: Record<string, unknown>) => {
+    const participants = conv.participants as string[];
+    return participants.find((p) => p !== user?.uid) || "";
+  }, [user]);
 
   // Subscribe to conversations
   useEffect(() => {
@@ -70,6 +79,17 @@ export default function Messages() {
           getPublicProfile(otherId).then((profile) => {
             if (profile) {
               setOtherUsers((prev) => ({ ...prev, [otherId]: profile }));
+            } else {
+              const fallbackName = (c.participantNames as Record<string, string> | undefined)?.[otherId] || "User";
+              const fallbackPhoto = (c.participantPhotos as Record<string, string> | undefined)?.[otherId] || "";
+              setOtherUsers((prev) => ({
+                ...prev,
+                [otherId]: {
+                  uid: otherId,
+                  displayName: fallbackName,
+                  photoURL: fallbackPhoto,
+                },
+              }));
             }
           });
         }
@@ -96,6 +116,61 @@ export default function Messages() {
     setUnreadCounts(prev => ({ ...prev, [activeConv]: 0 }));
     return unsub;
   }, [activeConv, user]);
+
+  useEffect(() => {
+    if (!activeConv || !user) {
+      setLinkedBookingId(null);
+      return;
+    }
+    const conv = conversations.find(c => (c.id as string) === activeConv);
+    if (!conv) {
+      setLinkedBookingId(null);
+      return;
+    }
+    const otherId = getOtherUserId(conv);
+    if (!otherId) {
+      setLinkedBookingId(null);
+      return;
+    }
+    getLatestBookingBetweenUsers(user.uid, otherId)
+      .then(booking => setLinkedBookingId((booking?.id as string) || null))
+      .catch(() => setLinkedBookingId(null));
+  }, [activeConv, conversations, user, getOtherUserId]);
+
+  const handleReportConversation = async () => {
+    if (!user || !activeConv || reportingConversation) return;
+    const proceed = window.confirm("Report this conversation for review by support?");
+    if (!proceed) return;
+
+    setReportingConversation(true);
+    try {
+      const displayName = (userProfile?.displayName as string) || user.displayName || "User";
+      const email = (userProfile?.email as string) || user.email || "";
+      await createTicket({
+        uid: user.uid,
+        displayName,
+        email,
+        subject: `Chat report: ${activeConv}`,
+        category: "dispute",
+        bookingId: linkedBookingId || undefined,
+      });
+      alert("Conversation reported. Support will review it shortly.");
+    } catch {
+      alert("Could not submit report. Please try again.");
+    } finally {
+      setReportingConversation(false);
+    }
+  };
+
+  const formatMessageTimestamp = (ts: unknown): string => {
+    if (!(ts instanceof Timestamp)) return "";
+    return ts.toDate().toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   const handleSend = async () => {
     if (!newMsg.trim() || !activeConv || !user) return;
@@ -134,11 +209,6 @@ export default function Messages() {
     }
   };
 
-  const getOtherUserId = useCallback((conv: Record<string, unknown>) => {
-    const participants = conv.participants as string[];
-    return participants.find((p) => p !== user?.uid) || "";
-  }, [user]);
-
   const filteredConvos = conversations.filter(conv => {
     if (!search) return true;
     const otherId = getOtherUserId(conv);
@@ -167,8 +237,8 @@ export default function Messages() {
   useEffect(() => {
     if (showNewChatModal && allUsers.length === 0) {
       setSearchingUsers(true);
-      getAllUsers().then(res => {
-        setAllUsers(res.data.filter(u => u.uid !== user?.uid));
+      getAllUserRows().then(rows => {
+        setAllUsers(rows.filter(u => u.uid !== user?.uid));
         setSearchingUsers(false);
       });
     }
@@ -224,7 +294,11 @@ export default function Messages() {
             filteredConvos.map((conv) => {
               const otherId = getOtherUserId(conv);
               const other = otherUsers[otherId];
-              const initials = ((other?.displayName as string) || "?")
+              const fallbackName = ((conv.participantNames as Record<string, string> | undefined)?.[otherId] as string | undefined) || "User";
+              const fallbackPhoto = ((conv.participantPhotos as Record<string, string> | undefined)?.[otherId] as string | undefined) || "";
+              const displayName = (other?.displayName as string) || fallbackName;
+              const displayPhoto = (other?.photoURL as string) || fallbackPhoto;
+              const initials = (displayName || "?")
                 .split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
               const unread = unreadCounts[conv.id as string] || 0;
               const isActive = activeConv === conv.id;
@@ -237,7 +311,7 @@ export default function Messages() {
                   style={{ position: "relative" }}
                 >
                   <div className="avatar avatar-sm" style={{ position: "relative", flexShrink: 0 }}>
-                    {(other?.photoURL as string) ? <img src={other.photoURL as string} alt="" /> : initials}
+                    {displayPhoto ? <img src={displayPhoto} alt="" /> : initials}
                     {unread > 0 && (
                       <span style={{
                         position: "absolute", top: -3, right: -3,
@@ -251,7 +325,7 @@ export default function Messages() {
                   <div style={{ flex: 1, overflow: "hidden" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                       <span style={{ fontWeight: unread > 0 ? 700 : 600, fontSize: 14 }}>
-                        {(other?.displayName as string) || "User"}
+                        {displayName}
                       </span>
                       <span style={{ fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap", marginLeft: 6 }}>
                         {relativeTime(conv.lastMessageAt)}
@@ -285,6 +359,10 @@ export default function Messages() {
                 const conv = conversations.find((c) => c.id === activeConv);
                 const otherId = conv ? getOtherUserId(conv) : "";
                 const other = otherUsers[otherId];
+                const fallbackName = ((conv?.participantNames as Record<string, string> | undefined)?.[otherId] as string | undefined) || "User";
+                const fallbackPhoto = ((conv?.participantPhotos as Record<string, string> | undefined)?.[otherId] as string | undefined) || "";
+                const displayName = (other?.displayName as string) || fallbackName;
+                const displayPhoto = (other?.photoURL as string) || fallbackPhoto;
                 return (
                   <div style={{
                     display: "flex", alignItems: "center", gap: 12,
@@ -307,17 +385,36 @@ export default function Messages() {
                       ←
                     </button>
                     <div className="avatar avatar-sm">
-                      {(other?.photoURL as string) ? (
-                        <img src={other.photoURL as string} alt="" />
+                      {displayPhoto ? (
+                        <img src={displayPhoto} alt="" />
                       ) : (
-                        ((other?.displayName as string) || "?").slice(0, 2).toUpperCase()
+                        (displayName || "?").slice(0, 2).toUpperCase()
                       )}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600 }}>{(other?.displayName as string) || "User"}</div>
+                      <div style={{ fontWeight: 600 }}>{displayName}</div>
                       {(other?.isServiceProvider as boolean) && (
                         <div style={{ fontSize: 11, color: "var(--success)" }}>✓ Professional</div>
                       )}
+                    </div>
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                      {linkedBookingId && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => navigate(`/bookings/${linkedBookingId}`)}
+                          title="Open related booking"
+                        >
+                          View Booking
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={handleReportConversation}
+                        disabled={reportingConversation}
+                        title="Report conversation"
+                      >
+                        {reportingConversation ? "Reporting..." : "Report"}
+                      </button>
                     </div>
                   </div>
                 );
@@ -361,7 +458,7 @@ export default function Messages() {
                           {msg.text as string}
                         </div>
                         <div className="chat-bubble-time" style={{ textAlign: isMine ? "right" : "left" }}>
-                          {formatTimestampTime(msg.timestamp)}
+                          {formatMessageTimestamp(msg.timestamp)}
                           {isMine && <span style={{ marginLeft: 4, opacity: 0.5 }}>✓</span>}
                         </div>
                       </div>

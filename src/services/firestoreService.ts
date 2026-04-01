@@ -19,6 +19,7 @@ import {
   Unsubscribe,
   Timestamp,
   runTransaction,
+  getCountFromServer,
 } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { db, auth } from "../firebase";
@@ -224,6 +225,11 @@ export async function uploadResidencyProof(uid: string, file: File) {
   const update = {
     residencyProofUrl,
     residentVerificationStatus: "pending",
+    verificationMethod: null,
+    verificationReviewNote: null,
+    verificationReviewedBy: null,
+    verificationReviewedAt: null,
+    verificationSubmittedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
   await updateDoc(doc(db, "users", uid), update);
@@ -234,11 +240,16 @@ export async function uploadResidencyProof(uid: string, file: File) {
 export async function updateResidentVerification(
   uid: string,
   status: "none" | "pending" | "verified",
-  method: "manual" | "auto" | null
+  method: "manual" | "auto" | null,
+  reviewerUid?: string,
+  reviewNote?: string
 ) {
   const update = {
     residentVerificationStatus: status,
     verificationMethod: method,
+    verificationReviewedBy: reviewerUid || null,
+    verificationReviewNote: reviewNote || null,
+    verificationReviewedAt: status === "pending" ? null : serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
   await updateDoc(doc(db, "users", uid), update);
@@ -279,7 +290,7 @@ export async function listProfessionals(
 
   const q = query(collection(db, "publicProfiles"), ...constraints);
   const snap = await getDocs(q);
-  const data = snap.docs.map(d => ({ uid: d.id, ...d.data() } as Record<string, unknown>));
+  const data = snap.docs.map(d => normalizeProfileData({ uid: d.id, ...d.data() }));
   const nextCursor = snap.docs.length === BROWSE_PAGE_SIZE ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
 }
@@ -294,6 +305,12 @@ export async function getAllUsers(
   const data = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
+}
+
+// Use this in UI components that only need rows and not pagination metadata.
+export async function getAllUserRows(limit_ = 50): Promise<Record<string, unknown>[]> {
+  const res = await getAllUsers(limit_);
+  return Array.isArray(res.data) ? res.data : [];
 }
 
 /* ═══════════════════════════════════════════
@@ -319,6 +336,9 @@ export async function getAllServices(
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
 }
+export async function updateService(id: string, data: Record<string, unknown>) {
+  await updateDoc(doc(db, "services", id), { ...data, updatedAt: serverTimestamp() });
+}
 export async function deleteService(id: string) { await deleteDoc(doc(db, "services", id)); }
 
 /* ═══════════════════════════════════════════
@@ -337,9 +357,23 @@ export async function getBookingsForUser(uid: string) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
 }
 export async function getBookingsForPro(uid: string) {
-  const q = query(collection(db, "bookings"), where("proId", "==", uid), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  const primaryQuery = query(collection(db, "bookings"), where("proId", "==", uid), orderBy("createdAt", "desc"));
+  const [primarySnap, legacySnap] = await Promise.all([
+    getDocs(primaryQuery),
+    getDocs(query(collection(db, "bookings"), where("proUid", "==", uid), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] } as any)),
+  ]);
+
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const d of primarySnap.docs) {
+    merged.set(d.id, { id: d.id, ...d.data() } as Record<string, unknown>);
+  }
+  for (const d of legacySnap.docs) {
+    if (!merged.has(d.id)) {
+      merged.set(d.id, { id: d.id, ...d.data() } as Record<string, unknown>);
+    }
+  }
+
+  return Array.from(merged.values());
 }
 export async function getAllBookings(
   limit_ = 50,
@@ -355,6 +389,35 @@ export async function getAllBookings(
 export async function getBookingById(bookingId: string) {
   const snap = await getDoc(doc(db, "bookings", bookingId));
   return snap.exists() ? { id: snap.id, ...snap.data() } as Record<string, unknown> : null;
+}
+export async function getLatestBookingBetweenUsers(uid1: string, uid2: string): Promise<Record<string, unknown> | null> {
+  const [asClient, asPro] = await Promise.all([
+    getDocs(query(
+      collection(db, "bookings"),
+      where("clientId", "==", uid1),
+      where("proId", "==", uid2),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    )).catch(() => ({ docs: [] } as any)),
+    getDocs(query(
+      collection(db, "bookings"),
+      where("clientId", "==", uid2),
+      where("proId", "==", uid1),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    )).catch(() => ({ docs: [] } as any)),
+  ]);
+
+  const candidates = [...asClient.docs, ...asPro.docs];
+  if (!candidates.length) return null;
+
+  const latest = candidates.sort((a, b) => {
+    const aSec = (a.data()?.createdAt as Timestamp | undefined)?.seconds ?? 0;
+    const bSec = (b.data()?.createdAt as Timestamp | undefined)?.seconds ?? 0;
+    return bSec - aSec;
+  })[0];
+
+  return { id: latest.id, ...latest.data() } as Record<string, unknown>;
 }
 export async function getLastCompletedBookingForUser(uid: string) {
   const q = query(
@@ -428,8 +491,7 @@ export async function addReview(bookingId: string, proId: string, rating: number
     createdAt: serverTimestamp()
   });
 
-  // 2. Check spam and recalculate
-  await checkSpamReviews(proId);
+  // Spam flagging is handled server-side by a Cloud Function trigger.
   await recalculateProRating(proId);
 }
 export async function getReviewsForUser(proId: string) {
@@ -445,25 +507,9 @@ export async function recalculateProRating(proId: string) {
   await mirrorPublicProfile(proId, update);
 }
 export async function checkSpamReviews(proId: string) {
-  const q = query(collection(db, "reviews"), where("proId", "==", proId), orderBy("createdAt", "desc"), limit(3));
-  const snap = await getDocs(q);
-  if (snap.size < 3) return;
-
-  let allOneStar = true;
-  snap.forEach(doc => {
-    if (doc.data().rating > 1) allOneStar = false;
-  });
-
-  if (allOneStar) {
-    await addDoc(collection(db, "reports"), {
-      proId,
-      reason: "Automated Spam Flag",
-      comment: "3 consecutive 1-star reviews detected rapidly.",
-      reporterId: "system",
-      status: "pending",
-      createdAt: serverTimestamp()
-    });
-  }
+  // Deprecated: automated spam checks run in Cloud Functions.
+  // Kept as a no-op for backward compatibility with older imports.
+  void proId;
 }
 export async function reportProfessional(proId: string, reason: string, comment: string) {
   if (!auth.currentUser) throw new Error("Must be logged in to report");
@@ -536,11 +582,24 @@ export function getConversationId(uid1: string, uid2: string): string {
 export async function getOrCreateConversation(uid1: string, uid2: string) {
   const convId = getConversationId(uid1, uid2);
   const convRef = doc(db, "messages", convId);
+  const [p1, p2] = await Promise.all([getPublicProfile(uid1), getPublicProfile(uid2)]);
+
+  const participantNames: Record<string, string> = {
+    [uid1]: (p1?.displayName as string) || "User",
+    [uid2]: (p2?.displayName as string) || "User",
+  };
+  const participantPhotos: Record<string, string> = {
+    [uid1]: (p1?.photoURL as string) || "",
+    [uid2]: (p2?.photoURL as string) || "",
+  };
+
   await runTransaction(db, async tx => {
     const snap = await tx.get(convRef);
     if (!snap.exists()) {
       tx.set(convRef, {
         participants: [uid1, uid2].sort(),
+        participantNames,
+        participantPhotos,
         lastMessage: "",
         lastMessageAt: serverTimestamp(),
       });
@@ -555,10 +614,24 @@ export async function sendMessage(conversationId: string, senderId: string, text
     payload.attachmentType = attachment.type;
     payload.attachmentName = attachment.name;
   }
-  await addDoc(collection(db, `messages/${conversationId}/chats`), payload);
-
   const lastMsg = attachment ? (text ? `📎 ${text}` : `📎 Attachment`) : text;
-  await updateDoc(doc(db, "messages", conversationId), { lastMessage: lastMsg, lastMessageAt: serverTimestamp() });
+  const senderDisplayName = auth.currentUser?.displayName || "User";
+  const senderPhotoURL = auth.currentUser?.photoURL || "";
+
+  await runTransaction(db, async tx => {
+    const chatRef = doc(collection(db, `messages/${conversationId}/chats`));
+    const convRef = doc(db, "messages", conversationId);
+
+    tx.set(chatRef, payload);
+    // Merge keeps this safe even if conversation metadata is partially missing.
+    tx.set(convRef, {
+      lastMessage: lastMsg,
+      lastMessageAt: serverTimestamp(),
+      lastSenderId: senderId,
+      [`participantNames.${senderId}`]: senderDisplayName,
+      [`participantPhotos.${senderId}`]: senderPhotoURL,
+    }, { merge: true });
+  });
 }
 
 export async function uploadAttachment(conversationId: string, file: File) {
@@ -669,7 +742,7 @@ export async function toggleReactionToFeedPost(postId: string, uid: string, type
 
     const data = postSnap.data();
     const reactions = (data.reactions as Record<string, string>) || {};
-    const likes = (data.likes as string[]) || []; // Keep for legacy compatibility if needed
+    const likes = Array.isArray(data.likes) ? (data.likes as string[]) : [];
 
     const existing = reactions[uid];
     if (existing === type) {
@@ -766,15 +839,34 @@ export async function getUnreadCount(convId: string, uid: string): Promise<numbe
 /**
  * Fetches aggregate platform stats for the social proof ticker.
  * This is safe to call from any component as it doesn't return raw documents.
- * For now returns static/approximate numbers to ensure privacy and performance.
  */
 export async function getPublicStats() {
-  // In a real app, this could query a centralized 'stats' doc or use a Cloud Function
-  // that aggregates data. For now, we return these healthy defaults.
-  return {
-    totalUsers: 2450,
-    totalPros: 480,
-    activeBookings: 120,
-    localityCount: 42,
-  };
+  try {
+    const [usersAgg, prosAgg, activeBookingsAgg, societiesSnap] = await Promise.all([
+      getCountFromServer(collection(db, "publicProfiles")),
+      getCountFromServer(query(collection(db, "publicProfiles"), where("isServiceProvider", "==", true))),
+      getCountFromServer(query(collection(db, "bookings"), where("status", "in", ["pending", "confirmed"]))),
+      getDocs(query(collection(db, "societies"), limit(500))),
+    ]);
+
+    const localityCount = new Set(
+      societiesSnap.docs
+        .map(d => ((d.data()?.city as string) || "").trim().toLowerCase())
+        .filter(Boolean)
+    ).size;
+
+    return {
+      totalUsers: usersAgg.data().count || 0,
+      totalPros: prosAgg.data().count || 0,
+      activeBookings: activeBookingsAgg.data().count || 0,
+      localityCount,
+    };
+  } catch {
+    return {
+      totalUsers: 0,
+      totalPros: 0,
+      activeBookings: 0,
+      localityCount: 0,
+    };
+  }
 }

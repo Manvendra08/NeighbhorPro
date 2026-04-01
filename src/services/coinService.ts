@@ -1,7 +1,7 @@
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
   serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc, startAfter,
-  Transaction,
+  Transaction, getAggregateFromServer, sum, count,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FirestoreTimestamp } from "../types/firestore";
@@ -45,10 +45,20 @@ export interface CoinPayout {
   coinsRedeemed: number;
   amountRs: number;
   upiId: string;
+  upiMasked?: string;
   status: "pending" | "processed" | "failed";
   processedBy?: string;
   processedAt?: FirestoreTimestamp;
   createdAt: FirestoreTimestamp;
+}
+
+export function maskUpiId(upiId: string): string {
+  const [handle = "", domain = ""] = upiId.trim().split("@");
+  if (!handle || !domain) return "***";
+  const visiblePrefix = handle.slice(0, 2);
+  const visibleSuffix = handle.length > 4 ? handle.slice(-2) : "";
+  const maskedLen = Math.max(2, handle.length - visiblePrefix.length - visibleSuffix.length);
+  return `${visiblePrefix}${"*".repeat(maskedLen)}${visibleSuffix}@${domain}`;
 }
 
 export const COIN_PACKS = [
@@ -486,6 +496,7 @@ export const MIN_PAYOUT_COINS = 200;
 
 export async function requestPayout(uid: string, displayName: string, coins: number, upiId: string): Promise<{ success: boolean; reason?: string }> {
   if (coins < MIN_PAYOUT_COINS) return { success: false, reason: `Minimum payout is ${MIN_PAYOUT_COINS} NC` };
+  const maskedUpi = maskUpiId(upiId);
   try {
     await runTransaction(db, async tx => {
       const userRef = doc(db, "users", uid);
@@ -495,8 +506,8 @@ export async function requestPayout(uid: string, displayName: string, coins: num
       const newBal = balance - coins;
       tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
       const payoutRef = doc(collection(db, "coinPayouts"));
-      tx.set(payoutRef, { uid, displayName, coinsRedeemed: coins, amountRs: coins, upiId, status: "pending", createdAt: serverTimestamp() } as CoinPayout);
-      tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type: "payout", amount: -coins, balanceAfter: newBal, description: `Payout ₹${coins} → ${upiId}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
+      tx.set(payoutRef, { uid, displayName, coinsRedeemed: coins, amountRs: coins, upiId, upiMasked: maskedUpi, status: "pending", createdAt: serverTimestamp() } as CoinPayout);
+      tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type: "payout", amount: -coins, balanceAfter: newBal, description: `Payout ₹${coins} -> ${maskedUpi}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
@@ -518,13 +529,19 @@ export async function getAllPayouts(pageLimit = 100, cursor?: any): Promise<{ da
   const constraints: any[] = [orderBy("createdAt", "desc"), limit(pageLimit)];
   if (cursor) constraints.push(startAfter(cursor));
   const snap = await getDocs(query(collection(db, "coinPayouts"), ...constraints));
-  const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinPayout));
+  const data = snap.docs.map(d => {
+    const payout = { id: d.id, ...d.data() } as CoinPayout;
+    return { ...payout, upiMasked: payout.upiMasked || maskUpiId(payout.upiId || "") };
+  });
   const nextCursor = snap.docs.length === pageLimit ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
 }
 export async function getPendingPayouts(): Promise<CoinPayout[]> {
   const snap = await getDocs(query(collection(db, "coinPayouts"), where("status", "==", "pending"), orderBy("createdAt", "asc")));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinPayout));
+  return snap.docs.map(d => {
+    const payout = { id: d.id, ...d.data() } as CoinPayout;
+    return { ...payout, upiMasked: payout.upiMasked || maskUpiId(payout.upiId || "") };
+  });
 }
 export async function updatePayoutStatus(payoutId: string, status: "processed" | "failed", adminUid: string): Promise<void> {
   await updateDoc(doc(db, "coinPayouts", payoutId), { status, processedBy: adminUid, processedAt: serverTimestamp() });
@@ -550,25 +567,53 @@ export async function adminAdjustCoins(uid: string, amount: number, reason: stri
   }
 }
 export async function getCoinEconomySummary() {
-  // NOTE: This fetches up to 1000 earn entries client-side (admin-only).
-  // TODO: Move to a Cloud Function with Firestore aggregation queries
-  // once the project is on the Blaze plan.
-  const [purchasesRes, payoutsRes, earnedSnap] = await Promise.all([
-    getAllCoinPurchases(500), getAllPayouts(500),
-    getDocs(query(
-      collectionGroup(db, "entries"),
-      where("type", "in", ["earn_signup_bonus", "earn_profile", "earn_review", "earn_referral", "earn_free_consult", "earn_groupsession", "earn_ondemand", "earn_milestone"]),
-      limit(1000),
-    )),
+  const earnTypes = [
+    "earn_signup_bonus", "earn_profile", "earn_review", "earn_referral",
+    "earn_free_consult", "earn_groupsession", "earn_ondemand", "earn_milestone",
+  ];
+
+  const [
+    completedPurchaseNC,
+    completedPurchaseRevenue,
+    processedPayoutNC,
+    pendingPayoutNC,
+    pendingPayoutCount,
+    totalEarnedNC,
+  ] = await Promise.all([
+    getAggregateFromServer(
+      query(collection(db, "coinPurchases"), where("status", "==", "completed")),
+      { total: sum("coinsGranted") }
+    ),
+    getAggregateFromServer(
+      query(collection(db, "coinPurchases"), where("status", "==", "completed")),
+      { total: sum("amountPaid") }
+    ),
+    getAggregateFromServer(
+      query(collection(db, "coinPayouts"), where("status", "==", "processed")),
+      { total: sum("coinsRedeemed") }
+    ),
+    getAggregateFromServer(
+      query(collection(db, "coinPayouts"), where("status", "==", "pending")),
+      { total: sum("coinsRedeemed") }
+    ),
+    getAggregateFromServer(
+      query(collection(db, "coinPayouts"), where("status", "==", "pending")),
+      { total: count() }
+    ),
+    getAggregateFromServer(
+      query(collectionGroup(db, "entries"), where("type", "in", earnTypes)),
+      { total: sum("amount") }
+    ),
   ]);
-  const purchases = purchasesRes.data;
-  const payouts = payoutsRes.data;
-  const totalPurchasedNC = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.coinsGranted, 0);
-  const totalPurchaseRevenue = purchases.filter(p => p.status === "completed").reduce((s, p) => s + p.amountPaid, 0);
-  const totalPayoutNC = payouts.filter(p => p.status === "processed").reduce((s, p) => s + p.coinsRedeemed, 0);
-  const pendingPayouts = payouts.filter(p => p.status === "pending");
-  const totalEarnedNC = earnedSnap.docs.reduce((s, d) => s + ((d.data().amount as number) || 0), 0);
-  return { totalPurchasedNC, totalPurchaseRevenue, totalPayoutNC, totalEarnedNC, pendingPayoutNC: pendingPayouts.reduce((s, p) => s + p.coinsRedeemed, 0), pendingPayoutCount: pendingPayouts.length };
+
+  return {
+    totalPurchasedNC: completedPurchaseNC.data().total ?? 0,
+    totalPurchaseRevenue: completedPurchaseRevenue.data().total ?? 0,
+    totalPayoutNC: processedPayoutNC.data().total ?? 0,
+    totalEarnedNC: totalEarnedNC.data().total ?? 0,
+    pendingPayoutNC: pendingPayoutNC.data().total ?? 0,
+    pendingPayoutCount: pendingPayoutCount.data().total ?? 0,
+  };
 }
 
 export { getLedger as adminGetLedger };

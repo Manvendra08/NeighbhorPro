@@ -202,7 +202,7 @@ export default function DesktopDashboard({
 
           {/* Pro: Manage link */}
           {isPro && (
-            <Link to="/profile" style={{
+            <Link to="/account?tab=availability" style={{
               display: "block", textDecoration: "none", background: "linear-gradient(135deg, var(--accent), var(--accent2))",
               borderRadius: 12, padding: "14px 18px", color: "#fff", textAlign: "center",
               fontWeight: 700, fontSize: 13, transition: "opacity 0.2s",

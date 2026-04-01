@@ -18,6 +18,9 @@ export interface SupportTicket {
   category: "general" | "booking" | "payment" | "account" | "dispute" | "other";
   bookingId?: string;
   status: "open" | "in_progress" | "resolved" | "closed";
+  assignedAdminId?: string;
+  assignedAdminName?: string;
+  assignedAt?: FirestoreTimestamp;
   createdAt: FirestoreTimestamp;
   updatedAt: FirestoreTimestamp;
   resolvedAt?: FirestoreTimestamp;
@@ -130,6 +133,24 @@ export async function updateTicketStatus(ticketId: string, status: TicketStatus,
   await updateDoc(doc(db, "tickets", ticketId), {
     status, updatedAt: serverTimestamp(),
     ...resolutionFields,
+  });
+}
+
+export async function assignTicketToAdmin(ticketId: string, adminUid: string, adminName: string): Promise<void> {
+  await updateDoc(doc(db, "tickets", ticketId), {
+    assignedAdminId: adminUid,
+    assignedAdminName: adminName,
+    assignedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function clearTicketAssignment(ticketId: string): Promise<void> {
+  await updateDoc(doc(db, "tickets", ticketId), {
+    assignedAdminId: null,
+    assignedAdminName: null,
+    assignedAt: null,
+    updatedAt: serverTimestamp(),
   });
 }
 

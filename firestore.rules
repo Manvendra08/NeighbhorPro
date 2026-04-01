@@ -102,7 +102,9 @@ service cloud.firestore {
 
     match /reports/{reportId} {
       allow read, update, delete: if isAdmin();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.status == 'pending';
     }
 
     match /societies/{societyId} {

@@ -13,7 +13,7 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage(payload => {
-  const { title = 'ProNeighbour', body = '' } = payload.notification || {};
+  const { title = 'ProNeighbor', body = '' } = payload.notification || {};
   self.registration.showNotification(title, {
     body,
     icon: '/images/logo.png',

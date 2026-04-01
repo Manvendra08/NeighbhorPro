@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAllUsers, getAllBookings, getTransactions, getAllSocieties, formatTimestamp } from "../../services/firestoreService";
+import { getAllUserRows, getAllBookings, getTransactions, getAllSocieties, formatTimestamp } from "../../services/firestoreService";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ users: 0, bookings: 0, revenue: 0, commission: 0, societies: 0, proEarnings: 0 });
@@ -10,21 +10,47 @@ export default function AdminDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [usersRes, bookingsRes, txnsRes, societiesRes] = await Promise.all([
-          getAllUsers(),
+        const [users, bookingsRes, txnsRes, societiesRes] = await Promise.all([
+          getAllUserRows(),
           getAllBookings(),
           getTransactions(),
           getAllSocieties(),
         ]);
         // FIX: Add null checks to prevent "Cannot read properties of undefined" crash
-        const users = usersRes?.data || [];
         const bookings = bookingsRes?.data || [];
         const txns = txnsRes?.data || [];
         const societies = societiesRes?.data || [];
 
-        const totalRevenue = txns.reduce((s, t) => s + ((t.amount as number) || 0), 0);
-        const totalCommission = txns.reduce((s, t) => s + ((t.commission as number) || 0), 0);
-        const totalProEarnings = txns.reduce((s, t) => s + ((t.proEarning as number) || 0), 0);
+        const txnRevenue = txns.reduce((s, t) => s + ((t.amount as number) || 0), 0);
+        const txnCommission = txns.reduce((s, t) => s + ((t.commission as number) || 0), 0);
+        const txnProEarnings = txns.reduce((s, t) => s + ((t.proEarning as number) || 0), 0);
+
+        const settledBookings = bookings.filter(b => {
+          const status = (b.status as string) || "";
+          return status === "completed" || status === "reviewed";
+        });
+
+        const bookingRevenue = settledBookings.reduce((s, b) => {
+          const gross = ((b.amount as number) || 0) || ((b.escrowCoins as number) || 0);
+          return s + gross;
+        }, 0);
+        const bookingCommission = settledBookings.reduce((s, b) => {
+          const gross = ((b.amount as number) || 0) || ((b.escrowCoins as number) || 0);
+          const fee = (b.platformFee as number);
+          return s + (typeof fee === "number" ? fee : Math.round(gross * 0.1));
+        }, 0);
+        const bookingProEarnings = settledBookings.reduce((s, b) => {
+          const gross = ((b.amount as number) || 0) || ((b.escrowCoins as number) || 0);
+          const fee = (b.platformFee as number);
+          const earning = (b.proEarning as number);
+          if (typeof earning === "number") return s + earning;
+          const derivedFee = typeof fee === "number" ? fee : Math.round(gross * 0.1);
+          return s + Math.max(0, gross - derivedFee);
+        }, 0);
+
+        const totalRevenue = txnRevenue > 0 ? txnRevenue : bookingRevenue;
+        const totalCommission = txnCommission > 0 ? txnCommission : bookingCommission;
+        const totalProEarnings = txnProEarnings > 0 ? txnProEarnings : bookingProEarnings;
         setStats({
           users: users.length,
           bookings: bookings.length,
