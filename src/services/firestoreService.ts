@@ -892,10 +892,9 @@ export async function getUnreadCount(convId: string, uid: string): Promise<numbe
  */
 export async function getPublicStats() {
   try {
-    const [usersAgg, prosAgg, activeBookingsAgg, societiesSnap] = await Promise.all([
+    const [usersAgg, prosAgg, societiesSnap] = await Promise.all([
       getCountFromServer(collection(db, "publicProfiles")),
       getCountFromServer(query(collection(db, "publicProfiles"), where("isServiceProvider", "==", true))),
-      getCountFromServer(query(collection(db, "bookings"), where("status", "in", ["pending", "confirmed"]))),
       getDocs(query(collection(db, "societies"), limit(500))),
     ]);
 
@@ -908,7 +907,7 @@ export async function getPublicStats() {
     return {
       totalUsers: usersAgg.data().count || 0,
       totalPros: prosAgg.data().count || 0,
-      activeBookings: activeBookingsAgg.data().count || 0,
+      activeBookings: 0,
       localityCount,
     };
   } catch {
