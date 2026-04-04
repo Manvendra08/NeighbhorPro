@@ -409,10 +409,10 @@ export async function updateBookingStatus(bookingId: string, status: string) {
   await updateDoc(doc(db, "bookings", bookingId), { status, updatedAt: serverTimestamp() });
 }
 export async function getBookingsForUser(uid: string) {
-  const primaryQuery = query(collection(db, "bookings"), where("clientId", "==", uid), orderBy("createdAt", "desc"));
+  const primaryQuery = query(collection(db, "bookings"), where("clientUid", "==", uid), orderBy("createdAt", "desc"));
   const [primarySnap, legacySnap] = await Promise.all([
     getDocs(primaryQuery),
-    getDocs(query(collection(db, "bookings"), where("clientUid", "==", uid), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] } as any)),
+    getDocs(query(collection(db, "bookings"), where("clientId", "==", uid), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] } as any)),
   ]);
 
   const merged = new Map<string, Record<string, unknown>>();
@@ -428,10 +428,10 @@ export async function getBookingsForUser(uid: string) {
   return Array.from(merged.values()).sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt));
 }
 export async function getBookingsForPro(uid: string) {
-  const primaryQuery = query(collection(db, "bookings"), where("proId", "==", uid), orderBy("createdAt", "desc"));
+  const primaryQuery = query(collection(db, "bookings"), where("proUid", "==", uid), orderBy("createdAt", "desc"));
   const [primarySnap, legacySnap] = await Promise.all([
     getDocs(primaryQuery),
-    getDocs(query(collection(db, "bookings"), where("proUid", "==", uid), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] } as any)),
+    getDocs(query(collection(db, "bookings"), where("proId", "==", uid), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] } as any)),
   ]);
 
   const merged = new Map<string, Record<string, unknown>>();
