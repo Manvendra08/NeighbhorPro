@@ -119,3 +119,31 @@ export function validateInput<T>(
     throw error;
   }
 }
+
+// ── Audit Log Schema ──────────────────────────────────────────────────────────
+/**
+ * Audit log schema for validating admin action records.
+ * All audit events must match this schema before persisting.
+ */
+export const AuditLogSchema = z.object({
+  action: z.string()
+    .min(3, "Action must be at least 3 characters")
+    .max(50, "Action must be 50 characters or less")
+    .regex(/^[a-z]+\.[a-z_]+$/, "Action must be lowercase with dots (e.g., user.role_change)"),
+  adminId: z.string().min(1, "Admin ID required"),
+  adminName: z.string().min(1, "Admin name required"),
+  details: z.string().min(1, "Details required").max(500, "Details must be 500 characters or less"),
+  targetId: z.string().optional().nullable(),
+  metadata: z.record(z.string(), z.any()).optional(),
+  timestamp: z.any().optional(), // Firebase serverTimestamp
+  createdAt: z.any().optional(), // Firebase serverTimestamp
+});
+
+export type AuditLogInput = z.infer<typeof AuditLogSchema>;
+
+/**
+ * Validate audit log entry against schema.
+ */
+export function validateAuditEntry(data: unknown): AuditLogInput {
+  return validateInput(AuditLogSchema, data, "audit log");
+}

@@ -41,8 +41,12 @@ export default function AdminUsers() {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [roleModalUser, setRoleModalUser] = useState<UserRow | null>(null);
+
   const [roleUnderstandsWarning, setRoleUnderstandsWarning] = useState(false);
   const [roleNameConfirmation, setRoleNameConfirmation] = useState("");
+
+  const [queueRefreshTime, setQueueRefreshTime] = useState<Date | null>(null);
+  const [queueLoading, setQueueLoading] = useState(false);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -62,7 +66,26 @@ export default function AdminUsers() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+
+  // Refresh verification queue when tab changes to verification
+  useEffect(() => {
+    if (tab === "verification") {
+      refreshQueue();
+    }
+  }, [tab]);
+
+  const refreshQueue = async () => {
+    setQueueLoading(true);
+    try {
+      const pendingRows = await getPendingVerifications();
+      setVerificationQueue(pendingRows as UserRow[]);
+      setQueueRefreshTime(new Date());
+    } catch (error) {
+      showToast("Failed to refresh verification queue", "error");
+    } finally {
+      setQueueLoading(false);
+    }
+  };
 
   const counts = {
     all: users.length,
@@ -86,7 +109,7 @@ export default function AdminUsers() {
       tab === "all" ? true : tab === "active" ? !u.disabled :
       tab === "disabled" ? !!u.disabled : tab === "admins" ? u.role === "admin" :
       tab === "pros" ? !!u.isServiceProvider :
-      tab === "verification" ? true : true;
+      tab === "verification" ? (u.residentVerificationStatus as string) === "pending" : true;
     return matchSearch && matchTab;
   });
 
@@ -223,7 +246,12 @@ export default function AdminUsers() {
           u.uid as string
         );
         showToast(action === "verified" ? "Resident verified" : "Verification rejected");
-        await load();
+        // Refresh verification queue after action if on verification tab
+        if (tab === "verification") {
+          await refreshQueue();
+        } else {
+          await load();
+        }
       } catch { showToast("Action failed", "error"); }
       setActionLoading(null);
     };
@@ -466,7 +494,9 @@ export default function AdminUsers() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {tab === "verification" && (
-            <button className="btn btn-ghost btn-sm" onClick={() => load()}>↻ Refresh Queue</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => refreshQueue()} disabled={queueLoading} style={{ opacity: queueLoading ? 0.5 : 1 }}>
+              {queueLoading ? "↻ Loading..." : "↻ Refresh"}
+            </button>
           )}
           <input className="form-input" placeholder="Search name, email, society…" value={search}
             onChange={e => setSearch(e.target.value)} style={{ maxWidth: 280, padding: "8px 12px" }} />
@@ -475,9 +505,16 @@ export default function AdminUsers() {
       <div style={{ borderBottom: "1px solid var(--border)", marginBottom: 20 }} />
 
       {tab === "verification" && (
-        <div className="card" style={{ marginBottom: 14, padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>
-          Pending queue includes only users with uploaded proof and status set to pending. Approve or reject each request with an audit trail.
-        </div>
+        <>
+          <div className="card" style={{ marginBottom: 8, padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>
+            Pending queue includes only users with uploaded proof and status set to pending. Approve or reject each request with an audit trail.
+          </div>
+          {queueRefreshTime && (
+            <div style={{ marginBottom: 14, fontSize: 12, color: "var(--muted)" }}>
+              Last refreshed: {queueRefreshTime.toLocaleTimeString("en-IN")}
+            </div>
+          )}
+        </>
       )}
 
       {loading ? (
