@@ -232,23 +232,55 @@ export async function uploadResidencyProof(uid: string, file: File) {
   return residencyProofUrl;
 }
 
+/**
+ * Updates resident verification status with mandatory reviewer metadata.
+ * Ensures verification reviews are always auditable by requiring reviewer ID and notes.
+ *
+ * @param uid - User ID being verified
+ * @param status - Verification status ("verified", "none", or "pending")
+ * @param method - Verification method ("manual", "auto", or null)
+ * @param reviewerUid - REQUIRED: UID of the admin performing the review
+ * @param reviewNote - REQUIRED for rejection (status="none"), captures rejection reason
+ * @throws Error if required metadata is missing or write assertion fails
+ */
 export async function updateResidentVerification(
   uid: string,
   status: "none" | "pending" | "verified",
   method: "manual" | "auto" | null,
-  reviewerUid?: string,
+  reviewerUid: string,
   reviewNote?: string
 ) {
+  // Validate required reviewer metadata
+  if (!reviewerUid || reviewerUid.trim() === "") {
+    throw new Error("Reviewer UID is required for verification review");
+  }
+
+  // Rejection must include reason
+  if (status === "none" && (!reviewNote || reviewNote.trim() === "")) {
+    throw new Error("Review note is required for rejections");
+  }
+
   const update = {
     residentVerificationStatus: status,
     verificationMethod: method,
-    verificationReviewedBy: reviewerUid || null,
-    verificationReviewNote: reviewNote || null,
+    verificationReviewedBy: reviewerUid,
+    verificationReviewNote: status === "none" ? (reviewNote || "") : null,
     verificationReviewedAt: status === "pending" ? null : serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
+
+  // Write update
   await updateDoc(doc(db, "users", uid), update);
   await mirrorPublicProfile(uid, update);
+
+  // Assert write succeeded by reading back
+  const readBack = await getDoc(doc(db, "users", uid));
+  const data = readBack.data();
+  if (!data || data.verificationReviewedBy !== reviewerUid) {
+    throw new Error(
+      "Audit metadata write assertion failed: reviewer ID not persisted"
+    );
+  }
 }
 
 /**
