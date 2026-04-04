@@ -40,11 +40,20 @@ export default function BrowsePros() {
   const [localityFilter, setLocalityFilter] = useState("");
   const [towerFilter, setTowerFilter] = useState("");
 
+  const buildServerFilters = () => {
+    const locality = localityFilter.trim();
+    const tower = towerFilter.trim();
+    return {
+      ...(locality ? { locality } : {}),
+      ...(tower ? { tower } : {}),
+    };
+  };
+
   const loadPage = async (reset = false) => {
     if (reset) { setLoading(true); cursorRef.current = null; }
     else setLoadingMore(true);
     try {
-      const { data, nextCursor } = await listProfessionals(reset ? null : cursorRef.current);
+      const { data, nextCursor } = await listProfessionals(reset ? null : cursorRef.current, buildServerFilters());
       cursorRef.current = nextCursor;
       setHasMore(nextCursor !== null);
       const visiblePros = data.filter(u =>
@@ -57,6 +66,7 @@ export default function BrowsePros() {
   };
 
   useEffect(() => { loadPage(true); }, []);
+  useEffect(() => { loadPage(true); }, [localityFilter, towerFilter]);
 
   useEffect(() => {
     let result = allPros;
@@ -101,7 +111,7 @@ export default function BrowsePros() {
       <div className="m-pro-card" onClick={() => navigate(`/pro/${uid}`)}>
         <div className="m-pro-avatar">
           {(p.photoURL as string)
-            ? <img src={p.photoURL as string} alt={p.displayName as string} />
+            ? <img src={p.photoURL as string} alt={p.displayName as string} loading="lazy" />
             : <span>{initials((p.displayName as string) || "?")}</span>}
           <span className="m-pro-verified">✓</span>
         </div>
@@ -152,7 +162,7 @@ export default function BrowsePros() {
         <div onClick={() => navigate(`/pro/${uid}`)} style={{ cursor: "pointer" }}>
           <div className="pro-card-img" style={{ position: "relative", aspectRatio: "4/3", overflow: "hidden", background: "var(--surface-3)" }}>
             {(p.photoURL as string)
-              ? <img src={p.photoURL as string} alt={p.displayName as string} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ? <img src={p.photoURL as string} alt={p.displayName as string} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>{initials((p.displayName as string) || "?")}</div>}
             <div style={{ position: "absolute", bottom: 8, right: 8, background: "var(--success)", color: "#fff", width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff", fontSize: 11, fontWeight: "bold", zIndex: 1 }}>✓</div>
           </div>
