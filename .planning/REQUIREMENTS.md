@@ -14,10 +14,10 @@
 
 ### Booking and Discovery Reliability
 
-- [ ] **BKDG-01**: My Bookings must display client bookings even when legacy ID fields are present.
-- [ ] **BKDG-02**: My Bookings must display pro-side bookings even when mixed schema fields exist.
-- [ ] **BKDG-03**: Browse Pros must return visible professionals when public profile mirrors are incomplete.
-- [ ] **BKDG-04**: Booking/discovery lists must keep deterministic newest-first ordering.
+- [x] **BKDG-01**: My Bookings must display client bookings even when legacy ID fields are present.
+- [x] **BKDG-02**: My Bookings must display pro-side bookings even when mixed schema fields exist.
+- [x] **BKDG-03**: Browse Pros must return visible professionals when public profile mirrors are incomplete.
+- [x] **BKDG-04**: Booking/discovery lists must keep deterministic newest-first ordering.
 
 ### Wallet and Payout Lifecycle
 
@@ -57,32 +57,40 @@
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| ADMN-01 | Phase 1 | Pending |
-| ADMN-02 | Phase 1 | Pending |
-| ADMN-03 | Phase 1 | Pending |
-| ADMN-04 | Phase 1 | Pending |
-| BKDG-01 | Phase 2 | Pending |
-| BKDG-02 | Phase 2 | Pending |
-| BKDG-03 | Phase 2 | Pending |
-| BKDG-04 | Phase 2 | Pending |
-| WLET-01 | Phase 3 | Pending |
-| WLET-02 | Phase 3 | Pending |
-| WLET-03 | Phase 3 | Pending |
-| WLET-04 | Phase 3 | Pending |
-| MSGS-01 | Phase 4 | Pending |
-| MSGS-02 | Phase 4 | Pending |
-| DASH-01 | Phase 4 | Pending |
-| DASH-02 | Phase 4 | Pending |
-| PERF-01 | Phase 5 | Pending |
-| PERF-02 | Phase 5 | Pending |
+| Requirement | Original Phase | Gap Closure Phase | Current Status |
+|-------------|---|---|--------|
+| ADMN-01 | Phase 1 | — | Pending |
+| ADMN-02 | Phase 1 | — | Pending |
+| ADMN-03 | Phase 1 | — | Pending |
+| ADMN-04 | Phase 1 | — | Pending |
+| BKDG-01 | Phase 2 | — | Complete |
+| BKDG-02 | Phase 2 | — | Complete |
+| BKDG-03 | Phase 2 | Phase 9 | Pending (filter fix + verification) |
+| BKDG-04 | Phase 2 | — | Complete |
+| WLET-01 | Phase 3 | Phase 6 | Pending (verification artifact) |
+| WLET-02 | Phase 3 | Phase 6 | Pending (verification artifact) |
+| WLET-03 | Phase 3 | Phase 6 | Pending (verification artifact) |
+| WLET-04 | Phase 3 | Phase 6 | Pending (add service guard) |
+| MSGS-01 | Phase 4 | Phase 7 | Pending (verification artifact) |
+| MSGS-02 | Phase 4 | Phase 7 | Pending (verification artifact) |
+| DASH-01 | Phase 4 | Phase 7 | Pending (verification artifact) |
+| DASH-02 | Phase 4 | Phase 7 | Pending (verification artifact) |
+| PERF-01 | Phase 5 | Phase 8 | Pending (chunking strategy) |
+| PERF-02 | Phase 5 | Phase 8 | Pending (route responsiveness) |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 18
+- Mapped to original phases: 18
+- Gap closure phase assignments: 8 requirements
 - Unmapped: 0
+
+**Gap Closure Status:**
+- Phase 6 (Wallet): WLET-01, WLET-02, WLET-03, WLET-04
+- Phase 7 (Messaging/Dashboard): MSGS-01, MSGS-02, DASH-01, DASH-02
+- Phase 8 (Performance): PERF-01, PERF-02
+- Phase 9 (Discovery): BKDG-03
+- Phase 10 (Service Coverage): Integration support (not direct requirement closure)
 
 ---
 *Requirements defined: 2026-04-01*
-*Last updated: 2026-04-01 after initial milestone definition*
+*Last updated: 2026-04-04 after gap closure phase creation*

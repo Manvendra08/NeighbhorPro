@@ -13,6 +13,11 @@
 | 3 | Wallet and Payout Lifecycle Integrity | Enforce referral format and payout cancel/refund integrity | WLET-01, WLET-02, WLET-03, WLET-04 | 4 |
 | 4 | Messaging and Dashboard Trust Signals | Fix participant identity fallback and rating detail UX | MSGS-01, MSGS-02, DASH-01, DASH-02 | 4 |
 | 5 | Performance and Release Hardening | Reduce large-chunk risk and preserve runtime responsiveness | PERF-01, PERF-02 | 3 |
+| 6 | Wallet Payout Guard & Lifecycle Verification | Close WLET-04 gaps and verify all wallet requirements | WLET-01, WLET-02, WLET-03, WLET-04 | 4 |
+| 7 | Messaging & Dashboard Verification | Verify messaging and dashboard trust signals | MSGS-01, MSGS-02, DASH-01, DASH-02 | 4 |
+| 8 | Bundle Chunking & Performance Validation | Define chunking strategy and validate performance | PERF-01, PERF-02 | 2 |
+| 9 | Discovery Filter Fix & Booking Verification | Fix BKDG-03 filter gap and create Phase 2 verification | BKDG-03 | 1 |
+| 10 | Service Layer Coverage & Integration | Add tests for zero-coverage services and expand coinService | Integration Support | - |
 
 ## Phase Details
 
@@ -33,6 +38,8 @@ Success criteria:
 
 ### Phase 2: Booking and Discovery Reliability
 Goal: Make booking/discovery lists resilient to mixed schema and mirror lag.
+
+Status: Complete (implemented and build-verified on 2026-04-04).
 
 Success criteria:
 - Client bookings load for both current and legacy client ID fields.
@@ -72,8 +79,85 @@ Success criteria:
 - Requirements mapped: 18
 - Unmapped: 0
 - Coverage status: Complete
+- Gap closure phases added: 5 (phases 6-10)
+
+## Gap Closure Phases
+
+### Phase 6: Wallet Payout Guard & Lifecycle Verification
+Goal: Implement service-layer duplicate payout guard and verify all wallet requirements end-to-end.
+
+Success criteria:
+- Service-layer pending payout check prevents duplicate submissions.
+- Referral format enforcement is validated across all paths.
+- Payout cancellation atomically refunds and logs ledger entry.
+- Phase 3 verification artifact documents all wallet flows.
+
+**Priority:** 🔴 CRITICAL (unblocks financial transaction safety)
+
+**Plans:**
+1. [ ] 06-01-PLAN.md — Add pending-check guard and duplicate prevention in coinService.requestPayout()
+2. [ ] 06-02-PLAN.md — Create Phase 3 verification artifact with full wallet lifecycle UAT
+
+### Phase 7: Messaging & Dashboard Verification
+Goal: Create phase 4 verification artifact and validate identity fallback + rating signals.
+
+Success criteria:
+- Messaging conversation list and chat header show no generic labels.
+- Identity fallback consistency is validated end-to-end.
+- Rating card displays normalized average with correct formatting.
+- Star-breakdown interaction is verified per requirement.
+
+**Priority:** 🟠 High (code exists, needs UAT)
+
+**Plans:**
+1. [ ] 07-01-PLAN.md — Create Phase 4 verification artifact with identity fallback UAT
+2. [ ] 07-02-PLAN.md — Validate rating display and star-breakdown interaction
+
+### Phase 8: Bundle Chunking & Performance Validation
+Goal: Define practical chunk boundaries and validate that critical routes remain responsive.
+
+Success criteria:
+- Vite chunking strategy is defined for modules >100KB.
+- Bundle warning is reduced after chunking applied.
+- Critical route responsiveness is measured and validated.
+- Phase 5 verification artifact documents all performance improvements.
+
+**Priority:** 🟠 High (new work required)
+
+**Plans:**
+1. [ ] 08-01-PLAN.md — Define chunking strategy in vite.config.ts and measure bundle impact
+2. [ ] 08-02-PLAN.md — Create Phase 5 verification artifact with route responsiveness validation
+
+### Phase 9: Discovery Filter Fix & Booking Verification
+Goal: Fix BKDG-03 filter gap and create Phase 2 verification artifact.
+
+Success criteria:
+- Browse Pros caller passes server filters correctly to firestoreService.
+- Phase 2 verification artifact captures all booking/discovery UAT.
+- BKDG-03 partial requirement is fully satisfied.
+
+**Priority:** 🟡 Medium (code mostly exists)
+
+**Plans:**
+1. [ ] 09-01-PLAN.md — Fix filter passing in Browse Pros and create Phase 2 verification artifact
+
+### Phase 10: Service Layer Coverage & Integration
+Goal: Add tests for zero-coverage services and expand critical wallet service coverage.
+
+Success criteria:
+- firestoreService.ts coverage >60% (query/list helpers and fallbacks).
+- coinService.ts coverage >80% (payout lifecycle, error paths, idempotency).
+- auditService.ts, supportService.ts, razorpayService.ts, activityService.ts have baseline tests (>30% coverage each).
+- All service → page integration wiring is verified.
+
+**Priority:** 🟡 Medium–High (cross-cutting foundation)
+
+**Plans:**
+1. [ ] 10-01-PLAN.md — Add firestoreService and coinService tests
+2. [ ] 10-02-PLAN.md — Add auditService, supportService, razorpayService, activityService baseline tests
+3. [ ] 10-03-PLAN.md — Validate all service integration wiring with integration checker
 
 ## Next Command
 
-Run planning for the first phase:
-`/gsd-plan-phase 1`
+Run planning for the first gap closure phase:
+`/gsd-plan-phase 6`
