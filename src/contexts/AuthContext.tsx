@@ -177,13 +177,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendPhoneOTP = async (phone: string, containerId: string): Promise<string> => {
     try {
       // Ensure E.164 format. If no '+', assume +91 (India) if 10 digits.
-      let formattedPhone = phone.replace(/\s+/g, "");
+      let formattedPhone = phone.replace(/[\s-]+/g, "");
       if (!formattedPhone.startsWith("+")) {
         if (formattedPhone.length === 10) {
           formattedPhone = "+91" + formattedPhone;
         } else {
           throw new Error("Phone number must include country code (e.g., +91).");
         }
+      }
+
+      // Strict India mobile validation: +91 followed by 10 digits starting with 6-9.
+      if (!/^\+91[6-9]\d{9}$/.test(formattedPhone)) {
+        throw new Error("Enter a valid Indian mobile number in +91XXXXXXXXXX format.");
       }
 
       // FIX 3: Destroy any existing verifier before creating a new one.

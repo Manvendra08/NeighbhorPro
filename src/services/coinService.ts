@@ -1,7 +1,7 @@
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
   serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc, startAfter,
-  Transaction, getAggregateFromServer, sum, count,
+  Transaction, getAggregateFromServer, sum, count, type QueryConstraint, type DocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FirestoreTimestamp } from "../types/firestore";
@@ -256,9 +256,18 @@ export async function applyReferralCode(
 
 /**
  * Reward referral — called when new user completes their first booking.
+ * Now requires bookingId parameter and verifies booking.status === "completed" within transaction.
  */
-export async function rewardReferral(newUserUid: string): Promise<void> {
+export async function rewardReferral(newUserUid: string, bookingId: string): Promise<void> {
   await runTransaction(db, async tx => {
+    // 1. Verify booking is completed (booking completion check)
+    const bookingRef = doc(db, "bookings", bookingId);
+    const bookingSnap = await tx.get(bookingRef);
+    if (!bookingSnap.exists() || bookingSnap.data()?.status !== "completed") {
+      throw new Error("Cannot reward referral: booking must be completed");
+    }
+
+    // 2. Verify referral is pending
     const refRef = doc(db, "referrals", newUserUid);
     const refSnap = await tx.get(refRef);
     if (!refSnap.exists() || refSnap.data().status !== "pending") return;
@@ -266,7 +275,7 @@ export async function rewardReferral(newUserUid: string): Promise<void> {
     const { referrerUid } = refSnap.data() as { referrerUid: string };
     const rule = EARN_RULES.earn_referral;
 
-    // 1. Reward Referrer
+    // 3. Reward Referrer
     const rRef = doc(db, "users", referrerUid);
     const rSnap = await tx.get(rRef);
     const rBal = ((rSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
@@ -277,7 +286,7 @@ export async function rewardReferral(newUserUid: string): Promise<void> {
       refId: newUserUid, createdAt: serverTimestamp()
     } as LedgerEntry);
 
-    // 2. Reward New User
+    // 4. Reward New User
     const nRef = doc(db, "users", newUserUid);
     const nSnap = await tx.get(nRef);
     const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
@@ -288,7 +297,7 @@ export async function rewardReferral(newUserUid: string): Promise<void> {
       refId: referrerUid, createdAt: serverTimestamp()
     } as LedgerEntry);
 
-    // 3. Mark referral as rewarded
+    // 5. Mark referral as rewarded
     tx.update(refRef, { status: "rewarded", updatedAt: serverTimestamp() });
   });
 }
@@ -305,16 +314,42 @@ export async function getLedger(uid: string, pageLimit = 50): Promise<LedgerEntr
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as LedgerEntry));
 }
 
-export async function topUpCoins(uid: string, priceRs: number, coins: number, packLabel: string, paymentId?: string): Promise<void> {
+export async function topUpCoins(uid: string, priceRs: number, coins: number, packLabel: string, paymentId: string): Promise<void> {
+  const purchaseId = paymentId.trim();
+  if (!purchaseId) throw new Error("MISSING_PAYMENT_ID");
+
   await runTransaction(db, async tx => {
     const userRef = doc(db, "users", uid);
+    const purchaseRef = doc(db, "coinPurchases", purchaseId);
+    const ledgerRef = doc(db, "coinLedger", uid, "entries", `${purchaseId}_topup`);
+
+    // Idempotency guard: if this payment was already credited, skip.
+    const existingPurchase = await tx.get(purchaseRef);
+    if (existingPurchase.exists()) return;
+
     const userSnap = await tx.get(userRef);
     const newBal = ((userSnap.data()?.coinBalance as number) ?? 0) + coins;
+
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
-    const purchaseRef = doc(collection(db, "coinPurchases"));
-    tx.set(purchaseRef, { uid, amountPaid: priceRs, coinsGranted: coins, packLabel, status: "completed", paymentId: paymentId ?? null, createdAt: serverTimestamp(), completedAt: serverTimestamp() } as CoinPurchase);
-    const lr = doc(collection(db, "coinLedger", uid, "entries"));
-    tx.set(lr, { uid, type: "topup", amount: coins, balanceAfter: newBal, description: `${packLabel} Pack — ₹${priceRs} → ${coins} NC`, refId: purchaseRef.id, createdAt: serverTimestamp() } as LedgerEntry);
+    tx.set(purchaseRef, {
+      uid,
+      amountPaid: priceRs,
+      coinsGranted: coins,
+      packLabel,
+      status: "completed",
+      paymentId: purchaseId,
+      createdAt: serverTimestamp(),
+      completedAt: serverTimestamp(),
+    } as CoinPurchase);
+    tx.set(ledgerRef, {
+      uid,
+      type: "topup",
+      amount: coins,
+      balanceAfter: newBal,
+      description: `${packLabel} Pack — ₹${priceRs} → ${coins} NC`,
+      refId: purchaseId,
+      createdAt: serverTimestamp(),
+    } as LedgerEntry);
   });
 }
 
@@ -322,6 +357,17 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
   if (coins === 0) return { success: true };
   try {
     await runTransaction(db, async tx => {
+      // Deterministic ledger entry ID for idempotency on concurrent requests
+      const ledgerEntryId = `${bookingId}_hold_${clientUid}`;
+      const ledgerEntryRef = doc(collection(db, "coinLedger", clientUid, "entries"), ledgerEntryId);
+      
+      // Check if this escrow hold already exists (race condition guard)
+      const existingEntry = await tx.get(ledgerEntryRef);
+      if (existingEntry.exists()) {
+        // Already held, skip
+        return;
+      }
+
       const clientRef = doc(db, "users", clientUid);
       const clientSnap = await tx.get(clientRef);
       const clientBal = (clientSnap.data()?.coinBalance as number) ?? 0;
@@ -329,7 +375,7 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
       const newBal = clientBal - coins;
       tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
       tx.update(doc(db, "bookings", bookingId), { escrowCoins: coins, coinsPaid: true, escrowStatus: "held", updatedAt: serverTimestamp() });
-      tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), { uid: clientUid, type: "booking_escrow", amount: -coins, balanceAfter: newBal, description: `Payment held: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
+      tx.set(ledgerEntryRef, { uid: clientUid, type: "booking_escrow", amount: -coins, balanceAfter: newBal, description: `Payment held: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
@@ -341,12 +387,25 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
 export async function releaseEscrow(proUid: string, bookingId: string, serviceName: string, platformFeePct = 0.10): Promise<{ success: boolean; reason?: string }> {
   try {
     await runTransaction(db, async tx => {
+      // Deterministic ledger entry ID for idempotency on concurrent release requests
+      const ledgerEntryId = `${bookingId}_release_${proUid}`;
+      const ledgerEntryRef = doc(collection(db, "coinLedger", proUid, "entries"), ledgerEntryId);
+      
+      // Check if this escrow release already exists (race condition guard)
+      const existingEntry = await tx.get(ledgerEntryRef);
+      if (existingEntry.exists()) {
+        // Already released, skip
+        return;
+      }
+
       const bookingRef = doc(db, "bookings", bookingId);
       const bookingSnap = await tx.get(bookingRef);
       if (!bookingSnap.exists()) throw new Error("BOOKING_NOT_FOUND");
       const data = bookingSnap.data()!;
-      // Idempotency guard: already released — skip
+      
+      // Additional idempotency guard via booking status
       if (data.escrowStatus === "released") return;
+      
       const escrowCoins = (data.escrowCoins as number) ?? 0;
       if (escrowCoins === 0) {
         // No escrow but still ensure marked completed atomically
@@ -366,7 +425,7 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
         platformFee, proEarning, paidInCoins: escrowCoins,
         updatedAt: serverTimestamp(),
       });
-      tx.set(doc(collection(db, "coinLedger", proUid, "entries")), {
+      tx.set(ledgerEntryRef, {
         uid: proUid, type: "booking_escrow_release", amount: proEarning,
         balanceAfter: newProBal,
         description: `Earned: ${serviceName} (10% platform fee deducted)`,
@@ -381,6 +440,17 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
 
 export async function refundEscrow(clientUid: string, bookingId: string, serviceName: string): Promise<void> {
   await runTransaction(db, async tx => {
+    // Deterministic ledger entry ID for idempotency on concurrent refund requests
+    const ledgerEntryId = `${bookingId}_refund_${clientUid}`;
+    const ledgerEntryRef = doc(collection(db, "coinLedger", clientUid, "entries"), ledgerEntryId);
+    
+    // Check if this escrow refund already exists (race condition guard)
+    const existingEntry = await tx.get(ledgerEntryRef);
+    if (existingEntry.exists()) {
+      // Already refunded, skip
+      return;
+    }
+
     const bookingRef = doc(db, "bookings", bookingId);
     const bookingSnap = await tx.get(bookingRef);
     const data = bookingSnap.data();
@@ -405,7 +475,7 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
     
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
     tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false, updatedAt: serverTimestamp() });
-    tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), {
+    tx.set(ledgerEntryRef, {
       uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal,
       description: `Refund: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp()
     } as LedgerEntry);
@@ -457,8 +527,9 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
       }
     });
     return { success: true };
-  } catch (e: any) {
-    return { success: false, reason: e.message };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return { success: false, reason: message };
   }
 }
 
@@ -571,23 +642,30 @@ export async function cancelPayoutRequest(uid: string, payoutId: string): Promis
 }
 
 /* ── Admin ── */
-export async function getAllCoinPurchases(pageLimit = 100, cursor?: any): Promise<{ data: CoinPurchase[]; nextCursor: any }> {
-  const constraints: any[] = [orderBy("createdAt", "desc"), limit(pageLimit)];
+export async function getAllCoinPurchases(
+  pageLimit = 100,
+  cursor?: DocumentSnapshot<CoinPurchase>
+): Promise<{ data: CoinPurchase[]; nextCursor: DocumentSnapshot<CoinPurchase> | null }> {
+  const constraints: QueryConstraint[] = [orderBy("createdAt", "desc"), limit(pageLimit)];
   if (cursor) constraints.push(startAfter(cursor));
   const snap = await getDocs(query(collection(db, "coinPurchases"), ...constraints));
   const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinPurchase));
-  const nextCursor = snap.docs.length === pageLimit ? snap.docs[snap.docs.length - 1] : null;
+  const nextCursor = snap.docs.length === pageLimit ? (snap.docs[snap.docs.length - 1] as DocumentSnapshot<CoinPurchase>) : null;
   return { data, nextCursor };
 }
-export async function getAllPayouts(pageLimit = 100, cursor?: any): Promise<{ data: CoinPayout[]; nextCursor: any }> {
-  const constraints: any[] = [orderBy("createdAt", "desc"), limit(pageLimit)];
+
+export async function getAllPayouts(
+  pageLimit = 100,
+  cursor?: DocumentSnapshot<CoinPayout>
+): Promise<{ data: CoinPayout[]; nextCursor: DocumentSnapshot<CoinPayout> | null }> {
+  const constraints: QueryConstraint[] = [orderBy("createdAt", "desc"), limit(pageLimit)];
   if (cursor) constraints.push(startAfter(cursor));
   const snap = await getDocs(query(collection(db, "coinPayouts"), ...constraints));
   const data = snap.docs.map(d => {
     const payout = { id: d.id, ...d.data() } as CoinPayout;
     return { ...payout, upiMasked: payout.upiMasked || maskUpiId(payout.upiId || "") };
   });
-  const nextCursor = snap.docs.length === pageLimit ? snap.docs[snap.docs.length - 1] : null;
+  const nextCursor = snap.docs.length === pageLimit ? (snap.docs[snap.docs.length - 1] as DocumentSnapshot<CoinPayout>) : null;
   return { data, nextCursor };
 }
 export async function getPendingPayouts(): Promise<CoinPayout[]> {

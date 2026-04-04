@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"C:/Users/manve/Downloads/ProNeighbor/.claude/worktrees/crazy-hopper\" log --oneline -5)"
+    ]
+  }
+}

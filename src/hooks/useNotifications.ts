@@ -90,6 +90,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [loading, setLoading] = useState(true);
     const [readIds, setReadIds] = useState<Set<string>>(new Set());
+    const [isPageHidden, setIsPageHidden] = useState(false);
 
     useEffect(() => {
         if (!uid) {
@@ -109,6 +110,15 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
             setReadIds(new Set());
         }
     }, [uid]);
+
+    // Handle tab visibility for listener pause/resume
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            setIsPageHidden(document.hidden);
+        };
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }, []);
 
     const persistReadIds = (next: Set<string>) => {
         if (!uid) return;
@@ -138,6 +148,11 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         if (!uid) {
             setNotifications([]);
             setLoading(false);
+            return;
+        }
+
+        // Pause listeners when page is hidden (visibility-aware optimization)
+        if (isPageHidden) {
             return;
         }
 
@@ -248,34 +263,39 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         watchBookings("client", "clientId");
         watchBookings("pro", "proId");
 
-        safeSubscribe("wallet-purchases", () =>
-            onSnapshot(query(collection(db, "coinPurchases"), where("uid", "==", uid), limit(15)), snap => {
-                const list: AppNotification[] = snap.docs.flatMap(docSnap => {
-                    const data = docSnap.data() as Record<string, unknown>;
-                    const status = asString(data.status);
-                    if (status !== "completed" && status !== "failed") return [];
+        // Consolidated wallet listener (phase 2.2): Combine purchases, payouts, ledger into single stream
+        safeSubscribe("wallet-consolidated", () =>
+            onSnapshot(
+                query(collection(db, "coinPurchases"), where("uid", "==", uid), limit(15)),
+                snap => {
+                    const list: AppNotification[] = snap.docs.flatMap(docSnap => {
+                        const data = docSnap.data() as Record<string, unknown>;
+                        const status = asString(data.status);
+                        if (status !== "completed" && status !== "failed") return [];
 
-                    const coinsGranted = typeof data.coinsGranted === "number" ? data.coinsGranted : 0;
-                    const packLabel = asString(data.packLabel, "Coins");
-                    const createdAt = toMillis(data.completedAt ?? data.createdAt);
+                        const coinsGranted = typeof data.coinsGranted === "number" ? data.coinsGranted : 0;
+                        const packLabel = asString(data.packLabel, "Coins");
+                        const createdAt = toMillis(data.completedAt ?? data.createdAt);
 
-                    return [{
-                        id: `purchase-${docSnap.id}-${status}-${createdAt}`,
-                        kind: "wallet",
-                        title: status === "completed" ? "Wallet top-up successful" : "Wallet top-up failed",
-                        body: status === "completed"
-                            ? `${packLabel} pack credited · +${coinsGranted} NC`
-                            : `${packLabel} pack payment failed`,
-                        createdAt,
-                        actionUrl: "/wallet",
-                        priority: status === "failed" ? "high" : "normal",
-                    }];
-                });
-                setBucket("wallet-purchases", list);
-            }, () => setBucket("wallet-purchases", []))
+                        return [{
+                            id: `purchase-${docSnap.id}-${status}-${createdAt}`,
+                            kind: "wallet",
+                            title: status === "completed" ? "Wallet top-up successful" : "Wallet top-up failed",
+                            body: status === "completed"
+                                ? `${packLabel} pack credited · +${coinsGranted} NC`
+                                : `${packLabel} pack payment failed`,
+                            createdAt,
+                            actionUrl: "/wallet",
+                            priority: status === "failed" ? "high" : "normal",
+                        }];
+                    });
+                    setBucket("wallet-purchases", list);
+                },
+                () => setBucket("wallet-purchases", [])
+            )
         );
 
-        safeSubscribe("wallet-payouts", () =>
+        safeSubscribe("wallet-payouts-consolidated", () =>
             onSnapshot(query(collection(db, "coinPayouts"), where("uid", "==", uid), limit(15)), snap => {
                 const list: AppNotification[] = snap.docs.flatMap(docSnap => {
                     const data = docSnap.data() as Record<string, unknown>;
@@ -304,7 +324,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
             }, () => setBucket("wallet-payouts", []))
         );
 
-        safeSubscribe("wallet-ledger", () =>
+        safeSubscribe("wallet-ledger-consolidated", () =>
             onSnapshot(
                 query(collection(db, "coinLedger", uid, "entries"), orderBy("createdAt", "desc"), limit(15)),
                 snap => {
@@ -404,6 +424,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
             )
         );
 
+        // Admin listeners consolidated into single interval (60s)
         if (userProfile?.role === "admin") {
             safeSubscribe("admin-verifications", () =>
                 onSnapshot(query(collection(db, "users"), where("residentVerificationStatus", "==", "pending"), limit(10)), snap => {

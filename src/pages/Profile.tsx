@@ -198,13 +198,13 @@ export default function Profile() {
     if (!tower.trim()) {
       nextErrors.tower = "Tower / Wing is required.";
     }
-    // Indian phone validation: +91- followed by 10 digits starting with 6-9
-    const phoneRegex = /^\+91-[6-9]\d{9}$/;
-    const sanitizedPhone = phoneNumber.replace(/\s/g, "");
-    if (!sanitizedPhone || sanitizedPhone === "+91-") {
+    // Indian phone validation: +91 followed by 10 digits starting with 6-9
+    const phoneRegex = /^\+91[6-9]\d{9}$/;
+    const normalizedPhone = phoneNumber.replace(/[\s-]/g, "");
+    if (!normalizedPhone || normalizedPhone === "+91") {
       nextErrors.phoneNumber = "Mobile number is required.";
-    } else if (!phoneRegex.test(sanitizedPhone)) {
-      nextErrors.phoneNumber = "Invalid Indian mobile number.";
+    } else if (!phoneRegex.test(normalizedPhone)) {
+      nextErrors.phoneNumber = "Invalid Indian mobile number. Use +91XXXXXXXXXX.";
     }
     if (isServiceProvider && userProfile?.residentVerificationStatus !== "verified") {
       nextErrors.serviceProvider = "Residency verification is required to enable Service Provider mode.";
@@ -217,7 +217,7 @@ export default function Profile() {
     try {
       await updateUserProfile(user.uid, {
         displayName, bio, skills, hourlyRate, isServiceProvider,
-        priceAfterQuote, society, locality, tower, flatNumber, phoneNumber: sanitizedPhone,
+        priceAfterQuote, society, locality, tower, flatNumber, phoneNumber: normalizedPhone,
       });
       logActivity(user.uid, "user.profile_update", `Profile updated: ${displayName}`, { isServiceProvider, skillCount: skills.length, society });
       setSaved(true);
@@ -490,7 +490,7 @@ export default function Profile() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div>
                 <label className="form-label" style={{ marginBottom: 4 }}>Residency Proof (required to book, enable Pro mode, and list services)</label>
-                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Upload maintenance bill, rental agreement, etc.</p>
+                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Upload a clear photo of your proof document. JPG, JPEG, and PNG files only.</p>
               </div>
               {userProfile?.residentVerificationStatus === "verified" && (
                 <span className="badge badge-success" style={{ fontSize: 11 }}>✓ Verified Resident</span>
@@ -508,7 +508,7 @@ export default function Profile() {
               📄 {uploadingProof ? "Uploading…" : "Upload proof document"}
               <input
                 type="file"
-                accept="image/*,.pdf,.doc,.docx"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                 style={{ display: "none" }}
                 disabled={uploadingProof}
                 onChange={async (e) => {

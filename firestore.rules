@@ -17,13 +17,25 @@ service cloud.firestore {
     function validLedgerEntry(uid) {
       return request.resource.data.uid == uid
         && request.resource.data.uid == request.auth.uid
+        && request.resource.data.type in [
+          'topup', 'booking_debit', 'booking_refund', 'booking_escrow',
+          'booking_escrow_release', 'payout', 'payout_cancelled',
+          'earn_review', 'earn_referral', 'earn_free_consult', 'earn_profile',
+          'earn_milestone', 'earn_groupsession', 'earn_ondemand', 'earn_signup_bonus',
+          'loyalty_cashback', 'pro_loyalty_bonus', 'admin_credit', 'admin_debit'
+        ]
         && request.resource.data.type is string
         && request.resource.data.description is string
         && request.resource.data.amount is int
-        && request.resource.data.amount > -100000
-        && request.resource.data.amount < 100000
+        && request.resource.data.amount >= -5000
+        && request.resource.data.amount <= 5000
         && request.resource.data.balanceAfter is int
         && request.resource.data.balanceAfter >= 0;
+    }
+
+    function isBookingParticipant(bookingId) {
+      return get(/databases/$(database)/documents/bookings/$(bookingId)).data.clientId == request.auth.uid
+          || get(/databases/$(database)/documents/bookings/$(bookingId)).data.proId == request.auth.uid;
     }
 
     // Public-safe fields any signed-in user may read on another user's profile.
@@ -194,7 +206,11 @@ service cloud.firestore {
     // ── Disputes ─────────────────────────────────────────
     match /disputes/{disputeId} {
       allow read: if isSignedIn() && (resource.data.raisedByUid == request.auth.uid || resource.data.againstUid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.raisedByUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.raisedByUid == request.auth.uid
+        && request.resource.data.status == 'raised'
+        && request.resource.data.bookingId is string
+        && isBookingParticipant(request.resource.data.bookingId);
       allow update: if isAdmin();
     }
 
