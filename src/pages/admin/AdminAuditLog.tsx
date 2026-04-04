@@ -1,18 +1,30 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "../../firebase";
 import { formatTimestamp } from "../../services/firestoreService";
+import { captureAuditEvent, type AuditMetadata } from "../../services/auditService";
 
 type LogEntry = Record<string, unknown>;
 
 const ACTION_TYPES = ["All", "user.disable", "user.enable", "user.delete", "user.role_change", "society.create", "society.delete", "broadcast.send", "ticket.close", "settings.update", "service.approve", "service.reject", "review.delete"];
 
-export async function logAudit(action: string, adminId: string, adminName: string, details: string, targetId?: string) {
+export async function logAudit(
+  action: string,
+  adminId: string,
+  adminName: string,
+  details: string,
+  targetId?: string,
+  metadata?: Record<string, unknown>
+) {
   try {
-    await addDoc(collection(db, "auditLogs"), {
-      action, adminId, adminName, details, targetId: targetId || null,
-      timestamp: serverTimestamp(), createdAt: serverTimestamp(),
-    });
+    await captureAuditEvent({
+      action,
+      adminId,
+      adminName,
+      details,
+      targetId: targetId || null,
+      metadata: metadata || {},
+    } as unknown as AuditMetadata);
   } catch { /* best-effort */ }
 }
 
