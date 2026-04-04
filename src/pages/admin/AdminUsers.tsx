@@ -41,6 +41,10 @@ export default function AdminUsers() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<UserRow | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [roleModalUser, setRoleModalUser] = useState<UserRow | null>(null);
+  const [roleUnderstandsWarning, setRoleUnderstandsWarning] = useState(false);
+  const [roleNameConfirmation, setRoleNameConfirmation] = useState("");
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -133,7 +137,7 @@ export default function AdminUsers() {
   };
 
   const handleToggleRole = (u: UserRow) => {
-    const role = u.role === "admin" ? "user" : "admin";
+    const newRole = u.role === "admin" ? "user" : "admin";
     const name = (u.displayName as string) || (u.email as string) || u.uid as string;
 
     if (u.role === "admin" && getActiveAdminCount() <= 1) {
@@ -146,23 +150,25 @@ export default function AdminUsers() {
       return;
     }
 
-    if (role === "admin") {
-      const phrase = window.prompt(`Type MAKE ADMIN to grant full admin access to ${name}.`);
-      if (phrase !== "MAKE ADMIN") {
-        showToast("Admin role change cancelled", "error");
-        return;
-      }
+    // For escalation to admin, show modal; for demotion, use simple confirm
+    if (newRole === "admin") {
+      // Show modal for escalation
+      setRoleModalUser(u);
+      setShowRoleModal(true);
+      setRoleUnderstandsWarning(false);
+      setRoleNameConfirmation("");
     } else {
+      // Simple confirm for demotion
       const ok = window.confirm(`Demote ${name} to regular user?`);
       if (!ok) return;
-    }
 
-    doAction(
-      u.uid as string, { role },
-      role === "admin" ? "Elevated to Admin" : "Role reverted to User",
-      "user.role_change",
-      `Changed role of ${name} to "${role}"`
-    );
+      doAction(
+        u.uid as string, { role: newRole },
+        "Role reverted to User",
+        "user.role_change",
+        `Changed role of ${name} to "user"`
+      );
+    }
   };
 
   const handleTogglePro = (u: UserRow) => {
@@ -359,6 +365,37 @@ export default function AdminUsers() {
     return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
+  const handleConfirmRoleEscalation = async () => {
+    if (!roleModalUser) return;
+    
+    const targetName = (roleModalUser.displayName as string) || (roleModalUser.email as string) || roleModalUser.uid as string;
+    const expectedConfirmation = targetName;
+    
+    if (!roleUnderstandsWarning) {
+      showToast("You must acknowledge the warning to proceed", "error");
+      return;
+    }
+    
+    if (roleNameConfirmation.trim() !== expectedConfirmation) {
+      showToast(`Name does not match. Please type: "${expectedConfirmation}"`, "error");
+      return;
+    }
+    
+    // Close modal first
+    setShowRoleModal(false);
+    setRoleModalUser(null);
+    setRoleUnderstandsWarning(false);
+    setRoleNameConfirmation("");
+    
+    // Now perform the escalation
+    await doAction(
+      roleModalUser.uid as string, { role: "admin" },
+      "Elevated to Admin",
+      "user.role_change",
+      `Changed role of ${targetName} to "admin"`
+    );
+  };
+
   return (
     <div>
       {toast && (
@@ -368,6 +405,63 @@ export default function AdminUsers() {
           color: "#fff", padding: "10px 20px", borderRadius: "var(--radius-sm)",
           fontWeight: 600, fontSize: 13, boxShadow: "var(--shadow-lg)", animation: "dropIn 0.2s ease",
         }}>{toast.msg}</div>
+      )}
+
+
+      {showRoleModal && roleModalUser && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 9998,
+        }}>
+          <div className="card" style={{ maxWidth: 420, padding: 20, borderRadius: "var(--radius-lg)" }}>
+            <h2 style={{ marginTop: 0, marginBottom: 12, fontSize: 18, fontWeight: 700 }}>Grant Admin Access</h2>
+            <div style={{ backgroundColor: "var(--warning-dim)", padding: 12, borderRadius: "var(--radius-sm)", marginBottom: 16, fontSize: 13 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--warning)" }}>⚠ Warning: Full Platform Access</div>
+              <div style={{ color: "var(--text)" }}>Admins can modify any user account, disable access, approve financial transactions, and access sensitive data. Grant carefully.</div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+                <input type="checkbox" checked={roleUnderstandsWarning} onChange={e => setRoleUnderstandsWarning(e.target.checked)} />
+                I understand the risks and want to proceed
+              </label>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500 }}>
+                Type user's name to confirm: <strong>{((roleModalUser.displayName as string) || (roleModalUser.email as string) || roleModalUser.uid as string)}</strong>
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder={((roleModalUser.displayName as string) || (roleModalUser.email as string) || roleModalUser.uid as string)}
+                value={roleNameConfirmation}
+                onChange={e => setRoleNameConfirmation(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", fontSize: 13 }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setShowRoleModal(false);
+                  setRoleModalUser(null);
+                  setRoleUnderstandsWarning(false);
+                  setRoleNameConfirmation("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleConfirmRoleEscalation}
+                disabled={!roleUnderstandsWarning || roleNameConfirmation.trim() === ""}
+                style={{ opacity: (!roleUnderstandsWarning || roleNameConfirmation.trim() === "") ? 0.5 : 1 }}
+              >
+                Grant Admin Access
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="page-header">
