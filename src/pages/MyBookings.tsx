@@ -84,7 +84,7 @@ export default function MyBookings() {
       // Release escrow FIRST, then update status
       const result = await releaseEscrow(user!.uid, id, (b.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
-      await rewardReferral(b.clientId as string);
+      await rewardReferral(b.clientId as string, id);
       try {
         await processCompletedBookingLoyalty({
           bookingId: id,

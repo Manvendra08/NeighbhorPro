@@ -1,4 +1,9 @@
 /**
+ * BLAZE PLAN ONLY
+ *
+ * These Cloud Functions are not used in the Spark-plan client-only deployment.
+ * Keep this file for future Blaze migration only. Do not rely on it in Spark.
+ *
  * Firebase Cloud Functions — NeighbourCoins × Razorpay
  *
  * Exports:

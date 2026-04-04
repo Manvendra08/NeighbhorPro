@@ -82,7 +82,7 @@ export default function BookingDetail() {
     try {
       const result = await releaseEscrow(user!.uid, id!, (booking.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
-      await rewardReferral(booking.clientId as string);
+      await rewardReferral(booking.clientId as string, id!);
       try {
         await processCompletedBookingLoyalty({
           bookingId: id!,

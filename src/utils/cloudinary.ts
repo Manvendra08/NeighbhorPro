@@ -13,7 +13,7 @@ export const MAX_SIZES: Record<string, number> = {
 
 export const ALLOWED_TYPES: Record<string, string[]> = {
   profilePhoto:  ["image/jpeg", "image/png", "image/webp"],
-  residencyProof:["image/jpeg", "image/png", "image/webp"],
+  residencyProof:["image/jpeg", "image/png"],
   chatAttachment:["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "text/plain",
                   "application/msword",
                   "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],

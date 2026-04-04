@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { getBookingsForPro, getUserProfile, getBookingsForUser, getReviewDistribution } from "../services/firestoreService";
+import { getBookingsForPro, getUserProfile, getBookingsForUser, getReviewDistribution, getPublicProfile } from "../services/firestoreService";
 import { getLoyaltyPreview, type LoyaltyPreview } from "../services/loyaltyService";
 import DesktopDashboard from "../components/dashboard/DesktopDashboard";
 import MobileDashboard from "../components/dashboard/MobileDashboard";
@@ -61,11 +61,23 @@ export default function Dashboard() {
         if (lastCompleted && lastCompleted.length > 0) {
           const latest = lastCompleted[0];
           setLastCompletedBooking(latest);
-          const proObj = await getUserProfile(latest.proId as string);
+          const proObj = await getPublicProfile(latest.proId as string);
           setLastBookedPro(proObj);
-          // @ts-ignore - getLoyaltyPreview might have different signature or missing in some branches
-          const loyalty = await getLoyaltyPreview(user.uid, latest.proId as string);
-          setLoyaltyPreview(loyalty);
+
+          const bookingAmount = Number(
+            (latest.amount as number | undefined) ??
+            (latest.paidInCoins as number | undefined) ??
+            (latest.escrowCoins as number | undefined) ??
+            0
+          );
+
+          try {
+            const loyalty = await getLoyaltyPreview(user.uid, latest.proId as string, bookingAmount);
+            setLoyaltyPreview(loyalty);
+          } catch {
+            // Keep dashboard usable even if loyalty preview cannot be read yet.
+            setLoyaltyPreview(null);
+          }
         }
       } catch (error) {
         console.error("Dashboard fetch error:", error);

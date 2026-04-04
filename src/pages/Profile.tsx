@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { updateUserProfile, createService, getServicesByUser, deleteService, updateService, uploadProfilePhoto, getAllSocieties, uploadResidencyProof, deleteResidencyProof } from "../services/firestoreService";
+import { updateUserProfile, createService, getServicesByUser, deleteService, updateService, uploadProfilePhoto, getAllSocieties, uploadResidencyProof } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
 
 // ── White-collar skills for gated-society professionals — Park Street, Wakad, Pune
@@ -123,8 +123,6 @@ export default function Profile() {
   const [flatNumber, setFlatNumber] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("+91-");
   const [uploadingProof, setUploadingProof] = useState(false);
-  const [deletingProof, setDeletingProof] = useState(false);
-  const [proofMessage, setProofMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Services
   const [services, setServices] = useState<Record<string, unknown>[]>([]);
@@ -172,12 +170,6 @@ export default function Profile() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!proofMessage) return;
-    const timer = window.setTimeout(() => setProofMessage(null), 3000);
-    return () => window.clearTimeout(timer);
-  }, [proofMessage]);
-
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !user) return;
     const file = e.target.files[0];
@@ -186,32 +178,6 @@ export default function Profile() {
       await uploadProfilePhoto(user.uid, file);
     } catch { /* ignore */ }
     setUploadingPhoto(false);
-  };
-
-  const handleDeleteProof = async () => {
-    if (!user || !userProfile) return;
-    const canDeleteProof = !!userProfile.residencyProofUrl && (
-      userProfile.residentVerificationStatus === "pending" || !!userProfile.verificationReviewNote
-    );
-    if (!canDeleteProof) return;
-
-    const confirmMessage = userProfile.residentVerificationStatus === "pending"
-      ? "Delete your residency proof while it is pending review? This will remove it from the admin queue."
-      : "Delete your rejected residency proof? You will keep the rejection reason until you upload a new proof.";
-    if (!window.confirm(confirmMessage)) return;
-
-    setDeletingProof(true);
-    try {
-      await deleteResidencyProof(user.uid);
-      void logActivity(user.uid, "verification.deleted", "Residency proof deleted by user", {
-        status: userProfile.residentVerificationStatus,
-      });
-      setProofMessage({ type: "success", text: "Residency proof deleted successfully." });
-    } catch (err: any) {
-      setProofMessage({ type: "error", text: err?.message || "Failed to delete proof. Please try again." });
-    } finally {
-      setDeletingProof(false);
-    }
   };
 
   const handleSave = async (e: FormEvent) => {
@@ -232,13 +198,13 @@ export default function Profile() {
     if (!tower.trim()) {
       nextErrors.tower = "Tower / Wing is required.";
     }
-    // Indian phone validation: +91- followed by 10 digits starting with 6-9
-    const phoneRegex = /^\+91-[6-9]\d{9}$/;
-    const sanitizedPhone = phoneNumber.replace(/\s/g, "");
-    if (!sanitizedPhone || sanitizedPhone === "+91-") {
+    // Indian phone validation: +91 followed by 10 digits starting with 6-9
+    const phoneRegex = /^\+91[6-9]\d{9}$/;
+    const normalizedPhone = phoneNumber.replace(/[\s-]/g, "");
+    if (!normalizedPhone || normalizedPhone === "+91") {
       nextErrors.phoneNumber = "Mobile number is required.";
-    } else if (!phoneRegex.test(sanitizedPhone)) {
-      nextErrors.phoneNumber = "Invalid Indian mobile number.";
+    } else if (!phoneRegex.test(normalizedPhone)) {
+      nextErrors.phoneNumber = "Invalid Indian mobile number. Use +91XXXXXXXXXX.";
     }
     if (isServiceProvider && userProfile?.residentVerificationStatus !== "verified") {
       nextErrors.serviceProvider = "Residency verification is required to enable Service Provider mode.";
@@ -251,7 +217,7 @@ export default function Profile() {
     try {
       await updateUserProfile(user.uid, {
         displayName, bio, skills, hourlyRate, isServiceProvider,
-        priceAfterQuote, society, locality, tower, flatNumber, phoneNumber: sanitizedPhone,
+        priceAfterQuote, society, locality, tower, flatNumber, phoneNumber: normalizedPhone,
       });
       logActivity(user.uid, "user.profile_update", `Profile updated: ${displayName}`, { isServiceProvider, skillCount: skills.length, society });
       setSaved(true);
@@ -524,7 +490,7 @@ export default function Profile() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div>
                 <label className="form-label" style={{ marginBottom: 4 }}>Residency Proof (required to book, enable Pro mode, and list services)</label>
-                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Upload maintenance bill, rental agreement, etc.</p>
+                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Upload a clear photo of your proof document. JPG, JPEG, and PNG files only.</p>
               </div>
               {userProfile?.residentVerificationStatus === "verified" && (
                 <span className="badge badge-success" style={{ fontSize: 11 }}>✓ Verified Resident</span>
@@ -532,54 +498,19 @@ export default function Profile() {
               {userProfile?.residentVerificationStatus === "pending" && (
                 <span className="badge badge-warning" style={{ fontSize: 11 }}>⏳ Pending Review</span>
               )}
-              {userProfile?.residentVerificationStatus === "none" && userProfile?.verificationReviewNote && (
-                <span className="badge badge-error" style={{ fontSize: 11 }}>✕ Rejected</span>
-              )}
             </div>
-            {userProfile?.residentVerificationStatus === "none" && userProfile?.verificationReviewNote && (
-              <div className="error-box" style={{ marginBottom: 8 }}>
-                <strong>Rejected by admin:</strong> {userProfile.verificationReviewNote}
+            {userProfile?.residencyProofUrl && (
+              <div style={{ marginBottom: 8, fontSize: 12 }}>
+                <a href={userProfile.residencyProofUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>📎 View uploaded proof</a>
               </div>
             )}
-            {(userProfile?.residencyProofPreviewUrl || userProfile?.residencyProofUrl) && (
-              <div style={{ marginBottom: 8, fontSize: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <a
-                  href={userProfile.residencyProofPreviewUrl || userProfile.residencyProofUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: "var(--accent)" }}
-                >
-                  📎 View uploaded proof
-                </a>
-                {userProfile.residentVerificationStatus !== "verified" && (userProfile.residentVerificationStatus === "pending" || !!userProfile.verificationReviewNote) && (
-                  <button type="button" className="btn btn-danger btn-sm" onClick={handleDeleteProof} disabled={uploadingProof || deletingProof}>
-                    {deletingProof ? "Deleting…" : "Delete proof"}
-                  </button>
-                )}
-              </div>
-            )}
-            {proofMessage && (
-              <div
-                className={proofMessage.type === "error" ? "error-box" : ""}
-                style={{
-                  marginBottom: 8,
-                  padding: proofMessage.type === "error" ? undefined : "10px 12px",
-                  borderRadius: proofMessage.type === "error" ? undefined : "var(--radius-sm)",
-                  background: proofMessage.type === "success" ? "rgba(74, 222, 128, 0.12)" : undefined,
-                  color: proofMessage.type === "success" ? "var(--success)" : undefined,
-                  fontSize: 13,
-                }}
-              >
-                {proofMessage.text}
-              </div>
-            )}
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: (uploadingProof || userProfile?.residentVerificationStatus === "verified") ? "not-allowed" : "pointer", padding: "8px 16px", border: "1px dashed var(--border)", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--muted)", opacity: userProfile?.residentVerificationStatus === "verified" ? 0.6 : 1 }}>
-              📄 {uploadingProof ? "Uploading…" : userProfile?.residentVerificationStatus === "verified" ? "Proof already verified" : "Upload proof image"}
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: uploadingProof ? "default" : "pointer", padding: "8px 16px", border: "1px dashed var(--border)", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--muted)" }}>
+              📄 {uploadingProof ? "Uploading…" : "Upload proof document"}
               <input
                 type="file"
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                 style={{ display: "none" }}
-                disabled={uploadingProof || userProfile?.residentVerificationStatus === "verified"}
+                disabled={uploadingProof}
                 onChange={async (e) => {
                   if (!e.target.files?.[0] || !user) return;
                   setUploadingProof(true);
@@ -593,9 +524,6 @@ export default function Profile() {
                 }}
               />
             </label>
-            <p className="text-muted" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-              Only image formats are supported as residency proof.
-            </p>
           </div>
         </div>
 
