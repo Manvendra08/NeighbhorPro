@@ -25,6 +25,12 @@ Success criteria:
 - Pending verification queue consistently reflects pending-only state.
 - Audit logs contain enough structured detail for incident reconstruction.
 
+**Plans:** 2 plans
+1. [ ] 01-01-PLAN.md — Harden role escalation confirmation and verification review metadata capture
+2. [ ] 01-02-PLAN.md — Ensure verification queue reliability and comprehensive audit logging
+
+**Execute:** `/gsd-execute-phase 01-admin-governance`
+
 ### Phase 2: Booking and Discovery Reliability
 Goal: Make booking/discovery lists resilient to mixed schema and mirror lag.
 
