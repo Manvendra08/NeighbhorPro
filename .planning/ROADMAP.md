@@ -95,8 +95,8 @@ Success criteria:
 **Priority:** 🔴 CRITICAL (unblocks financial transaction safety)
 
 **Plans:**
-1. [ ] 06-01-PLAN.md — Add pending-check guard and duplicate prevention in coinService.requestPayout()
-2. [ ] 06-02-PLAN.md — Create Phase 3 verification artifact with full wallet lifecycle UAT
+1. [x] 06-01-PLAN.md — Add pending-check guard and duplicate prevention in coinService.requestPayout()
+2. [x] 06-02-PLAN.md — Create Phase 3 verification artifact with full wallet lifecycle UAT
 
 ### Phase 7: Messaging & Dashboard Verification
 Goal: Create phase 4 verification artifact and validate identity fallback + rating signals.
@@ -110,7 +110,7 @@ Success criteria:
 **Priority:** 🟠 High (code exists, needs UAT)
 
 **Plans:**
-1. [ ] 07-01-PLAN.md — Create Phase 4 verification artifact with identity fallback UAT
+1. [x] 07-01-PLAN.md — Create Phase 4 verification artifact with identity fallback UAT
 2. [ ] 07-02-PLAN.md — Validate rating display and star-breakdown interaction
 
 ### Phase 8: Bundle Chunking & Performance Validation
@@ -125,7 +125,7 @@ Success criteria:
 **Priority:** 🟠 High (new work required)
 
 **Plans:**
-1. [ ] 08-01-PLAN.md — Define chunking strategy in vite.config.ts and measure bundle impact
+1. [x] 08-01-PLAN.md — Define chunking strategy in vite.config.ts and measure bundle impact
 2. [ ] 08-02-PLAN.md — Create Phase 5 verification artifact with route responsiveness validation
 
 ### Phase 9: Discovery Filter Fix & Booking Verification
@@ -139,7 +139,7 @@ Success criteria:
 **Priority:** 🟡 Medium (code mostly exists)
 
 **Plans:**
-1. [ ] 09-01-PLAN.md — Fix filter passing in Browse Pros and create Phase 2 verification artifact
+1. [x] 09-01-PLAN.md — Fix filter passing in Browse Pros and create Phase 2 verification artifact
 
 ### Phase 10: Service Layer Coverage & Integration
 Goal: Add tests for zero-coverage services and expand critical wallet service coverage.
@@ -153,8 +153,8 @@ Success criteria:
 **Priority:** 🟡 Medium–High (cross-cutting foundation)
 
 **Plans:**
-1. [ ] 10-01-PLAN.md — Add firestoreService and coinService tests
-2. [ ] 10-02-PLAN.md — Add auditService, supportService, razorpayService, activityService baseline tests
+1. [x] 10-01-PLAN.md — Add firestoreService and coinService tests
+2. [x] 10-02-PLAN.md — Add auditService, supportService, razorpayService, activityService baseline tests
 3. [ ] 10-03-PLAN.md — Validate all service integration wiring with integration checker
 
 ## Next Command

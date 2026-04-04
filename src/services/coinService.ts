@@ -565,6 +565,14 @@ export const MIN_PAYOUT_COINS = 200;
 
 export async function requestPayout(uid: string, displayName: string, coins: number, upiId: string): Promise<{ success: boolean; reason?: string }> {
   if (coins < MIN_PAYOUT_COINS) return { success: false, reason: `Minimum payout is ${MIN_PAYOUT_COINS} NC` };
+  const existingPending = await getPendingPayoutForUser(uid);
+  if (existingPending) {
+    console.info(`Duplicate payout prevented for user ${uid}`);
+    return {
+      success: false,
+      reason: "A payout request is already pending. Please wait for processing or cancel existing request.",
+    };
+  }
   const maskedUpi = maskUpiId(upiId);
   try {
     await runTransaction(db, async tx => {
