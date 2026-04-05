@@ -114,6 +114,21 @@ export default function MobileDashboard({
         </div>
       )}
 
+      {lastCompletedBooking && !lastBookedPro && !loading && (
+        <div style={{
+          margin: "0 12px 16px",
+          padding: "10px 12px",
+          borderRadius: 10,
+          background: "rgba(245,158,11,0.08)",
+          border: "1px solid rgba(245,158,11,0.25)",
+          color: "#9a6700",
+          fontSize: 12,
+          fontWeight: 500,
+        }}>
+          Last booked professional details are temporarily unavailable. Use Bookings to rebook.
+        </div>
+      )}
+
       {/* Action cards (Upcoming + Pro Requests) */}
       {!loading && (upcomingBookings.length > 0 || proBookings.length > 0) && (
         <div style={{ padding: "0 12px 16px" }}>

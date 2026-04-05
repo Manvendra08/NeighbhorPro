@@ -140,15 +140,20 @@ export async function getUserProfile(uid: string): Promise<Record<string, unknow
 export async function getPublicProfile(uid: string): Promise<Record<string, unknown> | null> {
   const snap = await getDoc(doc(db, 'publicProfiles', uid));
   if (snap.exists()) return normalizeProfileData({ uid: snap.id, ...snap.data() });
-  // Legacy fallback: strip sensitive fields from /users document
-  const userSnap = await getDoc(doc(db, 'users', uid));
-  if (!userSnap.exists()) return null;
-  const full = userSnap.data() as Record<string, unknown>;
-  const stripped: Record<string, unknown> = { uid };
-  for (const field of PUBLIC_PROFILE_FIELDS) {
-    if (field in full) stripped[field] = full[field as string];
+  // Legacy fallback: strip sensitive fields from /users document.
+  // This can be denied by rules for non-owner/non-admin callers.
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (!userSnap.exists()) return null;
+    const full = userSnap.data() as Record<string, unknown>;
+    const stripped: Record<string, unknown> = { uid };
+    for (const field of PUBLIC_PROFILE_FIELDS) {
+      if (field in full) stripped[field] = full[field as string];
+    }
+    return normalizeProfileData(stripped);
+  } catch {
+    return null;
   }
-  return normalizeProfileData(stripped);
 }
 
 
@@ -569,16 +574,26 @@ export async function updateProAvailability(proId: string, availabilityData: Rec
 ═══════════════════════════════════════════ */
 export async function addReview(bookingId: string, proId: string, rating: number, comment: string) {
   if (!auth.currentUser) throw new Error("Must be logged in to review");
-  // 1. Add review
-  await addDoc(collection(db, "reviews"), {
-    bookingId,
-    proId,
-    clientId: auth.currentUser.uid,
-    clientName: auth.currentUser.displayName || "User",
-    clientPhoto: auth.currentUser.photoURL || "",
-    rating,
-    comment,
-    createdAt: serverTimestamp()
+  const clientId = auth.currentUser.uid;
+  const reviewId = `${bookingId}_${clientId}`;
+  const reviewRef = doc(db, "reviews", reviewId);
+
+  await runTransaction(db, async tx => {
+    const existing = await tx.get(reviewRef);
+    if (existing.exists()) {
+      throw new Error("You have already submitted a review for this booking.");
+    }
+
+    tx.set(reviewRef, {
+      bookingId,
+      proId,
+      clientId,
+      clientName: auth.currentUser?.displayName || "User",
+      clientPhoto: auth.currentUser?.photoURL || "",
+      rating,
+      comment,
+      createdAt: serverTimestamp(),
+    });
   });
 
   // Spam flagging is handled server-side by a Cloud Function trigger.
@@ -779,7 +794,14 @@ export function formatTimestampTime(ts: unknown): string {
 export async function createFeedPost(data: {
   authorId: string; authorName: string; content: string; locality?: string; tower?: string;
 }) {
-  const ref = await addDoc(collection(db, "localFeed"), { ...data, createdAt: serverTimestamp(), likes: 0 });
+  const ref = await addDoc(collection(db, "localFeed"), {
+    ...data,
+    createdAt: serverTimestamp(),
+    reactions: {},
+    likes: [],
+    likeCount: 0,
+    commentCount: 0,
+  });
   return ref.id;
 }
 
@@ -842,25 +864,21 @@ export async function toggleReactionToFeedPost(postId: string, uid: string, type
     if (!postSnap.exists()) return;
 
     const data = postSnap.data();
-    const reactions = (data.reactions as Record<string, string>) || {};
-    const likes = Array.isArray(data.likes) ? (data.likes as string[]) : [];
+    const currentReactions = (data.reactions as Record<string, string>) || {};
+    const currentLikes = Array.isArray(data.likes) ? (data.likes as string[]) : [];
 
-    const existing = reactions[uid];
-    if (existing === type) {
-      // Remove it if same type clicked (toggle off)
-      delete reactions[uid];
-      const index = likes.indexOf(uid);
-      if (index !== -1) likes.splice(index, 1);
-    } else {
-      // Add or replace
-      reactions[uid] = type;
-      if (!likes.includes(uid)) likes.push(uid);
-    }
+    const existing = currentReactions[uid];
+    const nextReactions = existing === type
+      ? Object.fromEntries(Object.entries(currentReactions).filter(([userId]) => userId !== uid))
+      : { ...currentReactions, [uid]: type };
+    const nextLikes = existing === type
+      ? currentLikes.filter(userId => userId !== uid)
+      : (currentLikes.includes(uid) ? currentLikes : [...currentLikes, uid]);
 
     tx.update(postRef, {
-      reactions,
-      likes,
-      likeCount: likes.length,
+      reactions: nextReactions,
+      likes: nextLikes,
+      likeCount: nextLikes.length,
       updatedAt: serverTimestamp()
     });
   });
