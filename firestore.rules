@@ -58,6 +58,7 @@ service cloud.firestore {
     // Written by the owner on profile save; readable by anyone (no auth required) for Browse/ProDetail.
     // Sensitive fields (phone, flat, coinBalance, fcmToken, referralCode) are never written here.
     match /publicProfiles/{userId} {
+      allow list:   if true;  // Required for getCountFromServer aggregation queries
       allow read:   if true;
       allow create: if isSignedIn() && isOwner(userId);
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin())
