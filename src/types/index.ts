@@ -107,7 +107,9 @@ export interface UserSummary {
   tower: string;
   flatNumber: string;
   residencyProofUrl?: string;
+  residencyProofPreviewUrl?: string;
   residentVerificationStatus: "none" | "pending" | "verified";
+  verificationReviewNote?: string | null;
   isServiceProvider?: boolean;
   priceAfterQuote?: boolean;
   role: "user" | "admin";

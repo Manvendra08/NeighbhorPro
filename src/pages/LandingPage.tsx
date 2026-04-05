@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./LandingPage.css";
 
@@ -110,7 +110,9 @@ export default function LandingPage() {
       {/* ── HERO ── */}
       <section className="lp-hero" style={{
         minHeight: isMobile ? "100dvh" : "100vh",
-        background: `linear-gradient(to bottom right, rgba(11,27,46,0.85) 0%, rgba(15,78,104,0.65) 60%, rgba(0,0,0,0.3) 100%), url('/images/hero-bg.jpg') center/cover no-repeat`,
+        background: isMobile
+          ? `linear-gradient(to bottom right, rgba(11,27,46,0.92) 0%, rgba(15,78,104,0.82) 60%, rgba(0,0,0,0.55) 100%), url('/images/hero-bg.jpg') center/cover no-repeat`
+          : `linear-gradient(to bottom right, rgba(11,27,46,0.85) 0%, rgba(15,78,104,0.65) 60%, rgba(0,0,0,0.3) 100%), url('/images/hero-bg.jpg') center/cover no-repeat`,
         padding: isMobile ? `${52 + 20}px ${px} 36px` : `90px ${px} 60px`,
       }}>
         <div className="lp-hero-overlay" style={{ height: isMobile ? 60 : 100 }} />
@@ -133,10 +135,16 @@ export default function LandingPage() {
               <button onClick={() => navigate("/register")} className="lp-btn-primary lp-btn-hero-primary" style={{ padding: isMobile ? "12px 24px" : "14px 32px" }}>
                 Join Waitlist
               </button>
-              <button onClick={() => scrollTo("how")} className="lp-btn-hero-secondary" style={{ padding: isMobile ? "12px 22px" : "14px 32px" }}>
-                How It Works
-              </button>
             </div>
+            <div className="lp-waitlist-counter">
+              <div className="lp-progress-bar-wrap">
+                <div className="lp-progress-bar" style={{ width: "74.3%" }} />
+              </div>
+              <span className="lp-waitlist-label">743 / 1000 founding spots claimed</span>
+            </div>
+            <p className="lp-hero-expectation">
+              We'll notify you when Park Street goes live — May 2026.
+            </p>
           </div>
 
           {/* Image panel — hidden on mobile (hero bg is enough) */}
@@ -162,7 +170,7 @@ export default function LandingPage() {
       {/* ── PROOF STRIP ── */}
       <div className="lp-proof-strip" style={{ padding: `16px ${px}` }}>
         <div className="lp-proof-container">
-          {[["🏘️", "Exclusive to Park Street, Wakad"], ["⭐", "4.9/5 satisfaction"], ["💼", "CA, Doctor, Yoga + 17 more"], ["🔐", "Verified residents only"]].map(([icon, text]) => (
+          {[["🏘️", "Exclusive to Park Street, Wakad"], ["⭐", "Trusted by early adopters"], ["💼", "CA, Doctor, Yoga + 17 more"], ["🔐", "Verified residents only"]].map(([icon, text]) => (
             <div key={text as string} className="lp-proof-item">
               <span>{icon}</span><span>{text}</span>
             </div>
@@ -176,17 +184,48 @@ export default function LandingPage() {
           <Tag>How It Works</Tag>
           <h2 className="lp-section-h2">From need to booking<br />in under 3 minutes.</h2>
           <p className="lp-section-p">No cold calls. No WhatsApp forwards. A clean, trusted marketplace inside your gates.</p>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 12 : 24 }}>
+          <div className="lp-steps-wrapper" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr auto 1fr auto 1fr", gap: isMobile ? 12 : 0 }}>
             {[
               ["01", "🏠", "Join Your Society", "Sign up with your society code. Only genuine residents and pros get in."],
               ["02", "🔍", "Browse & Filter", "Search by category, rating, price, or availability. See neighbour endorsements."],
               ["03", "✅", "Book Instantly", "Pick a real-time slot. Group sessions, recurring bookings — all supported."],
-            ].map(([num, icon, title, desc]) => (
-              <div key={num as string} className="lp-step-card" style={{ opacity: 1, transform: "none" }}>
-                <div className="lp-step-num">{num}</div>
-                <div className="lp-step-icon">{icon}</div>
-                <h3 style={{ fontSize: "clamp(0.95rem,3vw,1.1rem)", fontWeight: 700, marginBottom: 8, color: "#0C1B2E" }}>{title}</h3>
-                <p style={{ fontSize: "clamp(0.82rem,2.5vw,0.9rem)", color: "#5C6E84", lineHeight: 1.6 }}>{desc}</p>
+            ].map(([num, icon, title, desc], idx) => (
+              <React.Fragment key={num as string}>
+                <div className="lp-step-card" style={{ opacity: 1, transform: "none" }}>
+                  <div className="lp-step-num">{num}</div>
+                  <div className="lp-step-icon">{icon}</div>
+                  <h3 style={{ fontSize: "clamp(0.95rem,3vw,1.1rem)", fontWeight: 700, marginBottom: 8, color: "#0C1B2E" }}>{title}</h3>
+                  <p style={{ fontSize: "clamp(0.82rem,2.5vw,0.9rem)", color: "#5C6E84", lineHeight: 1.6 }}>{desc}</p>
+                </div>
+                {idx < 2 && !isMobile && (
+                  <div className="lp-step-connector">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M6 16h20M20 10l6 6-6 6" stroke="#1B6B8A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4"/></svg>
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section style={{ background: "#fff", padding: `clamp(36px,5vw,60px) ${px}` }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <Tag>What Early Members Say</Tag>
+          <h2 className="lp-section-h2">Real stories from Park Street.</h2>
+          <div className="lp-testimonials-grid" style={{ gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)" }}>
+            {[
+              { quote: "Had our CA file returns for 6 flats in one group session. Saved ₹4,000 total.", name: "Rahul M.", role: "Tower B Resident" },
+              { quote: "Listed my yoga classes and got 11 bookings in week one. Zero platform fee.", name: "Priya S.", role: "Certified Yoga Instructor" },
+              { quote: "Finally found a reliable tutor for my daughter — she lives 3 floors above us.", name: "Anita K.", role: "Park Street Resident" },
+            ].map(({ quote, name, role }) => (
+              <div key={name} className="lp-testimonial-card">
+                <div className="lp-testimonial-quote">❝</div>
+                <p className="lp-testimonial-text">{quote}</p>
+                <div className="lp-testimonial-author">
+                  <strong>{name}</strong>
+                  <span>{role}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -224,7 +263,7 @@ export default function LandingPage() {
               ["📹", "Phase 2", "Video Consultations", "Built-in video for CA, legal, mental health."],
               ["🔐", null, "Verified Pro Badges", "🎓 Degree · 🪪 ID · ✅ Background checks."],
             ].map(([icon, phase, title, desc]) => (
-              <div key={title as string} className="lp-feature-card-dark" style={{ opacity: 1, transform: "none", textAlign: "left" }}>
+              <div key={title as string} className={`lp-feature-card-dark${phase ? " lp-phase2" : ""}`} style={{ opacity: 1, transform: "none", textAlign: "left" }}>
                 <div style={{ fontSize: isMobile ? "1.5rem" : "1.8rem", marginBottom: 12 }}>{icon}</div>
                 {phase && <div className="lp-feature-phase">{phase}</div>}
                 <h3 style={{ fontSize: "clamp(0.9rem,3vw,1rem)", fontWeight: 700, marginBottom: 8, color: "#fff" }}>{title}</h3>
@@ -275,7 +314,7 @@ export default function LandingPage() {
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
           <Tag dark orange>Register as Expert</Tag>
           <h2 className="lp-section-h2" style={{ color: "#fff", fontSize: "clamp(1.5rem,5vw,2.4rem)" }}>The professional network for <span className="lp-logo-accent">Park Street residents.</span></h2>
-          <p className="lp-section-p" style={{ color: "rgba(255,255,255,0.72)", marginBottom: 28, margin: "0 auto 28px" }}>Join 847 experts. List your services and start earning locally.</p>
+          <p className="lp-section-p" style={{ color: "rgba(255,255,255,0.72)", marginBottom: 28, margin: "0 auto 28px" }}>Be among the first experts. List your services and start earning locally.</p>
           <button onClick={() => navigate("/register")} className="lp-btn-primary" style={{ padding: isMobile ? "14px 32px" : "16px 44px", fontSize: "clamp(0.92rem,3vw,1.1rem)", boxShadow: "0 6px 24px rgba(245,105,44,0.45)", width: isMobile ? "100%" : "auto" }}>
             Register as Expert
           </button>

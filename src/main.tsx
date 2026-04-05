@@ -9,14 +9,17 @@ import "./darkmode.css";
 import App from "./App.tsx";
 import { queryClient } from "./lib/queryClient";
 import { initSentry } from "./lib/sentry";
+import ErrorBoundary from "./components/ErrorBoundary";
+
 
 initSentry();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+              <ErrorBoundary>
+                          <App />
+                        </ErrorBoundary>
     </QueryClientProvider>
-  </StrictMode>
-);
-
+      </StrictMode>
+  );

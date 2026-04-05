@@ -108,6 +108,21 @@ export default function DesktopDashboard({
             </div>
           )}
 
+          {lastCompletedBooking && !lastBookedPro && !loading && (
+            <div style={{
+              background: "rgba(245,158,11,0.08)",
+              borderRadius: 12,
+              padding: "12px 14px",
+              marginBottom: 20,
+              border: "1px solid rgba(245,158,11,0.25)",
+              color: "#9a6700",
+              fontSize: 13,
+              fontWeight: 500,
+            }}>
+              Could not load your last booked professional right now. You can still rebook from the bookings page.
+            </div>
+          )}
+
           {loyaltyPreview && lastBookedPro && (
             <div style={{ marginBottom: 20 }}>
               <LoyaltyStreakWidget

@@ -1,35 +1,35 @@
-/**
- * React Error Boundary - Catches and displays Firestore errors and other exceptions
- * Wrapped at App and major route sections to provide graceful error recovery
- */
-import React, { ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
+import { auth } from "../firebase";
+import { logErrorBoundaryActivity } from "../services/activityService";
 
-interface Props {
+type Props = {
   children: ReactNode;
-  fallback?: ReactNode;
-}
+};
 
-interface State {
+type State = {
   hasError: boolean;
-  error: Error | null;
-}
+};
 
-export class ErrorBoundary extends React.Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false, error: null };
+export default class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+  componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
+    console.error("Unhandled UI error", error, errorInfo);
+    void logErrorBoundaryActivity(auth.currentUser?.uid, error, {
+      componentStack: errorInfo.componentStack ?? undefined,
+    });
   }
 
-  componentDidCatch(error: Error, _errorInfo: React.ErrorInfo) {
-    console.error("ErrorBoundary caught:", error.message);
-  }
+  private handleReload = () => {
+    window.location.reload();
+  };
 
-  handleReset = () => {
-    this.setState({ hasError: false, error: null });
+  private handleGoHome = () => {
+    window.location.href = "/dashboard";
   };
 
   render() {

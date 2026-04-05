@@ -9,7 +9,8 @@ import {
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
 import { setUser as setSentryUser } from "../lib/sentry";
-import { earnCoins, generateReferralCode } from "../services/coinService";
+
+import { earnCoins, generateReferralCode, isValidReferralCode, normalizeReferralCode } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 import { mirrorPublicProfile, normalizeProfileData } from "../services/firestoreService";
 import type { FirestoreTimestamp } from "../types/firestore";
@@ -29,7 +30,9 @@ export interface UserProfile {
   tower: string;
   flatNumber: string;
   residencyProofUrl?: string;
+  residencyProofPreviewUrl?: string;
   residentVerificationStatus: "none" | "pending" | "verified";
+  verificationReviewNote?: string | null;
   verificationMethod: "manual" | "auto" | null;
   isServiceProvider?: boolean;
   priceAfterQuote?: boolean;
@@ -132,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uid: u.uid, displayName: u.displayName ?? "", email: u.email ?? "",
         photoURL: u.photoURL ?? "", bio: "", skills: [], hourlyRate: 0,
         isFreeConsultation: true, society: "", locality: "", tower: "", flatNumber: "",
-        residentVerificationStatus: "none", verificationMethod: null,
+        residentVerificationStatus: "none", verificationReviewNote: null, verificationMethod: null,
         isServiceProvider: false, priceAfterQuote: false,
         role: "user", rating: 0, reviewCount: 0, coinBalance: 0,
         referralCode: generateReferralCode({
@@ -220,11 +223,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userRef = doc(db, "users", auth.currentUser.uid);
       const userSnap = await getDoc(userRef);
       const existingDisplayName = (userSnap.data()?.displayName as string | undefined) ?? auth.currentUser.displayName ?? "";
-      const referralCode = generateReferralCode({
-        displayName: existingDisplayName,
-        phoneNumber: auth.currentUser.phoneNumber,
-        uid: auth.currentUser.uid,
-      });
+      const existingReferralCode = normalizeReferralCode(userSnap.data()?.referralCode as string | undefined);
+      const referralCode = isValidReferralCode(existingReferralCode)
+        ? existingReferralCode
+        : generateReferralCode({
+            displayName: existingDisplayName,
+            phoneNumber: auth.currentUser.phoneNumber,
+            uid: auth.currentUser.uid,
+          });
 
       const update = {
         phoneNumber: auth.currentUser.phoneNumber,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -10,6 +10,28 @@ export default function PWAInstallBanner() {
   const [dismissed, setDismissed] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSHint, setShowIOSHint] = useState(false);
+  const pendingPrompt = useRef<BeforeInstallPromptEvent | null>(null);
+  const pendingIOS = useRef(false);
+
+  // Gate: only show banner after user scrolls 50% of page OR 30 seconds pass
+  useEffect(() => {
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      if (pendingPrompt.current) setPrompt(pendingPrompt.current);
+      if (pendingIOS.current) setShowIOSHint(true);
+      window.removeEventListener("scroll", onScroll);
+    };
+    const onScroll = () => {
+      const scrolled = window.scrollY + window.innerHeight;
+      const half = document.documentElement.scrollHeight / 2;
+      if (scrolled >= half) release();
+    };
+    const timer = setTimeout(release, 30000);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { clearTimeout(timer); window.removeEventListener("scroll", onScroll); };
+  }, []);
 
   useEffect(() => {
     // Already installed — don't show
@@ -20,12 +42,12 @@ export default function PWAInstallBanner() {
 
     // iOS detection — no beforeinstallprompt, show manual hint instead
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !(window as unknown as { MSStream: unknown }).MSStream;
-    if (ios) { setIsIOS(true); setShowIOSHint(true); return; }
+    if (ios) { setIsIOS(true); pendingIOS.current = true; return; }
 
     // Android / Chrome — capture install prompt
     const handler = (e: Event) => {
       e.preventDefault();
-      setPrompt(e as BeforeInstallPromptEvent);
+      pendingPrompt.current = e as BeforeInstallPromptEvent;
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);

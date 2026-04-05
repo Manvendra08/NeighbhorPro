@@ -25,7 +25,7 @@ import {
 } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { db, auth } from "../firebase";
-import { generateReferralCode } from "./coinService";
+import { generateReferralCode, isValidReferralCode, normalizeReferralCode } from "./coinService";
 import { validateUpload } from "../utils/cloudinary";
 
 /* ═══════════════════════════════════════════
@@ -140,15 +140,20 @@ export async function getUserProfile(uid: string): Promise<Record<string, unknow
 export async function getPublicProfile(uid: string): Promise<Record<string, unknown> | null> {
   const snap = await getDoc(doc(db, 'publicProfiles', uid));
   if (snap.exists()) return normalizeProfileData({ uid: snap.id, ...snap.data() });
-  // Legacy fallback: strip sensitive fields from /users document
-  const userSnap = await getDoc(doc(db, 'users', uid));
-  if (!userSnap.exists()) return null;
-  const full = userSnap.data() as Record<string, unknown>;
-  const stripped: Record<string, unknown> = { uid };
-  for (const field of PUBLIC_PROFILE_FIELDS) {
-    if (field in full) stripped[field] = full[field as string];
+  // Legacy fallback: strip sensitive fields from /users document.
+  // This can be denied by rules for non-owner/non-admin callers.
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (!userSnap.exists()) return null;
+    const full = userSnap.data() as Record<string, unknown>;
+    const stripped: Record<string, unknown> = { uid };
+    for (const field of PUBLIC_PROFILE_FIELDS) {
+      if (field in full) stripped[field] = full[field as string];
+    }
+    return normalizeProfileData(stripped);
+  } catch {
+    return null;
   }
-  return normalizeProfileData(stripped);
 }
 
 
@@ -162,7 +167,10 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   const nextDisplayName = (typeof data.displayName === "string" ? data.displayName : (currentData.displayName as string | undefined)) ?? "";
   const nextPhone = (typeof data.phoneNumber === "string" ? data.phoneNumber : (currentData.phoneNumber as string | undefined)) ?? "";
 
-  if (typeof data.displayName === "string" || typeof data.phoneNumber === "string") {
+  const currentReferralCode = normalizeReferralCode(currentData.referralCode as string | undefined);
+  const shouldGenerateReferralCode = !isValidReferralCode(currentReferralCode);
+
+  if (shouldGenerateReferralCode && (typeof data.displayName === "string" || typeof data.phoneNumber === "string")) {
     nextData.referralCode = generateReferralCode({
       displayName: nextDisplayName,
       phoneNumber: nextPhone,
@@ -197,14 +205,13 @@ export async function uploadProfilePhoto(uid: string, file: File) {
 export async function uploadResidencyProof(uid: string, file: File) {
   validateUpload(file, "residencyProof"); // throws if invalid
 
-  // Spark-safe fallback: unsigned upload via preset (no callable function required).
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_RESIDENCY_UPLOAD_PRESET || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName) {
     throw new Error("Cloudinary configuration is missing. Please contact support.");
   }
   if (!uploadPreset) {
-    throw new Error("Cloudinary upload preset is missing. Please contact support.");
+    throw new Error("Cloudinary upload preset is missing. Set VITE_CLOUDINARY_UPLOAD_PRESET or VITE_CLOUDINARY_RESIDENCY_UPLOAD_PRESET.");
   }
 
   const formData = new FormData();
@@ -212,16 +219,29 @@ export async function uploadResidencyProof(uid: string, file: File) {
   formData.append("upload_preset", uploadPreset);
   formData.append("folder", "ProNeighbor/residency-proofs");
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
+  const isImageFile = file.type.startsWith("image/");
+  if (!isImageFile) {
+    throw new Error("Only image files are supported for residency proof. Please upload JPG, PNG, or WEBP.");
+  }
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
   if (!response.ok) {
     const err = await response.json();
     throw new Error(err.error?.message || "Cloudinary upload failed");
   }
-  const data = await response.json();
+  const data = await response.json() as {
+    secure_url: string;
+  };
+
   const residencyProofUrl = data.secure_url;
 
   const update = {
     residencyProofUrl,
+    residencyProofPreviewUrl: null,
+    residencyProofResourceType: "image",
     residentVerificationStatus: "pending",
     verificationMethod: null,
     verificationReviewNote: null,
@@ -246,6 +266,35 @@ export async function uploadResidencyProof(uid: string, file: File) {
  * @param reviewNote - REQUIRED for rejection (status="none"), captures rejection reason
  * @throws Error if required metadata is missing or write assertion fails
  */
+export async function deleteResidencyProof(uid: string) {
+  const userRef = doc(db, "users", uid);
+  const snap = await getDoc(userRef);
+  if (!snap.exists()) {
+    throw new Error("Profile not found");
+  }
+
+  const currentData = snap.data() as Record<string, unknown>;
+  const preserveReviewNote = currentData.residentVerificationStatus !== "pending"
+    ? (typeof currentData.verificationReviewNote === "string" ? currentData.verificationReviewNote : null)
+    : null;
+
+  const update = {
+    residencyProofUrl: null,
+    residencyProofPreviewUrl: null,
+    residencyProofResourceType: null,
+    residentVerificationStatus: "none",
+    verificationMethod: null,
+    verificationReviewNote: preserveReviewNote,
+    verificationReviewedBy: null,
+    verificationReviewedAt: null,
+    verificationSubmittedAt: null,
+    updatedAt: serverTimestamp(),
+  };
+
+  await updateDoc(userRef, update);
+  await mirrorPublicProfile(uid, update);
+}
+
 export async function updateResidentVerification(
   uid: string,
   status: "none" | "pending" | "verified",
@@ -569,16 +618,26 @@ export async function updateProAvailability(proId: string, availabilityData: Rec
 ═══════════════════════════════════════════ */
 export async function addReview(bookingId: string, proId: string, rating: number, comment: string) {
   if (!auth.currentUser) throw new Error("Must be logged in to review");
-  // 1. Add review
-  await addDoc(collection(db, "reviews"), {
-    bookingId,
-    proId,
-    clientId: auth.currentUser.uid,
-    clientName: auth.currentUser.displayName || "User",
-    clientPhoto: auth.currentUser.photoURL || "",
-    rating,
-    comment,
-    createdAt: serverTimestamp()
+  const clientId = auth.currentUser.uid;
+  const reviewId = `${bookingId}_${clientId}`;
+  const reviewRef = doc(db, "reviews", reviewId);
+
+  await runTransaction(db, async tx => {
+    const existing = await tx.get(reviewRef);
+    if (existing.exists()) {
+      throw new Error("You have already submitted a review for this booking.");
+    }
+
+    tx.set(reviewRef, {
+      bookingId,
+      proId,
+      clientId,
+      clientName: auth.currentUser?.displayName || "User",
+      clientPhoto: auth.currentUser?.photoURL || "",
+      rating,
+      comment,
+      createdAt: serverTimestamp(),
+    });
   });
 
   // Spam flagging is handled server-side by a Cloud Function trigger.
@@ -779,7 +838,14 @@ export function formatTimestampTime(ts: unknown): string {
 export async function createFeedPost(data: {
   authorId: string; authorName: string; content: string; locality?: string; tower?: string;
 }) {
-  const ref = await addDoc(collection(db, "localFeed"), { ...data, createdAt: serverTimestamp(), likes: 0 });
+  const ref = await addDoc(collection(db, "localFeed"), {
+    ...data,
+    createdAt: serverTimestamp(),
+    reactions: {},
+    likes: [],
+    likeCount: 0,
+    commentCount: 0,
+  });
   return ref.id;
 }
 
@@ -842,25 +908,21 @@ export async function toggleReactionToFeedPost(postId: string, uid: string, type
     if (!postSnap.exists()) return;
 
     const data = postSnap.data();
-    const reactions = (data.reactions as Record<string, string>) || {};
-    const likes = Array.isArray(data.likes) ? (data.likes as string[]) : [];
+    const currentReactions = (data.reactions as Record<string, string>) || {};
+    const currentLikes = Array.isArray(data.likes) ? (data.likes as string[]) : [];
 
-    const existing = reactions[uid];
-    if (existing === type) {
-      // Remove it if same type clicked (toggle off)
-      delete reactions[uid];
-      const index = likes.indexOf(uid);
-      if (index !== -1) likes.splice(index, 1);
-    } else {
-      // Add or replace
-      reactions[uid] = type;
-      if (!likes.includes(uid)) likes.push(uid);
-    }
+    const existing = currentReactions[uid];
+    const nextReactions = existing === type
+      ? Object.fromEntries(Object.entries(currentReactions).filter(([userId]) => userId !== uid))
+      : { ...currentReactions, [uid]: type };
+    const nextLikes = existing === type
+      ? currentLikes.filter(userId => userId !== uid)
+      : (currentLikes.includes(uid) ? currentLikes : [...currentLikes, uid]);
 
     tx.update(postRef, {
-      reactions,
-      likes,
-      likeCount: likes.length,
+      reactions: nextReactions,
+      likes: nextLikes,
+      likeCount: nextLikes.length,
       updatedAt: serverTimestamp()
     });
   });

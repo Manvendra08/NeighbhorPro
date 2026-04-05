@@ -9,8 +9,54 @@ service cloud.firestore {
       return isSignedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    // Owner updates may never touch any of these fields — admin-only.
     function noSensitiveFieldChange() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"]);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'role', 'disabled', 'coinBalance', 'fcmToken',
+        'referralCode', 'isServiceProvider'
+      ]);
+    }
+
+    function canOwnerResetResidencyProof() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+               'residencyProofUrl', 'residencyProofPreviewUrl', 'residencyProofResourceType',
+               'residentVerificationStatus', 'verificationMethod', 'verificationReviewNote',
+               'verificationReviewedBy', 'verificationReviewedAt', 'verificationSubmittedAt',
+               'updatedAt'
+             ])
+             && request.resource.data.residencyProofUrl == null
+             && request.resource.data.residencyProofPreviewUrl == null
+             && request.resource.data.residencyProofResourceType == null
+             && request.resource.data.residentVerificationStatus == 'none'
+             && request.resource.data.verificationMethod == null
+             && request.resource.data.verificationReviewedBy == null
+             && request.resource.data.verificationReviewedAt == null
+             && request.resource.data.verificationSubmittedAt == null
+             && (
+               resource.data.residentVerificationStatus == 'pending' ||
+               resource.data.verificationReviewNote != null
+             )
+             && request.resource.data.verificationReviewNote == resource.data.verificationReviewNote;
+    }
+
+    function canOwnerSubmitResidencyProof() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+               'residencyProofUrl', 'residencyProofPreviewUrl', 'residencyProofResourceType',
+               'residentVerificationStatus', 'verificationMethod', 'verificationReviewNote',
+               'verificationReviewedBy', 'verificationReviewedAt', 'verificationSubmittedAt',
+               'updatedAt'
+             ])
+             && request.resource.data.residencyProofUrl is string
+             && request.resource.data.residencyProofUrl.size() > 0
+             && request.resource.data.residencyProofPreviewUrl == null
+             && request.resource.data.residencyProofResourceType == 'image'
+             && request.resource.data.residentVerificationStatus == 'pending'
+             && request.resource.data.verificationMethod == null
+             && request.resource.data.verificationReviewNote == null
+             && request.resource.data.verificationReviewedBy == null
+             && request.resource.data.verificationReviewedAt == null
+             && request.resource.data.verificationSubmittedAt == request.time
+             && resource.data.residentVerificationStatus != 'verified';
     }
     // Validates a coinLedger entry written by the client (Path A — Spark plan).
     // Enforces: uid matches auth, amount is an integer, balanceAfter is non-negative.
@@ -36,6 +82,18 @@ service cloud.firestore {
     function isBookingParticipant(bookingId) {
       return get(/databases/$(database)/documents/bookings/$(bookingId)).data.clientId == request.auth.uid
           || get(/databases/$(database)/documents/bookings/$(bookingId)).data.proId == request.auth.uid;
+    function validActivityEvent() {
+      return request.resource.data.event in [
+        'user.login', 'user.logout', 'user.profile_update', 'user.signup',
+        'ui.error_boundary',
+        'booking.created', 'booking.cancelled', 'booking.completed',
+        'payment.initiated', 'payment.success',
+        'message.sent', 'review.submitted',
+        'wallet.topup', 'wallet.withdrawal',
+        'support.ticket_created',
+        'verification.submitted', 'verification.deleted', 'verification.approved',
+        'admin.action'
+      ];
     }
 
     // Public-safe fields any signed-in user may read on another user's profile.
@@ -52,14 +110,12 @@ service cloud.firestore {
       // All other callers must read from /publicProfiles/{userId} instead.
       allow get:    if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list:   if isAdmin();
-      allow create: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow update: if isSignedIn() && (
         (isOwner(userId) && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'residentVerificationStatus', 'verificationMethod']) ||
-          (
-            request.resource.data.diff(resource.data).affectedKeys().hasAny(['residencyProofUrl', 'residentVerificationStatus']) &&
-            request.resource.data.residentVerificationStatus == 'pending'
-          )
+          canOwnerSubmitResidencyProof() ||
+          canOwnerResetResidencyProof()
         )) ||
         isAdmin()
       ) && noSensitiveFieldChange();
@@ -71,7 +127,7 @@ service cloud.firestore {
     // Sensitive fields (phone, flat, coinBalance, fcmToken, referralCode) are never written here.
     match /publicProfiles/{userId} {
       allow read:   if isSignedIn();
-      allow create: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin())
                       && !request.resource.data.keys().hasAny([
                            'phoneNumber', 'flatNumber', 'coinBalance',
@@ -267,10 +323,15 @@ service cloud.firestore {
       allow read:          if isAdmin();
       allow create:        if isSignedIn()
                              && request.resource.data.userId == request.auth.uid
-                             && request.resource.data.keys().hasAll(['userId', 'event', 'details', 'timestamp'])
+                             && request.resource.data.keys().hasOnly(['userId', 'event', 'details', 'metadata', 'timestamp'])
                              && request.resource.data.userId is string
                              && request.resource.data.event is string
-                             && request.resource.data.details is string;
+                             && validActivityEvent()
+                             && request.resource.data.details is string
+                             && request.resource.data.details.size() > 0
+                             && request.resource.data.details.size() <= 500
+                             && (!('metadata' in request.resource.data) || request.resource.data.metadata is map)
+                             && request.resource.data.timestamp == request.time;
       allow update, delete: if false;
     }
 

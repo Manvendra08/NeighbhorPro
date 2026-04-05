@@ -112,8 +112,13 @@ export default function AdminWallet() {
   }, [tab]);
 
   const loadSummary = async () => {
+    if (userProfile?.role !== "admin") return;
     setSummaryLoading(true);
-    setSummary(await getCoinEconomySummary());
+    try {
+      setSummary(await getCoinEconomySummary());
+    } catch {
+      showToast("Unable to load wallet summary. Check admin permissions.", "error");
+    }
     setSummaryLoading(false);
   };
 

@@ -295,7 +295,7 @@ export const logActivityFunction = functions.onCall(
 );
 
 /* ═══════════════════════════════════════════════════════
-   5. flagSpamReviews — server-side automated review abuse signal
+  5. flagSpamReviews — server-side automated review abuse signal
 ═══════════════════════════════════════════════════════ */
 export const flagSpamReviews = onDocumentCreated(
   {

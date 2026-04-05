@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { 
   getAllUserRows, 
   getPendingVerifications,
+  getAllSocieties,
   updateUserProfile, 
   updateResidentVerification,
   getOrCreateConversation,
@@ -24,6 +25,7 @@ type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verificati
 export default function AdminUsers() {
   const { userProfile, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const adminId = userProfile?.uid || user?.uid || "unknown";
   const adminName = userProfile?.displayName || "Admin";
 
@@ -365,8 +367,42 @@ export default function AdminUsers() {
     "booking.created": "📅", "booking.cancelled": "❌", "booking.completed": "✅",
     "payment.initiated": "💳", "payment.success": "💰", "message.sent": "💬",
     "review.submitted": "⭐", "wallet.topup": "⬆️", "wallet.withdrawal": "⬇️",
-    "support.ticket_created": "🎫", "verification.submitted": "📋", "verification.approved": "✔️",
+    "support.ticket_created": "🎫", "verification.submitted": "📋", "verification.deleted": "🗑️", "verification.approved": "✔️",
     "admin.action": "🛡",
+  };
+
+  /**
+   * Opens a Cloudinary residency proof URL safely.
+   * For PDF proofs, prefer a JPG preview URL when available because
+   * direct PDF delivery can be blocked by Cloudinary account policy.
+   */
+  const buildPdfPreviewUrl = (url: string): string | null => {
+    if (!url.includes("res.cloudinary.com") || !url.includes("/image/upload/")) return null;
+    if (!/\.pdf(\?|$)/i.test(url)) return null;
+
+    return url
+      .replace("/image/upload/", "/image/upload/f_jpg,q_auto:good/")
+      .replace(/\.pdf(\?|$)/i, ".jpg$1");
+  };
+
+  const openProofDoc = (u: UserRow) => {
+    const rawUrl = u.residencyProofUrl as string;
+    if (!rawUrl) return;
+
+    const storedPreviewUrl = (u.residencyProofPreviewUrl as string) || "";
+    const derivedPreviewUrl = buildPdfPreviewUrl(rawUrl);
+    const isRawPdf = rawUrl.includes("/raw/upload/") && /\.pdf(\?|$)/i.test(rawUrl);
+
+    if (isRawPdf && !storedPreviewUrl) {
+      showToast(
+        "Legacy PDF proof is blocked by Cloudinary delivery settings. Ask user to re-upload proof.",
+        "error"
+      );
+      return;
+    }
+
+    const urlToOpen = storedPreviewUrl || derivedPreviewUrl || rawUrl;
+    window.open(urlToOpen, "_blank", "noopener,noreferrer");
   };
 
   const formatTs = (ts: unknown): string => {
@@ -637,15 +673,13 @@ export default function AdminUsers() {
                         </td>
                         <td>
                           {u.residencyProofUrl ? (
-                            <a 
-                              href={u.residencyProofUrl as string} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
+                            <button
                               className="btn btn-ghost btn-sm"
-                              style={{ color: "var(--accent)", textDecoration: "none", fontSize: 12 }}
+                              style={{ color: "var(--accent)", fontSize: 12 }}
+                              onClick={() => openProofDoc(u)}
                             >
                               📎 View Proof
-                            </a>
+                            </button>
                           ) : (
                             <span className="text-muted" style={{ fontSize: 12 }}>No document</span>
                           )}
@@ -682,8 +716,15 @@ export default function AdminUsers() {
                             <button className={`btn btn-sm ${u.disabled ? "btn-success" : "btn-danger"}`} onClick={() => handleToggleDisable(u)} disabled={busy}>{u.disabled ? "Enable" : "Disable"}</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleToggleRole(u)} disabled={busy}>{u.role === "admin" ? "Demote" : "Make Admin"}</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleTogglePro(u)} disabled={busy} style={{ color: u.isServiceProvider ? "var(--warning)" : "var(--accent)" }}>{u.isServiceProvider ? "Remove Pro" : "Set Pro"}</button>
-                            {!u.emailVerified && !!u.phoneNumber && (
-                              <button className="btn btn-warning btn-sm" onClick={() => handleApproveEmailByMobile(u)} disabled={busy}>Approve by Mobile</button>
+                            {!!u.phoneNumber && (
+                              <button
+                                className="btn btn-warning btn-sm"
+                                onClick={() => handleApproveEmailByMobile(u)}
+                                disabled={busy || !!u.emailVerified}
+                                title={u.emailVerified ? "Email already verified" : "Approve user based on mobile verification"}
+                              >
+                                {u.emailVerified ? "Mobile Approved" : "Approve by Mobile"}
+                              </button>
                             )}
                             <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(u)} disabled={busy} aria-label={`Delete ${(u.displayName as string) || (u.email as string) || "user"}`}>🗑</button>
                           </div>
@@ -829,14 +870,41 @@ export default function AdminUsers() {
 
 function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string; adminName: string; onClose: () => void; onDone: () => void }) {
   const [form, setForm] = useState({ displayName: "", email: "", password: "", society: "", role: "user", isServiceProvider: false });
+  const [approvedSocieties, setApprovedSocieties] = useState<string[]>([]);
+  const [societyLoading, setSocietyLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  useEffect(() => {
+    const loadApprovedSocieties = async () => {
+      setSocietyLoading(true);
+      try {
+        const { data } = await getAllSocieties(300);
+        const names = data
+          .filter((society) => String(society.status || "").toLowerCase() === "approved")
+          .map((society) => String(society.name || "").trim())
+          .filter(Boolean);
+        const uniqueNames = Array.from(new Set(names));
+        setApprovedSocieties(uniqueNames);
+        if (uniqueNames.length > 0) {
+          setForm((prev) => ({ ...prev, society: prev.society || uniqueNames[0] }));
+        }
+      } catch {
+        setError("Failed to load approved societies. Please refresh and try again.");
+      } finally {
+        setSocietyLoading(false);
+      }
+    };
+
+    loadApprovedSocieties();
+  }, []);
+
   const handleSubmit = async () => {
     if (!form.displayName.trim() || !form.email.trim() || !form.password) { setError("Name, email, and password are required"); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters"); return; }
+    if (!form.society.trim()) { setError("Please select an approved society"); return; }
     if (form.role !== "user") { setError("New users can only be created as role: user."); return; }
     setSaving(true);
     let secondaryApp;
@@ -895,7 +963,18 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
         </div>
         <div className="form-group">
           <label className="form-label">Society</label>
-          <input className="form-input" placeholder="Sunflower Heights" value={form.society} onChange={e => set("society", e.target.value)} />
+          {societyLoading ? (
+            <input className="form-input" value="Loading approved societies..." disabled />
+          ) : approvedSocieties.length === 0 ? (
+            <input className="form-input" value="No approved societies found" disabled />
+          ) : (
+            <select className="form-input" value={form.society} onChange={e => set("society", e.target.value)}>
+              {approvedSocieties.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          )}
+          <span className="form-hint">Only approved societies are available for new users.</span>
         </div>
         <div className="form-group">
           <label className="form-label">Role</label>
@@ -910,7 +989,7 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
         </div>
         <div className="modal-actions">
           <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={saving}>{saving ? "Creating…" : "Create User"}</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={saving || societyLoading || approvedSocieties.length === 0}>{saving ? "Creating…" : "Create User"}</button>
         </div>
       </div>
     </div>
