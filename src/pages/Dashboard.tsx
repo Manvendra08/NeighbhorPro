@@ -61,8 +61,14 @@ export default function Dashboard() {
         if (lastCompleted && lastCompleted.length > 0) {
           const latest = lastCompleted[0];
           setLastCompletedBooking(latest);
-          const proObj = await getPublicProfile(latest.proId as string);
-          setLastBookedPro(proObj);
+          const latestProId = typeof latest.proId === "string" ? latest.proId : "";
+
+          if (latestProId) {
+            const proObj = await getPublicProfile(latestProId);
+            setLastBookedPro(proObj);
+          } else {
+            setLastBookedPro(null);
+          }
 
           const bookingAmount = Number(
             (latest.amount as number | undefined) ??
@@ -71,11 +77,15 @@ export default function Dashboard() {
             0
           );
 
-          try {
-            const loyalty = await getLoyaltyPreview(user.uid, latest.proId as string, bookingAmount);
-            setLoyaltyPreview(loyalty);
-          } catch {
-            // Keep dashboard usable even if loyalty preview cannot be read yet.
+          if (latestProId) {
+            try {
+              const loyalty = await getLoyaltyPreview(user.uid, latestProId, bookingAmount);
+              setLoyaltyPreview(loyalty);
+            } catch {
+              // Keep dashboard usable even if loyalty preview cannot be read yet.
+              setLoyaltyPreview(null);
+            }
+          } else {
             setLoyaltyPreview(null);
           }
         }

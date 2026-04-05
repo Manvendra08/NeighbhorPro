@@ -3,6 +3,9 @@ import { toggleReactionToFeedPost } from "../../services/firestoreService";
 import { relativeTime } from "../../utils/time";
 import ReportModal from "./ReportModal";
 
+type ReactionType = "heart" | "thumb";
+type FeedReactions = Record<string, ReactionType>;
+
 export default function FeedPostCard({ post, uid, onDelete }: {
   post: Record<string, unknown>; uid: string; onDelete: (id: string) => void;
 }) {
@@ -11,6 +14,10 @@ export default function FeedPostCard({ post, uid, onDelete }: {
   const menuRef = useRef<HTMLDivElement>(null);
   const isOwn = (post.authorId as string) === uid;
   const isHidden = post.hidden === true;
+  const reactions = ((post.reactions as FeedReactions | undefined) ?? {}) as FeedReactions;
+  const userReaction = reactions[uid];
+  const heartCount = Object.values(reactions).filter((reaction) => reaction === "heart").length;
+  const thumbCount = Object.values(reactions).filter((reaction) => reaction === "thumb").length;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -48,12 +55,21 @@ export default function FeedPostCard({ post, uid, onDelete }: {
           </div>
           {/* Context menu */}
           <div style={{ position: "relative" }} ref={menuRef}>
-            <button onClick={() => setMenuOpen(!menuOpen)} style={{
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Open post actions"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              title="Post actions"
+              style={{
               background: "none", border: "none", cursor: "pointer", fontSize: 16,
               color: "var(--muted)", padding: "4px 6px", borderRadius: 6,
-            }}>⋯</button>
+            }}
+            >
+              ⋯
+            </button>
             {menuOpen && (
-              <div style={{
+              <div role="menu" style={{
                 position: "absolute", right: 0, top: "100%", marginTop: 4,
                 background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
                 boxShadow: "0 6px 20px rgba(0,0,0,0.1)", overflow: "hidden", zIndex: 30,
@@ -86,30 +102,30 @@ export default function FeedPostCard({ post, uid, onDelete }: {
               onClick={() => toggleReactionToFeedPost(post.id as string, uid, "heart")}
               style={{
                 display: "flex", alignItems: "center", gap: 5, border: "none",
-                cursor: "pointer", fontSize: 13, color: (post.reactions as any)?.[uid] === "heart" ? "#E0245E" : "var(--muted)",
+                cursor: "pointer", fontSize: 13, color: userReaction === "heart" ? "#E0245E" : "var(--muted)",
                 transition: "transform 0.1s", padding: "4px 8px", borderRadius: 8,
-                background: (post.reactions as any)?.[uid] === "heart" ? "rgba(224,36,94,0.08)" : "transparent",
+                background: userReaction === "heart" ? "rgba(224,36,94,0.08)" : "transparent",
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = (post.reactions as any)?.[uid] === "heart" ? "rgba(224,36,94,0.12)" : "var(--surface-2)")}
-              onMouseLeave={e => (e.currentTarget.style.background = (post.reactions as any)?.[uid] === "heart" ? "rgba(224,36,94,0.08)" : "transparent")}
+              onMouseEnter={e => (e.currentTarget.style.background = userReaction === "heart" ? "rgba(224,36,94,0.12)" : "var(--surface-2)")}
+              onMouseLeave={e => (e.currentTarget.style.background = userReaction === "heart" ? "rgba(224,36,94,0.08)" : "transparent")}
             >
-              <span>{(post.reactions as any)?.[uid] === "heart" ? "❤️" : "🤍"}</span>
-              <span style={{ fontWeight: 600 }}>{Object.values((post.reactions as any) || {}).filter(v => v === "heart").length}</span>
+              <span>{userReaction === "heart" ? "❤️" : "🤍"}</span>
+              <span style={{ fontWeight: 600 }}>{heartCount}</span>
             </button>
 
             <button
               onClick={() => toggleReactionToFeedPost(post.id as string, uid, "thumb")}
               style={{
                 display: "flex", alignItems: "center", gap: 5, border: "none",
-                cursor: "pointer", fontSize: 13, color: (post.reactions as any)?.[uid] === "thumb" ? "var(--accent)" : "var(--muted)",
+                cursor: "pointer", fontSize: 13, color: userReaction === "thumb" ? "var(--accent)" : "var(--muted)",
                 transition: "transform 0.1s", padding: "4px 8px", borderRadius: 8,
-                background: (post.reactions as any)?.[uid] === "thumb" ? "rgba(27,107,138,0.08)" : "transparent",
+                background: userReaction === "thumb" ? "rgba(27,107,138,0.08)" : "transparent",
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = (post.reactions as any)?.[uid] === "thumb" ? "rgba(27,107,138,0.12)" : "var(--surface-2)")}
-              onMouseLeave={e => (e.currentTarget.style.background = (post.reactions as any)?.[uid] === "thumb" ? "rgba(27,107,138,0.08)" : "transparent")}
+              onMouseEnter={e => (e.currentTarget.style.background = userReaction === "thumb" ? "rgba(27,107,138,0.12)" : "var(--surface-2)")}
+              onMouseLeave={e => (e.currentTarget.style.background = userReaction === "thumb" ? "rgba(27,107,138,0.08)" : "transparent")}
             >
               <span>👍</span>
-              <span style={{ fontWeight: 600 }}>{Object.values((post.reactions as any) || {}).filter(v => v === "thumb").length}</span>
+              <span style={{ fontWeight: 600 }}>{thumbCount}</span>
             </button>
           </div>
 

@@ -49,6 +49,16 @@ export default function AdminSocieties() {
     }
   }, [activeMenu]);
 
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveMenu(null);
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, []);
+
   const handleCreate = async () => {
     if (!name.trim()) return;
     const normalized = name.trim().toLowerCase();
@@ -215,6 +225,15 @@ export default function AdminSocieties() {
                     <button
                       className="btn btn-ghost btn-sm btn-icon"
                       onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === s.id ? null : s.id as string); }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setActiveMenu(activeMenu === s.id ? null : s.id as string);
+                        }
+                      }}
+                      aria-label={`Open actions for ${(s.name as string) || "society"}`}
+                      aria-haspopup="menu"
+                      aria-expanded={activeMenu === s.id}
                       style={{ fontSize: 18, width: 32, height: 32 }}
                     >
                       ⋮
@@ -223,6 +242,7 @@ export default function AdminSocieties() {
                     {activeMenu === s.id && (
                       <div
                         className="card"
+                        role="menu"
                         style={{
                           position: "absolute", top: "100%", right: 0, zIndex: 10,
                           padding: 4, width: 140, boxShadow: "var(--shadow-lg)",
@@ -271,7 +291,7 @@ export default function AdminSocieties() {
           <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ color: "var(--error)" }}>⚠ Delete Society</h3>
-              <button className="modal-close" onClick={() => setDeleteConfirm(null)}>✕</button>
+              <button className="modal-close" onClick={() => setDeleteConfirm(null)} aria-label="Close delete society dialog">✕</button>
             </div>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>
               Permanently delete <strong style={{ color: "var(--text)" }}>{deleteConfirm.name as string}</strong>?
@@ -290,7 +310,7 @@ export default function AdminSocieties() {
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Edit Society</h3>
-              <button className="modal-close" onClick={() => setEditSociety(null)}>✕</button>
+              <button className="modal-close" onClick={() => setEditSociety(null)} aria-label="Close edit society dialog">✕</button>
             </div>
             <div className="form-group">
               <label className="form-label">Society Name</label>

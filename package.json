@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "pretest": "node -e \"require('fs').mkdirSync('coverage/.tmp',{recursive:true})\"",
+    "test": "vitest run --coverage --pool=threads",
+    "test:watch": "vitest",
     "preview": "vite preview",
     "seed:test-users": "node scripts/seedTestUsers.cjs"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.96.2",
+    "@tanstack/react-virtual": "^3.13.23",
     "emoji-picker-react": "^4.18.0",
     "firebase": "^10.12.0",
     "lucide-react": "^1.0.1",
@@ -19,11 +24,17 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^4.1.2",
     "firebase-admin": "^12.0.0",
+    "jsdom": "^29.0.1",
+    "msw": "^2.12.14",
     "typescript": "^5.4.5",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.1.2"
   }
 }

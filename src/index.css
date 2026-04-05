@@ -549,7 +549,7 @@ h4 {
 
 .notification-subtitle {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--text-2);
 }
 
 .notification-actions {
@@ -629,14 +629,14 @@ h4 {
 
 .notification-item-text {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--text-2);
   margin-top: 2px;
   line-height: 1.35;
 }
 
 .notification-item-time {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--text-2);
   margin-top: 5px;
 }
 
@@ -706,6 +706,13 @@ h4 {
   border-color: var(--accent);
 }
 
+.topbar-avatar:focus-visible,
+.user-dropdown-item:focus-visible,
+.notification-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .topbar-avatar img {
   width: 100%;
   height: 100%;
@@ -733,7 +740,7 @@ h4 {
   gap: 10px;
   padding: 9px 12px;
   border-radius: var(--radius-sm);
-  color: var(--text-2);
+  color: var(--text);
   font-size: 13px;
   cursor: pointer;
   background: none;
@@ -862,6 +869,50 @@ h4 {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.pro-card-avatar {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pro-card-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pro-card-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.pro-card-verified {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: var(--success);
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  font-size: 11px;
+  font-weight: 700;
+  z-index: 1;
 }
 
 .pro-card-body {
@@ -1172,7 +1223,7 @@ select.form-input {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--muted);
+  color: var(--text-2);
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
 }
@@ -1265,7 +1316,7 @@ select.form-input {
 .modal-close {
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--text-2);
   cursor: pointer;
   padding: 4px;
   font-size: 20px;
@@ -1274,6 +1325,13 @@ select.form-input {
 
 .modal-close:hover {
   color: var(--text);
+}
+
+.btn:focus-visible,
+.btn-icon:focus-visible,
+.modal-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .modal-actions {
@@ -1574,7 +1632,7 @@ select.form-input {
 
 .chat-bubble-time {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--text-2);
   margin-top: 4px;
 }
 
@@ -2017,6 +2075,11 @@ select.form-input {
   gap: 16px;
 }
 
+.browse-search-field {
+  flex: 1;
+  min-width: 320px;
+}
+
 .pro-card-list {
   display: flex;
   align-items: center;
@@ -2050,7 +2113,17 @@ select.form-input {
   border-radius: 50%;
 }
 
-.pro-card-list .pro-card-img span {
+.pro-card-list .pro-card-avatar {
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.pro-card-list .pro-card-avatar img {
+  border-radius: 50%;
+}
+
+.pro-card-list .pro-card-img span,
+.pro-card-list .pro-card-avatar-fallback {
   display: flex;
   align-items: center;
   justify-content: center;

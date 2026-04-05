@@ -2,7 +2,7 @@
  * Firestore Query Hook - Replaces direct onSnapshot with polling to reduce listener count
  * Automatically cleans up listeners on unmount, pauses on tab visibility change
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Query, DocumentData, Unsubscribe } from "firebase/firestore";
 
 /**
@@ -23,14 +23,33 @@ export function useFirestoreQuery<T extends DocumentData>(
   const [error, setError] = useState<Error | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isHiddenRef = useRef(false);
+  const requestIdRef = useRef(0);
+
+  const executePoll = useCallback(async () => {
+    if (!query) return;
+
+    const localRequestId = requestIdRef.current;
+
+    try {
+      const { getDocs } = await import("firebase/firestore");
+      const snapshot = await getDocs(query);
+      if (requestIdRef.current !== localRequestId) return;
+      setData(snapshot.docs.map(doc => doc.data() as T));
+      setError(null);
+      setLoading(false);
+    } catch (err) {
+      if (requestIdRef.current !== localRequestId) return;
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setLoading(false);
+    }
+  }, [query]);
 
   // Handle tab visibility changes
   useEffect(() => {
     const handleVisibilityChange = () => {
       isHiddenRef.current = document.hidden;
-      if (!isHiddenRef.current && pollTimerRef.current === null && query) {
-        // Resume polling when tab becomes visible
-        executePoll();
+      if (!isHiddenRef.current && pauseOnHidden) {
+        void executePoll();
       }
     };
 
@@ -38,47 +57,38 @@ export function useFirestoreQuery<T extends DocumentData>(
       document.addEventListener("visibilitychange", handleVisibilityChange);
       return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
     }
-  }, [pauseOnHidden, query]);
-
-  const executePoll = async () => {
-    if (!query) return;
-    
-    try {
-      const { getDocs } = await import("firebase/firestore");
-      const snapshot = await getDocs(query);
-      setData(snapshot.docs.map(doc => doc.data() as T));
-      setError(null);
-      setLoading(false);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
-      setLoading(false);
-    }
-  };
+  }, [pauseOnHidden, executePoll]);
 
   useEffect(() => {
     if (!query) {
+      requestIdRef.current += 1;
       setData([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
+    requestIdRef.current += 1;
+
     // Initial load
-    executePoll();
+    setLoading(true);
+    void executePoll();
 
     // Set up polling
     pollTimerRef.current = setInterval(() => {
       if (!isHiddenRef.current || !pauseOnHidden) {
-        executePoll();
+        void executePoll();
       }
     }, pollIntervalMs);
 
     return () => {
+      requestIdRef.current += 1;
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
     };
-  }, [query, pollIntervalMs, pauseOnHidden]);
+  }, [query, pollIntervalMs, pauseOnHidden, executePoll]);
 
   return {
     data,

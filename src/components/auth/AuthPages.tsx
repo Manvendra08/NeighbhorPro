@@ -58,7 +58,7 @@ export function LoginPage() {
       <div className="auth-form-panel">
         <div className="auth-card">
           <Link to="/" className="auth-logo-link" title="Go to Home">
-            <img src="/images/logo.png" alt="Logo" style={{ width: 40, height: 40 }} />
+            <img src="/images/logo.png" alt="Logo" loading="lazy" style={{ width: 40, height: 40 }} />
           </Link>
           <h1 className="auth-title">Welcome back</h1>
           <p className="auth-sub">Sign in to your ProNeighbor account</p>
@@ -121,7 +121,7 @@ function BrandPanel({ register }: { register?: boolean }) {
         textShadow: "0 2px 8px rgba(0,0,0,0.3)",
         textDecoration: "none"
       }}>
-        <img src="/images/logo_new.png" alt="Logo" style={{ width: "44px", height: "44px", objectFit: "contain", borderRadius: "8px" }} />
+        <img src="/images/logo_new.png" alt="Logo" loading="lazy" style={{ width: "44px", height: "44px", objectFit: "contain", borderRadius: "8px" }} />
         ProNeighbor
       </Link>
       <h2 className="brand-headline" style={{
@@ -195,7 +195,7 @@ export function RegisterPage() {
       <div className="auth-form-panel">
         <div className="auth-card">
           <Link to="/" className="auth-logo-link" title="Go to Home">
-            <img src="/images/logo.png" alt="Logo" style={{ width: 40, height: 40 }} />
+            <img src="/images/logo.png" alt="Logo" loading="lazy" style={{ width: 40, height: 40 }} />
           </Link>
           <h1 className="auth-title">Create account</h1>
           <p className="auth-sub">Join your neighborhood network</p>

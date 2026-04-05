@@ -2,29 +2,29 @@
 
 ## Current Position
 
-Phase: Requirements definition
-Plan: -
-Status: In progress
-Last activity: 2026-04-01 - Milestone v1.0 started
+Phase: 2 - Booking and Discovery Reliability
+Plan: 02-01 / 02-02 execution
+Status: Phase 2 complete, milestone execution in progress
+Last activity: 2026-04-04 - Completed mixed-schema booking and mirror-lag discovery reliability updates
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Residents can confidently discover, book, pay, and message trusted local professionals without workflow friction.
-**Current focus:** Requirements and roadmap definition for trust/reliability hardening.
+**Current focus:** Continue remaining milestone phases after Phase 2 completion.
 
 ## Accumulated Context
 
-- Existing app capabilities and prior hardening work are present.
-- Milestone planning files were missing and have now been initialized.
-- Initial scope prioritizes reliability and trust over net-new platform expansion.
+- Booking query paths now support mixed-schema fallback across client/pro fields.
+- Browse discovery is resilient to public profile mirror lag through merged fallback data.
+- Build verification passes after Phase 2 reliability changes.
 
 ## Decisions
 
-- Start planning cycle at milestone v1.0 because no prior milestones file exists.
-- Use phased hardening roadmap to minimize regressions while shipping improvements incrementally.
+- Preserve backward compatibility by querying both legacy and current booking schema fields.
+- Prioritize source-of-truth visibility in discovery by merging mirror and fallback user data.
 
 ## Blockers
 
-- No major blockers currently.
+- No blockers currently.

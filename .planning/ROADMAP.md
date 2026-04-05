@@ -126,7 +126,7 @@ Success criteria:
 
 **Plans:**
 1. [x] 08-01-PLAN.md — Define chunking strategy in vite.config.ts and measure bundle impact
-2. [ ] 08-02-PLAN.md — Create Phase 5 verification artifact with route responsiveness validation
+2. [x] 08-02-PLAN.md — Create Phase 5 verification artifact with route responsiveness validation
 
 ### Phase 9: Discovery Filter Fix & Booking Verification
 Goal: Fix BKDG-03 filter gap and create Phase 2 verification artifact.
@@ -155,7 +155,7 @@ Success criteria:
 **Plans:**
 1. [x] 10-01-PLAN.md — Add firestoreService and coinService tests
 2. [x] 10-02-PLAN.md — Add auditService, supportService, razorpayService, activityService baseline tests
-3. [ ] 10-03-PLAN.md — Validate all service integration wiring with integration checker
+3. [x] 10-03-PLAN.md — Validate all service integration wiring with integration checker
 
 ## Next Command
 

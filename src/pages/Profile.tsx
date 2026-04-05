@@ -204,7 +204,7 @@ export default function Profile() {
     if (!normalizedPhone || normalizedPhone === "+91") {
       nextErrors.phoneNumber = "Mobile number is required.";
     } else if (!phoneRegex.test(normalizedPhone)) {
-      nextErrors.phoneNumber = "Invalid Indian mobile number. Use +91XXXXXXXXXX.";
+      nextErrors.phoneNumber = "Invalid Indian mobile number. Use +91XXXXXXXXXX or +91-XXXXXXXXXX.";
     }
     if (isServiceProvider && userProfile?.residentVerificationStatus !== "verified") {
       nextErrors.serviceProvider = "Residency verification is required to enable Service Provider mode.";
@@ -305,7 +305,7 @@ export default function Profile() {
         <div style={{ position: "relative" }}>
           <div className="avatar avatar-xl avatar-upload" style={{ position: "relative", overflow: "hidden" }}>
             {user?.photoURL ? (
-              <img src={user.photoURL} alt="" />
+              <img src={user.photoURL} alt="" loading="lazy" />
             ) : (
               (displayName || "?").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
             )}
@@ -417,9 +417,9 @@ export default function Profile() {
               maxLength={14}
             />
             <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: 4 }}>Make sure your enter correct mobile number. You can Hide / Unhide mobile number in Privacy setting.</p>
-            {(errors as any).phoneNumber && (
+            {errors.phoneNumber && (
               <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>
-                {(errors as any).phoneNumber}
+                {errors.phoneNumber}
               </div>
             )}
           </div>
@@ -517,8 +517,9 @@ export default function Profile() {
                   try {
                     await uploadResidencyProof(user.uid, e.target.files[0]);
                     logActivity(user.uid, "verification.submitted", `Residency proof uploaded: ${e.target.files[0].name}`, { fileName: e.target.files[0].name, fileSize: e.target.files[0].size });
-                  } catch (err: any) {
-                    alert(err.message || "Upload failed. Please try again.");
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : "Upload failed. Please try again.";
+                    alert(message);
                   }
                   setUploadingProof(false);
                 }}

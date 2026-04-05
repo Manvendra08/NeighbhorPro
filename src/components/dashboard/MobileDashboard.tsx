@@ -7,12 +7,17 @@ import type { LoyaltyPreview } from "../../services/loyaltyService";
 import FeedPostCard from "./FeedPostCard";
 import FeedComposer from "./FeedComposer";
 
+type DashboardUser = {
+  uid: string;
+  displayName?: string | null;
+};
+
 export default function MobileDashboard({
   userProfile, user, upcomingBookings, proBookings,
   loading, computedRating, reviewDistribution: _reviewDistribution, lastBookedPro, lastCompletedBooking, loyaltyPreview,
 }: {
   userProfile: Record<string, unknown> | null;
-  user: any;
+  user: DashboardUser | null;
   upcomingBookings: Record<string, unknown>[];
   proBookings: Record<string, unknown>[];
   loading: boolean;

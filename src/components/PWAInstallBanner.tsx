@@ -80,7 +80,7 @@ export default function PWAInstallBanner() {
       // Safe area for iPhone notch
       paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
     }}>
-      <img src="/images/logo.png" alt="ProNeighbor" style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0 }} />
+      <img src="/images/logo.png" alt="ProNeighbor" loading="lazy" style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0 }} />
 
       <div style={{ flex: 1 }}>
         <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "0.9rem" }}>

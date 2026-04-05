@@ -56,7 +56,7 @@ export default function Contact() {
         zIndex: 100
       }}>
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <img src="/images/logo_new.png" alt="PN" style={{ height: 32, borderRadius: 6 }} />
+          <img src="/images/logo_new.png" alt="PN" loading="lazy" style={{ height: 32, borderRadius: 6 }} />
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1rem", color: "#0C1B2E", letterSpacing: -0.5 }}>
             Pro<span style={{ color: "#F5692C" }}>Neighbor</span>
           </span>
@@ -225,6 +225,7 @@ export default function Contact() {
                 <img 
                   src="/images/contact-hero.png" 
                   alt="Support Team" 
+                  loading="lazy"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                 />
                 <div style={{ 

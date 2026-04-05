@@ -70,7 +70,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 {!collapsed && (
                     <NavLink to="/" className="sidebar-header-link">
                         <div className="sidebar-logo-wrap">
-                            <img src="/images/logo.png" alt="Logo" className="sidebar-logo-image" />
+                            <img src="/images/logo.png" alt="Logo" loading="lazy" className="sidebar-logo-image" />
                             <div className="sidebar-logo">ProNeighbor</div>
                         </div>
                     </NavLink>

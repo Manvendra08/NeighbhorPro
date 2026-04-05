@@ -144,7 +144,7 @@ export default function ProDetail() {
         <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ position: "relative" }}>
             <div className="avatar avatar-xl" style={{ fontSize: 28 }}>
-              {(pro.photoURL as string) ? <img src={pro.photoURL as string} alt="" /> : initials}
+              {(pro.photoURL as string) ? <img src={pro.photoURL as string} alt="" loading="lazy" /> : initials}
             </div>
             {(pro.isServiceProvider as boolean) && (
               <div style={{ position: "absolute", bottom: -2, right: -2, background: "var(--success)", color: "#fff", width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--surface)", fontSize: 12, fontWeight: "bold" }} title="Verified Pro">✓</div>

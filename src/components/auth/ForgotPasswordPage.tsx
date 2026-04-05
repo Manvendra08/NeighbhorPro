@@ -32,7 +32,7 @@ export function ForgotPasswordPage() {
         backgroundSize: "cover", backgroundPosition: "center", color: "white"
       }}>
         <div className="brand-logo" style={{ display: "flex", alignItems: "center", gap: "12px", color: "white" }}>
-          <img src="/images/logo.png" alt="Logo" style={{ width: "44px", height: "44px", objectFit: "contain", borderRadius: "8px" }} />
+          <img src="/images/logo.png" alt="Logo" loading="lazy" style={{ width: "44px", height: "44px", objectFit: "contain", borderRadius: "8px" }} />
           ProNeighbor
         </div>
         <h2 className="brand-headline" style={{ color: "white" }}>Reset your password</h2>

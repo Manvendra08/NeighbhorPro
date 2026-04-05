@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { useDarkMode } from "../../hooks/useDarkMode";
 import { collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
-import { getPublicStats, getAllServices } from "../../services/firestoreService";
+import { getPublicStats } from "../../services/firestoreService";
 import NotificationCenter from "./NotificationCenter";
+import { useAllServicesQuery } from "../../lib/queryClient";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 type BroadcastDoc = {
@@ -110,6 +111,7 @@ function BroadcastBanner() {
             <button
               onClick={() => dismiss(b.id)}
               title="Dismiss"
+              aria-label={`Dismiss broadcast ${b.title}`}
               style={{
                 flexShrink: 0, background: "none", border: "none",
                 cursor: "pointer", color: s.color, opacity: 0.65,
@@ -172,7 +174,7 @@ function BroadcastPopup() {
       <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: `1px solid ${s.border}` }}>
           <strong style={{ color: s.color, fontSize: 13 }}>{s.icon} Broadcast</strong>
-          <button onClick={() => dismiss(active.id)} style={{ background: "none", border: "none", cursor: "pointer", color: s.color, fontSize: 16, lineHeight: 1 }}>✕</button>
+          <button onClick={() => dismiss(active.id)} aria-label={`Dismiss broadcast ${active.title}`} style={{ background: "none", border: "none", cursor: "pointer", color: s.color, fontSize: 16, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ padding: 12 }}>
           <div style={{ fontWeight: 700, marginBottom: 6 }}>{active.title}</div>
@@ -180,7 +182,7 @@ function BroadcastPopup() {
             <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: sanitizeBroadcastHtml(active.bodyHtml || active.body || "") }} />
           )}
           {!!active.imageUrl && (
-            <img src={active.imageUrl} alt="Broadcast" style={{ marginTop: 8, width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+            <img src={active.imageUrl} alt="Broadcast" loading="lazy" style={{ marginTop: 8, width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
           )}
         </div>
       </div>
@@ -195,6 +197,8 @@ export default function TopBar() {
   const isAdmin = userProfile?.role === "admin";
   const navigate = useNavigate();
   const dropRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuItemRefs = useRef<Array<HTMLAnchorElement | HTMLButtonElement | null>>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
@@ -209,6 +213,40 @@ export default function TopBar() {
     .split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
 
   const handleLogout = async () => { await logout(); navigate("/login"); };
+  const focusMenuItem = (index: number) => {
+    const items = menuItemRefs.current.filter(Boolean);
+    if (items.length === 0) return;
+    items[((index % items.length) + items.length) % items.length]?.focus();
+  };
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    requestAnimationFrame(() => focusMenuItem(0));
+  }, [dropdownOpen]);
+
+  const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = menuItemRefs.current.filter(Boolean);
+    if (items.length === 0) return;
+
+    const currentIndex = items.findIndex(item => item === document.activeElement);
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusMenuItem(currentIndex + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusMenuItem(currentIndex <= 0 ? items.length - 1 : currentIndex - 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      focusMenuItem(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      focusMenuItem(items.length - 1);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setDropdownOpen(false);
+      menuButtonRef.current?.focus();
+    }
+  };
 
   return (
     <>
@@ -239,22 +277,35 @@ export default function TopBar() {
 
           <NotificationCenter />
 
-          <div
+          <button
             className="topbar-avatar"
+            type="button"
+            ref={menuButtonRef}
             onClick={() => setDropdownOpen(!dropdownOpen)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setDropdownOpen(true);
+              } else if (event.key === "Escape") {
+                setDropdownOpen(false);
+              }
+            }}
             title={userProfile?.displayName || user?.email || ""}
+            aria-label="Open user menu"
+            aria-haspopup="menu"
+            aria-expanded={dropdownOpen}
           >
-            {user?.photoURL ? <img src={user.photoURL} alt="avatar" /> : initials}
-          </div>
+            {user?.photoURL ? <img src={user.photoURL} alt="avatar" loading="lazy" /> : initials}
+          </button>
 
           {dropdownOpen && (
-            <div className="user-dropdown">
+            <div className="user-dropdown" role="menu" aria-label="User menu" onKeyDown={handleMenuKeyDown}>
               <div style={{ padding: "8px 12px", marginBottom: 4 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{userProfile?.displayName || "User"}</div>
                 <div style={{ fontSize: 12, color: "var(--muted)" }}>{user?.email}</div>
               </div>
               <div className="user-dropdown-divider" />
-              <Link to="/account" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
+              <Link to="/account" className="user-dropdown-item" role="menuitem" ref={node => { menuItemRefs.current[0] = node; }} onClick={() => setDropdownOpen(false)}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
@@ -262,20 +313,22 @@ export default function TopBar() {
                 My Profile
               </Link>
               {!isAdmin && (
-                <Link to="/wallet" className="user-dropdown-item" onClick={() => setDropdownOpen(false)}>
+                <Link to="/wallet" className="user-dropdown-item" role="menuitem" ref={node => { menuItemRefs.current[1] = node; }} onClick={() => setDropdownOpen(false)}>
                   <span style={{ fontSize: "1rem" }}>🪙</span>
                   Wallet · {(userProfile?.coinBalance ?? 0).toLocaleString("en-IN")} NC
                 </Link>
               )}
               <button
                 className="user-dropdown-item"
+                role="menuitem"
+                ref={node => { menuItemRefs.current[isAdmin ? 1 : 2] = node; }}
                 onClick={toggleDark}
                 style={{ border: "none", cursor: "pointer", background: "none", width: "100%", textAlign: "left" }}
               >
                 {dark ? "☀️ Light Mode" : "🌙 Dark Mode"}
               </button>
               <div className="user-dropdown-divider" />
-              <button className="user-dropdown-item danger" onClick={handleLogout}>
+              <button className="user-dropdown-item danger" role="menuitem" ref={node => { menuItemRefs.current[isAdmin ? 2 : 3] = node; }} onClick={handleLogout}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                   <polyline points="16 17 21 12 16 7" />
@@ -295,6 +348,7 @@ export default function TopBar() {
 function MessageTicker() {
   const [messages, setMessages] = useState<string[]>(["Welcome to ProNeighbor!"]);
   const [index, setIndex] = useState(0);
+  const { data: servicesResult } = useAllServicesQuery();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -304,9 +358,8 @@ function MessageTicker() {
         const stats = await getPublicStats();
         if (stats.totalUsers > 0) msgs.push(`${stats.totalUsers.toLocaleString()}+ neighbors are using ProNeighbor right now!`);
 
-        const svcRes = await getAllServices();
-        if (svcRes.data.length > 0) {
-          const hot = svcRes.data.slice(0, 3).map((s: Record<string, unknown>) => (s.title || (s.name as string)) as string).join(", ");
+        if (servicesResult?.data.length) {
+          const hot = servicesResult.data.slice(0, 3).map((s: Record<string, unknown>) => (s.title || (s.name as string)) as string).join(", ");
           msgs.push(`🔥 Hot Services: ${hot}`);
         }
 
@@ -316,7 +369,7 @@ function MessageTicker() {
       }
     };
     fetchData();
-  }, []);
+  }, [servicesResult]);
 
   useEffect(() => {
     if (messages.length <= 1) return;
