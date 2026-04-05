@@ -15,12 +15,15 @@ export function initSentry() {
     tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
     replaysSessionSampleRate: 0.05,
     replaysOnErrorSampleRate: 1.0,
-    beforeSend(event) {
+    beforeSend(event: Sentry.ErrorEvent): Sentry.ErrorEvent {
       // Strip PII from breadcrumbs
-      if (event.breadcrumbs?.values) {
-        event.breadcrumbs.values = event.breadcrumbs.values.map((b) => ({
-          ...b,
-          data: b.data ? sanitize(b.data) : b.data,
+      if (Array.isArray(event.breadcrumbs)) {
+        event.breadcrumbs = event.breadcrumbs.map((breadcrumb: Sentry.Breadcrumb) => ({
+          ...breadcrumb,
+          data:
+            breadcrumb.data && typeof breadcrumb.data === "object"
+              ? sanitize(breadcrumb.data as Record<string, unknown>)
+              : breadcrumb.data,
         }));
       }
       return event;
