@@ -417,7 +417,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
                             title: "Verification Pending",
                             body: `${name} uploaded residency proof`,
                             createdAt: updatedAt,
-                            actionUrl: "/admin/verifications",
+                            actionUrl: "/admin/users?tab=verification",
                             priority: "high",
                         };
                     });

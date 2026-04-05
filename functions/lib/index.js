@@ -274,7 +274,7 @@ exports.logActivityFunction = functions.onCall({
     return { success: true };
 });
 /* ═══════════════════════════════════════════════════════
-   5. flagSpamReviews — server-side automated review abuse signal
+  5. flagSpamReviews — server-side automated review abuse signal
 ═══════════════════════════════════════════════════════ */
 exports.flagSpamReviews = (0, firestore_1.onDocumentCreated)({
     document: "reviews/{reviewId}",

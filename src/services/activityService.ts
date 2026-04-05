@@ -6,6 +6,7 @@ export type ActivityEvent =
   | "user.logout"
   | "user.profile_update"
   | "user.signup"
+  | "ui.error_boundary"
   | "booking.created"
   | "booking.cancelled"
   | "booking.completed"
@@ -17,6 +18,7 @@ export type ActivityEvent =
   | "wallet.withdrawal"
   | "support.ticket_created"
   | "verification.submitted"
+  | "verification.deleted"
   | "verification.approved"
   | "admin.action";
 
@@ -89,6 +91,34 @@ export async function logActivity(
   } catch (err) {
     console.error("Activity logging failed:", err);
   }
+}
+
+type ErrorBoundaryInfo = {
+  componentStack?: string;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown UI error";
+}
+
+/**
+ * Log a React ErrorBoundary crash for signed-in users.
+ */
+export async function logErrorBoundaryActivity(
+  userId: string | undefined,
+  error: unknown,
+  errorInfo?: ErrorBoundaryInfo
+): Promise<void> {
+  if (!userId) return;
+
+  const details = `ErrorBoundary caught: ${getErrorMessage(error)}`;
+  await logActivity(userId, "ui.error_boundary", details, {
+    source: "ErrorBoundary",
+    componentStack: String(errorInfo?.componentStack || "").slice(0, 3000),
+    route: typeof window !== "undefined" ? window.location.pathname : "unknown",
+  });
 }
 
 /**

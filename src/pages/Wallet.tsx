@@ -5,7 +5,7 @@ import {
   COIN_PACKS, EARN_RULES, MIN_PAYOUT_COINS, getLedger, requestPayout,
   getPendingPayoutForUser, cancelPayoutRequest,
   formatNC, ledgerColor, ledgerSign, getNCTerms, applyReferralCode,
-  maskUpiId,
+  maskUpiId, generateReferralCode, isValidReferralCode, normalizeReferralCode,
   type LedgerEntry, type NCTerms, type CoinPayout,
 } from "../services/coinService";
 import { logActivity } from "../services/activityService";
@@ -47,7 +47,14 @@ export default function Wallet() {
   const balance = userProfile?.coinBalance ?? 0;
   const isPro   = userProfile?.isServiceProvider;
   const isBusy  = payStatus === "awaiting_payment" || payStatus === "crediting";
-  const myCode  = userProfile?.referralCode;
+  const storedCode = normalizeReferralCode(userProfile?.referralCode);
+  const myCode = isValidReferralCode(storedCode)
+    ? storedCode
+    : generateReferralCode({
+        displayName: userProfile?.displayName,
+        phoneNumber: userProfile?.phoneNumber,
+        uid: userProfile?.uid,
+      });
   const hasPhone = !!userProfile?.phoneNumber;
 
   useEffect(() => {
@@ -143,7 +150,7 @@ export default function Wallet() {
   const handleApplyReferral = async () => {
     if (!user || !refCode.trim()) return;
     setRefLoading(true);
-    const res = await applyReferralCode(user.uid, refCode.trim());
+    const res = await applyReferralCode(user.uid, normalizeReferralCode(refCode));
     setRefMsg(res.success
       ? { type: "success", text: "Referral applied! You'll both earn 100 NC on your first completed booking." }
       : { type: "error", text: res.reason ?? "Failed." });
@@ -333,7 +340,7 @@ export default function Wallet() {
             <p className="text-muted text-sm" style={{ marginBottom: 16 }}>Enter a friend's code — you'll both earn 100 NC on your first booking.</p>
             <Msg m={refMsg} />
             <div style={{ display: "flex", gap: 10 }}>
-              <input className="form-input" placeholder="e.g. PNABC123" value={refCode} onChange={e => setRefCode(e.target.value.toUpperCase())} style={{ flex: 1, fontFamily: "monospace", letterSpacing: 1 }} />
+              <input className="form-input" placeholder="e.g. PNABC123" value={refCode} onChange={e => setRefCode(normalizeReferralCode(e.target.value))} style={{ flex: 1, fontFamily: "monospace", letterSpacing: 1 }} />
               <button className="btn btn-primary" onClick={handleApplyReferral} disabled={refLoading || !refCode.trim()}>{refLoading ? "Applying…" : "Apply"}</button>
             </div>
           </div>

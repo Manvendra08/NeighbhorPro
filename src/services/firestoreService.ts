@@ -23,7 +23,7 @@ import {
 } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { db, auth } from "../firebase";
-import { generateReferralCode } from "./coinService";
+import { generateReferralCode, isValidReferralCode, normalizeReferralCode } from "./coinService";
 import { validateUpload } from "../utils/cloudinary";
 
 /* ═══════════════════════════════════════════
@@ -159,7 +159,10 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   const nextDisplayName = (typeof data.displayName === "string" ? data.displayName : (currentData.displayName as string | undefined)) ?? "";
   const nextPhone = (typeof data.phoneNumber === "string" ? data.phoneNumber : (currentData.phoneNumber as string | undefined)) ?? "";
 
-  if (typeof data.displayName === "string" || typeof data.phoneNumber === "string") {
+  const currentReferralCode = normalizeReferralCode(currentData.referralCode as string | undefined);
+  const shouldGenerateReferralCode = !isValidReferralCode(currentReferralCode);
+
+  if (shouldGenerateReferralCode && (typeof data.displayName === "string" || typeof data.phoneNumber === "string")) {
     nextData.referralCode = generateReferralCode({
       displayName: nextDisplayName,
       phoneNumber: nextPhone,
@@ -194,14 +197,13 @@ export async function uploadProfilePhoto(uid: string, file: File) {
 export async function uploadResidencyProof(uid: string, file: File) {
   validateUpload(file, "residencyProof"); // throws if invalid
 
-  // Spark-safe fallback: unsigned upload via preset (no callable function required).
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_RESIDENCY_UPLOAD_PRESET || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName) {
     throw new Error("Cloudinary configuration is missing. Please contact support.");
   }
   if (!uploadPreset) {
-    throw new Error("Cloudinary upload preset is missing. Please contact support.");
+    throw new Error("Cloudinary upload preset is missing. Set VITE_CLOUDINARY_UPLOAD_PRESET or VITE_CLOUDINARY_RESIDENCY_UPLOAD_PRESET.");
   }
 
   const formData = new FormData();
@@ -209,16 +211,29 @@ export async function uploadResidencyProof(uid: string, file: File) {
   formData.append("upload_preset", uploadPreset);
   formData.append("folder", "ProNeighbor/residency-proofs");
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
+  const isImageFile = file.type.startsWith("image/");
+  if (!isImageFile) {
+    throw new Error("Only image files are supported for residency proof. Please upload JPG, PNG, or WEBP.");
+  }
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
   if (!response.ok) {
     const err = await response.json();
     throw new Error(err.error?.message || "Cloudinary upload failed");
   }
-  const data = await response.json();
+  const data = await response.json() as {
+    secure_url: string;
+  };
+
   const residencyProofUrl = data.secure_url;
 
   const update = {
     residencyProofUrl,
+    residencyProofPreviewUrl: null,
+    residencyProofResourceType: "image",
     residentVerificationStatus: "pending",
     verificationMethod: null,
     verificationReviewNote: null,
@@ -230,6 +245,35 @@ export async function uploadResidencyProof(uid: string, file: File) {
   await updateDoc(doc(db, "users", uid), update);
   await mirrorPublicProfile(uid, update);
   return residencyProofUrl;
+}
+
+export async function deleteResidencyProof(uid: string) {
+  const userRef = doc(db, "users", uid);
+  const snap = await getDoc(userRef);
+  if (!snap.exists()) {
+    throw new Error("Profile not found");
+  }
+
+  const currentData = snap.data() as Record<string, unknown>;
+  const preserveReviewNote = currentData.residentVerificationStatus !== "pending"
+    ? (typeof currentData.verificationReviewNote === "string" ? currentData.verificationReviewNote : null)
+    : null;
+
+  const update = {
+    residencyProofUrl: null,
+    residencyProofPreviewUrl: null,
+    residencyProofResourceType: null,
+    residentVerificationStatus: "none",
+    verificationMethod: null,
+    verificationReviewNote: preserveReviewNote,
+    verificationReviewedBy: null,
+    verificationReviewedAt: null,
+    verificationSubmittedAt: null,
+    updatedAt: serverTimestamp(),
+  };
+
+  await updateDoc(userRef, update);
+  await mirrorPublicProfile(uid, update);
 }
 
 export async function updateResidentVerification(
