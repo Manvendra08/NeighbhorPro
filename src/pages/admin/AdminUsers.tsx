@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { 
   getAllUserRows, 
   getPendingVerifications,
@@ -25,7 +25,6 @@ type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verificati
 export default function AdminUsers() {
   const { userProfile, user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const adminId = userProfile?.uid || user?.uid || "unknown";
   const adminName = userProfile?.displayName || "Admin";
 

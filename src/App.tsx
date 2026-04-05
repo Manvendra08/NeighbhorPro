@@ -3,7 +3,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { LoginPage, RegisterPage, ForgotPasswordPage } from "./components/auth/AuthPages";
 import { EmailVerifiedPage } from "./components/auth/EmailVerifiedPage";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Layout from "./components/layout/Layout";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import PWASplashScreen from "./components/PWASplashScreen";

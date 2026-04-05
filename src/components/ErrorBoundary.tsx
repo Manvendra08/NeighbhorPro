@@ -4,17 +4,19 @@ import { logErrorBoundaryActivity } from "../services/activityService";
 
 type Props = {
   children: ReactNode;
+  fallback?: ReactNode;
 };
 
 type State = {
   hasError: boolean;
+  error?: Error;
 };
 
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
@@ -24,12 +26,8 @@ export default class ErrorBoundary extends Component<Props, State> {
     });
   }
 
-  private handleReload = () => {
-    window.location.reload();
-  };
-
-  private handleGoHome = () => {
-    window.location.href = "/dashboard";
+  private handleReset = () => {
+    this.setState({ hasError: false, error: undefined });
   };
 
   render() {
