@@ -1,4 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../firebase", () => ({ db: {}, auth: {}, storage: {}, functionsClient: {} }));
+vi.mock("firebase/firestore", () => ({
+  doc: vi.fn(),
+  getDoc: vi.fn(),
+  setDoc: vi.fn(),
+  updateDoc: vi.fn(),
+  serverTimestamp: vi.fn(),
+  collection: vi.fn(),
+  query: vi.fn(),
+  where: vi.fn(),
+  getDocs: vi.fn(),
+  orderBy: vi.fn(),
+  limit: vi.fn(),
+  arrayUnion: vi.fn(),
+  deleteDoc: vi.fn(),
+}));
 
 import {
   getConversationId,

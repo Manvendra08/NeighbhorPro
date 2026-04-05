@@ -10,6 +10,8 @@
     "test": "vitest run --coverage --pool=threads",
     "test:watch": "vitest",
     "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "seed:test-users": "node scripts/seedTestUsers.cjs"
   },
   "dependencies": {
@@ -24,8 +26,10 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

@@ -8,6 +8,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
+import { setUser as setSentryUser } from "../lib/sentry";
 import { earnCoins, generateReferralCode } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 import { mirrorPublicProfile, normalizeProfileData } from "../services/firestoreService";
@@ -81,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Keep protected routes in loading state while auth transitions settle.
       setLoading(true);
       setUser(u);
+      setSentryUser(u?.uid ?? null);
       if (!u) {
         setUserProfile(null);
         setLoading(false);
