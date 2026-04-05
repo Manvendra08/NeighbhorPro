@@ -8,6 +8,8 @@ import {
   addDoc,
   deleteDoc,
   query,
+  Query,
+  QueryConstraint,
   where,
   orderBy,
   limit,
@@ -108,10 +110,11 @@ export function normalizeAvailabilityData(data: Record<string, unknown> | null):
  * Mirror safe fields to /publicProfiles on every profile mutation.
  * Readable by any signed-in user; never contains sensitive data.
  */
-export async function mirrorPublicProfile(uid: string, data: any): Promise<void> {
+export async function mirrorPublicProfile(uid: string, data: object): Promise<void> {
+  const source = data as Record<string, unknown>;
   const safe: Record<string, unknown> = { uid };
   for (const field of PUBLIC_PROFILE_FIELDS) {
-    if (field in data) safe[field] = data[field as string];
+    if (field in source) safe[field] = source[field as string];
   }
   if (Object.keys(safe).length <= 1) return; // only uid, nothing to write
   await setDoc(
@@ -313,6 +316,27 @@ function toEpochMillis(value: unknown): number {
   return 0;
 }
 
+async function safeGetDocs(inputQuery: Query<DocumentData>): Promise<QueryDocumentSnapshot<DocumentData>[]> {
+  try {
+    const snapshot = await getDocs(inputQuery);
+    return snapshot.docs;
+  } catch {
+    return [];
+  }
+}
+
+function mergeAndSortByCreatedAt(
+  docs: QueryDocumentSnapshot<DocumentData>[]
+): Record<string, unknown>[] {
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const item of docs) {
+    if (!merged.has(item.id)) {
+      merged.set(item.id, { id: item.id, ...item.data() } as Record<string, unknown>);
+    }
+  }
+  return Array.from(merged.values()).sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt));
+}
+
 /**
  * Paginated professional listing ordered by createdAt desc.
  * Server-side locality/tower filtering uses Firestore where() clauses
@@ -330,35 +354,44 @@ export async function listProfessionals(
   if (cursor) constraints.push(startAfter(cursor));
 
   const primary = await getDocs(query(collection(db, "publicProfiles"), ...constraints));
-  if (!primary.empty || cursor) {
-    const data = primary.docs.map(d => normalizeProfileData({ uid: d.id, ...d.data() }));
-    const nextCursor = primary.docs.length === BROWSE_PAGE_SIZE ? primary.docs[primary.docs.length - 1] : null;
-    return { data, nextCursor };
+
+  const fallbackConstraints: QueryConstraint[] = [where("isServiceProvider", "==", true), orderBy("createdAt", "desc"), limit(BROWSE_PAGE_SIZE)];
+  if (filters?.locality) fallbackConstraints.splice(1, 0, where("locality", "==", filters.locality));
+  if (filters?.tower) fallbackConstraints.splice(1, 0, where("tower", "==", filters.tower));
+
+  const fallbackDocs = cursor
+    ? []
+    : await safeGetDocs(query(collection(db, "users"), ...fallbackConstraints));
+
+  const mergedByUid = new Map<string, Record<string, unknown>>();
+  for (const d of primary.docs) {
+    const normalized = normalizeProfileData({ uid: d.id, ...d.data() });
+    mergedByUid.set(d.id, normalized);
   }
 
-  // Fallback for older data where mirror docs were not created yet.
-  const fallbackQuery = query(
-    collection(db, "users"),
-    where("isServiceProvider", "==", true),
-    orderBy("createdAt", "desc"),
-    limit(BROWSE_PAGE_SIZE)
-  );
-  const fallbackSnap = await getDocs(fallbackQuery).catch(async () => {
-    return getDocs(query(collection(db, "users"), where("isServiceProvider", "==", true), limit(BROWSE_PAGE_SIZE)));
-  });
+  // Mirror-lag resilience: include source-of-truth user docs missing from mirrors.
+  for (const d of fallbackDocs) {
+    if (!mergedByUid.has(d.id)) {
+      const normalized = normalizeProfileData({ uid: d.id, ...d.data() });
+      mergedByUid.set(d.id, normalized);
+    }
+  }
 
-  const fallbackData = fallbackSnap.docs.map(d => normalizeProfileData({ uid: d.id, ...d.data() }));
-  const nextCursor = fallbackSnap.docs.length === BROWSE_PAGE_SIZE ? fallbackSnap.docs[fallbackSnap.docs.length - 1] : null;
-  return { data: fallbackData, nextCursor };
+  const data = Array.from(mergedByUid.values())
+    .sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt))
+    .slice(0, BROWSE_PAGE_SIZE);
+
+  const nextCursor = primary.docs.length === BROWSE_PAGE_SIZE ? primary.docs[primary.docs.length - 1] : null;
+  return { data, nextCursor };
 }
 
 export async function getAllUsers(
   limit_ = 50,
   cursor?: QueryDocumentSnapshot | null
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
-  const constraints: any[] = [orderBy("createdAt", "desc"), limit(limit_)];
+  const constraints: QueryConstraint[] = [orderBy("createdAt", "desc"), limit(limit_)];
   if (cursor) constraints.push(startAfter(cursor));
-  const snap = await getDocs(query(collection(db, "users"), ...(constraints as any[])));
+  const snap = await getDocs(query(collection(db, "users"), ...constraints));
   const data = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
@@ -386,9 +419,9 @@ export async function getAllServices(
   limit_ = 50,
   cursor?: QueryDocumentSnapshot | null
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
-  const constraints: any[] = [orderBy("createdAt", "desc"), limit(limit_)];
+  const constraints: QueryConstraint[] = [orderBy("createdAt", "desc"), limit(limit_)];
   if (cursor) constraints.push(startAfter(cursor));
-  const snap = await getDocs(query(collection(db, "services"), ...(constraints as any[])));
+  const snap = await getDocs(query(collection(db, "services"), ...constraints));
   const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
@@ -410,49 +443,29 @@ export async function updateBookingStatus(bookingId: string, status: string) {
 }
 export async function getBookingsForUser(uid: string) {
   const primaryQuery = query(collection(db, "bookings"), where("clientUid", "==", uid), orderBy("createdAt", "desc"));
-  const [primarySnap, legacySnap] = await Promise.all([
-    getDocs(primaryQuery),
-    getDocs(query(collection(db, "bookings"), where("clientId", "==", uid), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] } as any)),
+  const [primaryDocs, legacyDocs] = await Promise.all([
+    safeGetDocs(primaryQuery),
+    safeGetDocs(query(collection(db, "bookings"), where("clientId", "==", uid), orderBy("createdAt", "desc"))),
   ]);
 
-  const merged = new Map<string, Record<string, unknown>>();
-  for (const d of primarySnap.docs) {
-    merged.set(d.id, { id: d.id, ...d.data() } as Record<string, unknown>);
-  }
-  for (const d of legacySnap.docs) {
-    if (!merged.has(d.id)) {
-      merged.set(d.id, { id: d.id, ...d.data() } as Record<string, unknown>);
-    }
-  }
-
-  return Array.from(merged.values()).sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt));
+  return mergeAndSortByCreatedAt([...primaryDocs, ...legacyDocs]);
 }
 export async function getBookingsForPro(uid: string) {
   const primaryQuery = query(collection(db, "bookings"), where("proUid", "==", uid), orderBy("createdAt", "desc"));
-  const [primarySnap, legacySnap] = await Promise.all([
-    getDocs(primaryQuery),
-    getDocs(query(collection(db, "bookings"), where("proId", "==", uid), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] } as any)),
+  const [primaryDocs, legacyDocs] = await Promise.all([
+    safeGetDocs(primaryQuery),
+    safeGetDocs(query(collection(db, "bookings"), where("proId", "==", uid), orderBy("createdAt", "desc"))),
   ]);
 
-  const merged = new Map<string, Record<string, unknown>>();
-  for (const d of primarySnap.docs) {
-    merged.set(d.id, { id: d.id, ...d.data() } as Record<string, unknown>);
-  }
-  for (const d of legacySnap.docs) {
-    if (!merged.has(d.id)) {
-      merged.set(d.id, { id: d.id, ...d.data() } as Record<string, unknown>);
-    }
-  }
-
-  return Array.from(merged.values()).sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt));
+  return mergeAndSortByCreatedAt([...primaryDocs, ...legacyDocs]);
 }
 export async function getAllBookings(
   limit_ = 50,
   cursor?: QueryDocumentSnapshot | null
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
-  const constraints: any[] = [orderBy("createdAt", "desc"), limit(limit_)];
+  const constraints: QueryConstraint[] = [orderBy("createdAt", "desc"), limit(limit_)];
   if (cursor) constraints.push(startAfter(cursor));
-  const snap = await getDocs(query(collection(db, "bookings"), ...(constraints as any[])));
+  const snap = await getDocs(query(collection(db, "bookings"), ...constraints));
   const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
@@ -462,24 +475,17 @@ export async function getBookingById(bookingId: string) {
   return snap.exists() ? { id: snap.id, ...snap.data() } as Record<string, unknown> : null;
 }
 export async function getLatestBookingBetweenUsers(uid1: string, uid2: string): Promise<Record<string, unknown> | null> {
-  const [asClient, asPro] = await Promise.all([
-    getDocs(query(
-      collection(db, "bookings"),
-      where("clientId", "==", uid1),
-      where("proId", "==", uid2),
-      orderBy("createdAt", "desc"),
-      limit(1)
-    )).catch(() => ({ docs: [] } as any)),
-    getDocs(query(
-      collection(db, "bookings"),
-      where("clientId", "==", uid2),
-      where("proId", "==", uid1),
-      orderBy("createdAt", "desc"),
-      limit(1)
-    )).catch(() => ({ docs: [] } as any)),
-  ]);
+  const buildPairQueries = (clientUid: string, proUid: string): Query<DocumentData>[] => [
+    query(collection(db, "bookings"), where("clientUid", "==", clientUid), where("proUid", "==", proUid), orderBy("createdAt", "desc"), limit(1)),
+    query(collection(db, "bookings"), where("clientId", "==", clientUid), where("proId", "==", proUid), orderBy("createdAt", "desc"), limit(1)),
+    query(collection(db, "bookings"), where("clientUid", "==", clientUid), where("proId", "==", proUid), orderBy("createdAt", "desc"), limit(1)),
+    query(collection(db, "bookings"), where("clientId", "==", clientUid), where("proUid", "==", proUid), orderBy("createdAt", "desc"), limit(1)),
+  ];
 
-  const candidates = [...asClient.docs, ...asPro.docs];
+  const allQueries = [...buildPairQueries(uid1, uid2), ...buildPairQueries(uid2, uid1)];
+  const docsByQuery = await Promise.all(allQueries.map((q) => safeGetDocs(q)));
+  const candidates = docsByQuery.flat();
+
   if (!candidates.length) return null;
 
   const latest = candidates.sort((a, b) => {
@@ -491,23 +497,36 @@ export async function getLatestBookingBetweenUsers(uid1: string, uid2: string): 
   return { id: latest.id, ...latest.data() } as Record<string, unknown>;
 }
 export async function getLastCompletedBookingForUser(uid: string) {
-  const q = query(
-    collection(db, "bookings"),
-    where("clientId", "==", uid),
-    where("status", "in", ["completed", "reviewed"]),
-    orderBy("createdAt", "desc"),
-    limit(1)
-  );
-  const snap = await getDocs(q);
-  return snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as Record<string, unknown>);
+  const [currentDocs, legacyDocs] = await Promise.all([
+    safeGetDocs(query(
+      collection(db, "bookings"),
+      where("clientUid", "==", uid),
+      where("status", "in", ["completed", "reviewed"]),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    )),
+    safeGetDocs(query(
+      collection(db, "bookings"),
+      where("clientId", "==", uid),
+      where("status", "in", ["completed", "reviewed"]),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    )),
+  ]);
+
+  const sorted = mergeAndSortByCreatedAt([...currentDocs, ...legacyDocs]);
+  return sorted[0] ?? null;
 }
 export async function updateBookingFields(bookingId: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, "bookings", bookingId), { ...data, updatedAt: serverTimestamp() });
 }
 export async function getBookingsForProOnDate(proId: string, date: string) {
-  const q = query(collection(db, "bookings"), where("proId", "==", proId), where("date", "==", date));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  const [currentDocs, legacyDocs] = await Promise.all([
+    safeGetDocs(query(collection(db, "bookings"), where("proUid", "==", proId), where("date", "==", date))),
+    safeGetDocs(query(collection(db, "bookings"), where("proId", "==", proId), where("date", "==", date))),
+  ]);
+
+  return mergeAndSortByCreatedAt([...currentDocs, ...legacyDocs]);
 }
 
 // upload booking attachment
@@ -616,9 +635,9 @@ export async function getAllSocieties(
   limit_ = 50,
   cursor?: QueryDocumentSnapshot | null
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
-  const constraints: any[] = [orderBy("name"), limit(limit_)];
+  const constraints: QueryConstraint[] = [orderBy("name"), limit(limit_)];
   if (cursor) constraints.push(startAfter(cursor));
-  const snap = await getDocs(query(collection(db, "societies"), ...(constraints as any[])));
+  const snap = await getDocs(query(collection(db, "societies"), ...constraints));
   const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
@@ -637,9 +656,9 @@ export async function getTransactions(
   limit_ = 50,
   cursor?: QueryDocumentSnapshot | null
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot | null }> {
-  const constraints: any[] = [orderBy("createdAt", "desc"), limit(limit_)];
+  const constraints: QueryConstraint[] = [orderBy("createdAt", "desc"), limit(limit_)];
   if (cursor) constraints.push(startAfter(cursor));
-  const snap = await getDocs(query(collection(db, "transactions"), ...(constraints as any[])));
+  const snap = await getDocs(query(collection(db, "transactions"), ...constraints));
   const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };

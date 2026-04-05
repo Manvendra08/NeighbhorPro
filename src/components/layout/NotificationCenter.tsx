@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { usePushNotifications } from "../../hooks/usePushNotifications";
@@ -36,6 +36,8 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
 
     const [open, setOpen] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const actionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
     useEffect(() => {
         const onClickOutside = (e: MouseEvent) => {
@@ -52,13 +54,59 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
         navigate(item.actionUrl);
     };
 
+    const focusAction = (index: number) => {
+        const items = actionRefs.current.filter(Boolean);
+        if (items.length === 0) return;
+        items[((index % items.length) + items.length) % items.length]?.focus();
+    };
+
+    useEffect(() => {
+        if (!open) return;
+        requestAnimationFrame(() => focusAction(0));
+    }, [open, permission, notifications.length]);
+
+    const handlePanelKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        const items = actionRefs.current.filter(Boolean);
+        if (items.length === 0) return;
+
+        const currentIndex = items.findIndex(item => item === document.activeElement);
+        if (event.key === "ArrowDown") {
+            event.preventDefault();
+            focusAction(currentIndex + 1);
+        } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            focusAction(currentIndex <= 0 ? items.length - 1 : currentIndex - 1);
+        } else if (event.key === "Home") {
+            event.preventDefault();
+            focusAction(0);
+        } else if (event.key === "End") {
+            event.preventDefault();
+            focusAction(items.length - 1);
+        } else if (event.key === "Escape") {
+            event.preventDefault();
+            setOpen(false);
+            triggerRef.current?.focus();
+        }
+    };
+
     return (
         <div className={`notification-center${mobile ? " mobile" : ""}`} ref={rootRef}>
             <button
+                ref={triggerRef}
                 className={`topbar-btn ${unreadCount > 0 ? "notification-bell-pulse" : ""}`}
                 onClick={() => setOpen(prev => !prev)}
+                onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        setOpen(true);
+                    } else if (event.key === "Escape") {
+                        setOpen(false);
+                    }
+                }}
                 title={permission === "default" ? "Enable notifications" : "Notifications"}
                 aria-label="Notifications"
+                aria-haspopup="menu"
+                aria-expanded={open}
             >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -72,7 +120,7 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
             </button>
 
             {open && (
-                <div className={`notification-panel${mobile ? " mobile" : ""}`}>
+                <div className={`notification-panel${mobile ? " mobile" : ""}`} role="menu" aria-label="Notifications menu" onKeyDown={handlePanelKeyDown}>
                     <div className="notification-panel-head">
                         <div>
                             <div className="notification-title">Notifications</div>
@@ -82,11 +130,11 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
                         </div>
                         <div className="notification-actions">
                             {permission !== "granted" && (
-                                <button className="btn btn-secondary btn-sm" onClick={requestPermission}>
+                                <button className="btn btn-secondary btn-sm" onClick={requestPermission} ref={node => { actionRefs.current[0] = node; }}>
                                     Enable Push
                                 </button>
                             )}
-                            <button className="btn btn-ghost btn-sm" onClick={markAllRead} disabled={unreadCount === 0}>
+                            <button className="btn btn-ghost btn-sm" onClick={markAllRead} disabled={unreadCount === 0} ref={node => { actionRefs.current[permission !== "granted" ? 1 : 0] = node; }}>
                                 Mark all read
                             </button>
                         </div>
@@ -111,6 +159,8 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
                                         key={item.id}
                                         className={`notification-item ${item.kind} ${unread ? " unread" : ""}`}
                                         onClick={() => handleNavigate(item)}
+                                        role="menuitem"
+                                        ref={node => { actionRefs.current[(permission !== "granted" ? 2 : 1) + notifications.findIndex(notification => notification.id === item.id)] = node; }}
                                     >
                                         <span className="notification-item-icon">{iconForKind[item.kind]}</span>
                                         <div className="notification-item-body">

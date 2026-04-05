@@ -55,7 +55,7 @@ export function ToastContainer() {
       flexDirection: "column",
       gap: 8,
       pointerEvents: "none",
-    }}>
+    }} aria-live="polite" aria-atomic="true">
       {toasts.map((t) => {
         const bg = t.type === "success" ? "var(--success)" : t.type === "error" ? "var(--error)" : "var(--accent)";
         return (
@@ -72,13 +72,14 @@ export function ToastContainer() {
             maxWidth: "90vw",
             pointerEvents: "auto",
             animation: "slideUp 0.3s ease-out",
-          }}>
+          }} role="status">
             <span style={{ fontSize: 18 }}>
               {t.type === "success" ? "✓" : t.type === "error" ? "✕" : "ℹ"}
             </span>
             <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{t.message}</span>
             <button
               onClick={() => removeToast(t.id)}
+              aria-label="Dismiss toast"
               style={{ background: "none", border: "none", color: "rgba(255,255,255,0.7)", cursor: "pointer", padding: 4 }}
             >
               ✕

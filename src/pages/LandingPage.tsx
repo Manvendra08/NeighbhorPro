@@ -61,7 +61,7 @@ export default function LandingPage() {
       {/* ── NAV ── */}
       <nav className={`lp-nav ${scrolled ? "lp-nav-scrolled" : ""}`} style={{ padding: `0 ${px}`, height: isMobile ? 52 : 62 }}>
         <a href="#" className="lp-logo">
-          <img src="/images/logo_new.png" alt="PN" style={{ height: isMobile ? 32 : 38, borderRadius: 6 }} />
+          <img src="/images/logo_new.png" alt="PN" loading="lazy" style={{ height: isMobile ? 32 : 38, borderRadius: 6 }} />
           <span className="lp-logo-text" style={{ fontSize: isMobile ? "1rem" : "1.1rem" }}>
             Pro<span className="lp-logo-accent">Neighbor</span>
           </span>
@@ -82,7 +82,13 @@ export default function LandingPage() {
         {isMobile && (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button onClick={() => navigate("/login")} className="lp-btn-secondary lp-nav-btn-signin" style={{ padding: "7px 14px", fontSize: "0.8rem" }}>Sign In</button>
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="landing-mobile-menu"
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
+            >
               {mobileMenuOpen
                 ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C1B2E" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
                 : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0C1B2E" strokeWidth="2.5"><path d="M3 12h18M3 6h18M3 18h18" /></svg>}
@@ -93,7 +99,7 @@ export default function LandingPage() {
 
       {/* Mobile drawer */}
       {isMobile && mobileMenuOpen && (
-        <div style={{ position: "fixed", top: 60, left: 0, right: 0, zIndex: 190, background: "#fff", borderBottom: "1px solid rgba(0,0,0,0.08)", padding: "16px 5%", boxShadow: "0 8px 24px rgba(0,0,0,0.1)" }}>
+        <div id="landing-mobile-menu" style={{ position: "fixed", top: 60, left: 0, right: 0, zIndex: 190, background: "#fff", borderBottom: "1px solid rgba(0,0,0,0.08)", padding: "16px 5%", boxShadow: "0 8px 24px rgba(0,0,0,0.1)" }}>
           {navLinks.map(([label, id]) => (
             <button key={id} onClick={() => scrollTo(id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "#0C1B2E", fontWeight: 600, fontSize: "1rem", cursor: "pointer", fontFamily: "inherit", padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>{label}</button>
           ))}
@@ -137,7 +143,7 @@ export default function LandingPage() {
           {!isMobile && (
             <div className="lp-hero-image-grid">
               <div className="lp-hero-image-main">
-                <img src="/images/2.jpg" alt="Community" style={{ width: "100%", display: "block", objectFit: "cover", height: 300 }} />
+                <img src="/images/2.jpg" alt="Community" loading="lazy" style={{ width: "100%", display: "block", objectFit: "cover", height: 300 }} />
               </div>
               <div className="lp-hero-features-grid">
                 {[["⚡", "Instant Booking", "Book real-time slots"], ["🔒", "Society-Verified", "Lives in your community"]].map(([icon, title, desc]) => (
@@ -234,7 +240,7 @@ export default function LandingPage() {
         <div className="lp-early-container" style={{ gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
           {!isMobile && (
             <div className="lp-early-image">
-              <img src="/images/cta-bg.jpg" alt="Community" style={{ width: "100%", display: "block", height: 400, objectFit: "cover" }} />
+              <img src="/images/cta-bg.jpg" alt="Community" loading="lazy" style={{ width: "100%", display: "block", height: 400, objectFit: "cover" }} />
               <div className="lp-early-badge">🎯 Founding Member — May 2026</div>
             </div>
           )}
@@ -282,7 +288,7 @@ export default function LandingPage() {
           <div className="lp-footer-grid" style={{ gridTemplateColumns: isMobile ? "1fr 1fr" : "2fr 1fr 1fr 1fr" }}>
             <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
               <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-                <img src="/images/logo_new.png" alt="PN" style={{ height: 42, borderRadius: 8 }} />
+                <img src="/images/logo_new.png" alt="PN" loading="lazy" style={{ height: 42, borderRadius: 8 }} />
                 <span className="lp-logo-text" style={{ color: "#fff", fontSize: "1rem" }}>ProNeighbor</span>
               </Link>
               <p style={{ fontSize: "0.84rem", lineHeight: 1.7, maxWidth: 260 }}>The professional services marketplace for gated communities.</p>

@@ -9,12 +9,17 @@ import FeedPostCard from "./FeedPostCard";
 import FeedComposer from "./FeedComposer";
 import RecommendedPros from "./RecommendedPros";
 
+type DashboardUser = {
+  uid: string;
+  displayName?: string | null;
+};
+
 export default function DesktopDashboard({
   userProfile, user, upcomingBookings, proBookings,
   loading, computedRating, reviewDistribution, lastBookedPro, lastCompletedBooking, loyaltyPreview,
 }: {
   userProfile: Record<string, unknown> | null;
-  user: any;
+  user: DashboardUser | null;
   upcomingBookings: Record<string, unknown>[];
   proBookings: Record<string, unknown>[];
   loading: boolean;
@@ -84,7 +89,7 @@ export default function DesktopDashboard({
                   color: "var(--accent)", fontWeight: 700, fontSize: 14,
                 }}>
                   {(lastBookedPro.photoURL as string)
-                    ? <img src={lastBookedPro.photoURL as string} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ? <img src={lastBookedPro.photoURL as string} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     : ((lastBookedPro.displayName as string) || "?").slice(0, 2).toUpperCase()}
                 </div>
                 <div>

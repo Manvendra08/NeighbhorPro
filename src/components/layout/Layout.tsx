@@ -107,7 +107,7 @@ function MobileHeader() {
       <div className="mobile-header-left">
         {isDashboard ? (
           <div className="mobile-header-brand">
-            <img src="/images/logo.png" alt="PN" className="mobile-header-logo" />
+            <img src="/images/logo.png" alt="PN" loading="lazy" className="mobile-header-logo" />
             <span>ProNeighbor</span>
           </div>
         ) : (
@@ -123,7 +123,7 @@ function MobileHeader() {
         )}
         <NotificationCenter mobile />
         <div className="topbar-avatar" onClick={() => navigate("/account")} style={{ width: 32, height: 32, fontSize: 12 }}>
-          {user?.photoURL ? <img src={user.photoURL} alt="avatar" /> : initials}
+          {user?.photoURL ? <img src={user.photoURL} alt="avatar" loading="lazy" /> : initials}
         </div>
       </div>
     </header>

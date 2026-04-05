@@ -294,7 +294,7 @@ export default function AdminBroadcast() {
                   <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{form.title || "Title"}</div>
                   <div style={{ fontSize: 13, color: "var(--muted)" }} dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(form.bodyHtml || "Message body…") }} />
                   {!!form.imageUrl.trim() && (
-                    <img src={form.imageUrl.trim()} alt="Broadcast" style={{ marginTop: 8, maxWidth: 220, maxHeight: 140, borderRadius: 8, border: "1px solid var(--border)" }} />
+                    <img src={form.imageUrl.trim()} alt="Broadcast" loading="lazy" style={{ marginTop: 8, maxWidth: 220, maxHeight: 140, borderRadius: 8, border: "1px solid var(--border)" }} />
                   )}
                   <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                     <span className={`badge ${typeColors[form.type] || "badge-muted"}`} style={{ fontSize: 10 }}>{form.type}</span>
@@ -383,7 +383,7 @@ export default function AdminBroadcast() {
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{form.title || "Title"}</div>
                     <div style={{ fontSize: 13, color: "var(--muted)" }} dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(form.bodyHtml || "Message body…") }} />
                     {!!form.imageUrl.trim() && (
-                      <img src={form.imageUrl.trim()} alt="Broadcast preview" style={{ marginTop: 8, maxWidth: 220, maxHeight: 140, borderRadius: 8, border: "1px solid var(--border)" }} />
+                      <img src={form.imageUrl.trim()} alt="Broadcast preview" loading="lazy" style={{ marginTop: 8, maxWidth: 220, maxHeight: 140, borderRadius: 8, border: "1px solid var(--border)" }} />
                     )}
                   </div>
                 </div>

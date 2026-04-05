@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useNavigate } from "react-router-dom";
 import { 
   getAllUserRows, 
@@ -47,6 +48,7 @@ export default function AdminUsers() {
 
   const [queueRefreshTime, setQueueRefreshTime] = useState<Date | null>(null);
   const [queueLoading, setQueueLoading] = useState(false);
+  const userTableScrollRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -87,6 +89,13 @@ export default function AdminUsers() {
     }
   };
 
+  useEffect(() => {
+    void load();
+    if (tab === "verification") {
+      void refreshQueue();
+    }
+  }, []);
+
   const counts = {
     all: users.length,
     active: users.filter((u: UserRow) => !u.disabled).length,
@@ -112,6 +121,21 @@ export default function AdminUsers() {
       tab === "verification" ? (u.residentVerificationStatus as string) === "pending" : true;
     return matchSearch && matchTab;
   });
+
+  const userRowsVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => userTableScrollRef.current,
+    estimateSize: () => tab === "verification" ? 88 : 76,
+    overscan: 8,
+  });
+
+  useEffect(() => {
+    userTableScrollRef.current?.scrollTo({ top: 0 });
+  }, [tab, search]);
+
+  useEffect(() => {
+    userRowsVirtualizer.measure();
+  }, [filtered.length, tab, userRowsVirtualizer]);
 
   const doAction = async (
     uid: string, patch: Record<string, unknown>, successMsg: string,
@@ -383,6 +407,30 @@ export default function AdminUsers() {
     );
   };
 
+  const columnGroup = tab === "verification"
+    ? (
+      <colgroup>
+        <col style={{ width: "22%" }} />
+        <col style={{ width: "18%" }} />
+        <col style={{ width: "14%" }} />
+        <col style={{ width: "12%" }} />
+        <col style={{ width: "14%" }} />
+        <col style={{ width: "20%" }} />
+      </colgroup>
+    )
+    : (
+      <colgroup>
+        <col style={{ width: "20%" }} />
+        <col style={{ width: "16%" }} />
+        <col style={{ width: "14%" }} />
+        <col style={{ width: "10%" }} />
+        <col style={{ width: "8%" }} />
+        <col style={{ width: "12%" }} />
+        <col style={{ width: "10%" }} />
+        <col style={{ width: "20%" }} />
+      </colgroup>
+    );
+
   return (
     <div>
       {toast && (
@@ -391,7 +439,7 @@ export default function AdminUsers() {
           background: toast.type === "success" ? "var(--success)" : "var(--error)",
           color: "#fff", padding: "10px 20px", borderRadius: "var(--radius-sm)",
           fontWeight: 600, fontSize: 13, boxShadow: "var(--shadow-lg)", animation: "dropIn 0.2s ease",
-        }}>{toast.msg}</div>
+        }} role="status" aria-live="polite" aria-atomic="true">{toast.msg}</div>
       )}
 
 
@@ -526,7 +574,8 @@ export default function AdminUsers() {
         </div>
       ) : (
         <div className="table-wrap">
-          <table className="table">
+          <table className="table" style={{ tableLayout: "fixed", width: "100%" }}>
+            {columnGroup}
             <thead>
               {tab === "verification" ? (
                 <tr><th>User</th><th>Society / Flat</th><th>Submitted</th><th>Method</th><th>Proof Document</th><th>Actions</th></tr>
@@ -534,16 +583,36 @@ export default function AdminUsers() {
                 <tr><th>User</th><th>Email</th><th>Locality</th><th>Role</th><th>Pro</th><th>Resident</th><th>Status</th><th>Actions</th></tr>
               )}
             </thead>
-            <tbody>
-              {filtered.map(u => {
+          </table>
+          <div ref={userTableScrollRef} style={{ maxHeight: "min(68vh, 720px)", overflowY: "auto", position: "relative" }}>
+            <table className="table" style={{ tableLayout: "fixed", width: "100%" }}>
+              {columnGroup}
+              <tbody style={{ display: "block", height: userRowsVirtualizer.getTotalSize(), position: "relative" }}>
+              {userRowsVirtualizer.getVirtualItems().map(virtualRow => {
+                const u = filtered[virtualRow.index];
                 const uid = u.uid as string;
                 const busy = actionLoading === uid;
                 return (
-                  <tr key={uid} style={{ opacity: busy ? 0.5 : 1, verticalAlign: "middle" }}>
+                  <tr
+                    key={uid}
+                    data-index={virtualRow.index}
+                    ref={userRowsVirtualizer.measureElement}
+                    style={{
+                      opacity: busy ? 0.5 : 1,
+                      verticalAlign: "middle",
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      display: "table",
+                      tableLayout: "fixed",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => openUserModal(u)}>
                         <div className="avatar avatar-sm" style={{ background: u.disabled ? "rgba(255,92,92,0.1)" : "var(--accent-dim)", color: u.disabled ? "var(--error)" : "var(--accent)" }}>
-                          {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" /> : initials(u)}
+                          {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" loading="lazy" /> : initials(u)}
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>{(u.displayName as string) || "—"}</div>
@@ -616,7 +685,7 @@ export default function AdminUsers() {
                             {!u.emailVerified && !!u.phoneNumber && (
                               <button className="btn btn-warning btn-sm" onClick={() => handleApproveEmailByMobile(u)} disabled={busy}>Approve by Mobile</button>
                             )}
-                            <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(u)} disabled={busy}>🗑</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(u)} disabled={busy} aria-label={`Delete ${(u.displayName as string) || (u.email as string) || "user"}`}>🗑</button>
                           </div>
                         </td>
                       </>
@@ -627,6 +696,7 @@ export default function AdminUsers() {
             </tbody>
           </table>
         </div>
+        </div>
       )}
 
       {selectedUser && (
@@ -634,7 +704,7 @@ export default function AdminUsers() {
           <div className="modal" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">User Profile</h3>
-              <button className="modal-close" onClick={() => setSelectedUser(null)}>✕</button>
+              <button className="modal-close" onClick={() => setSelectedUser(null)} aria-label="Close user profile dialog">✕</button>
             </div>
 
             {/* Tab switcher */}
@@ -652,7 +722,7 @@ export default function AdminUsers() {
             {!showActivity ? (
               <>
                 <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                  <div className="avatar avatar-xl">{(selectedUser.photoURL as string) ? <img src={selectedUser.photoURL as string} alt="" /> : initials(selectedUser)}</div>
+                  <div className="avatar avatar-xl">{(selectedUser.photoURL as string) ? <img src={selectedUser.photoURL as string} alt="" loading="lazy" /> : initials(selectedUser)}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-heading)", marginBottom: 4 }}>{(selectedUser.displayName as string) || "—"}</div>
                     <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>{selectedUser.email as string}</div>
@@ -732,7 +802,7 @@ export default function AdminUsers() {
           <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ color: "var(--error)" }}>⚠ Delete User</h3>
-              <button className="modal-close" onClick={() => setDeleteConfirm(null)}>✕</button>
+              <button className="modal-close" onClick={() => setDeleteConfirm(null)} aria-label="Close delete confirmation dialog">✕</button>
             </div>
             <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>
               Permanently remove <strong style={{ color: "var(--text)" }}>{deleteConfirm.displayName as string || deleteConfirm.email as string}</strong>'s profile?
@@ -806,7 +876,7 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
       <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">Add User Record</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={onClose} aria-label="Close add user dialog">✕</button>
         </div>
         <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Creates a fully functional Firebase Auth account and Firestore profile.</p>
         {error && <div className="error-box">{error}</div>}

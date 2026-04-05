@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { logActivity } from "../services/activityService";
@@ -8,7 +9,6 @@ import {
   subscribeToMessages,
   sendMessage,
   uploadAttachment,
-  getPublicProfile,
   getLatestBookingBetweenUsers,
   markConversationRead,
   getAllUserRows,
@@ -17,6 +17,7 @@ import {
 import { Timestamp } from "firebase/firestore";
 import { relativeTime } from "../utils/time";
 import { createTicket } from "../services/supportService";
+import { fetchCachedPublicProfile } from "../lib/queryClient";
 
 
 export default function Messages() {
@@ -34,7 +35,7 @@ export default function Messages() {
   const [search, setSearch] = useState("");
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const loggedConvsRef = useRef<Set<string>>(new Set());
 
   // New Chat Modal state
@@ -44,6 +45,13 @@ export default function Messages() {
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null);
   const [reportingConversation, setReportingConversation] = useState(false);
+
+  const messageVirtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => messageListRef.current,
+    estimateSize: () => 92,
+    overscan: 8,
+  });
 
   const getOtherUserId = useCallback((conv: Record<string, unknown>) => {
     const participants = conv.participants as string[];
@@ -82,7 +90,7 @@ export default function Messages() {
         const participants = c.participants as string[];
         const otherId = participants.find((p) => p !== user.uid);
         if (otherId && !otherUsers[otherId]) {
-          getPublicProfile(otherId).then((profile) => {
+          fetchCachedPublicProfile(otherId).then((profile) => {
             if (profile) {
               setOtherUsers((prev) => ({ ...prev, [otherId]: profile }));
             } else {
@@ -115,13 +123,23 @@ export default function Messages() {
     if (!activeConv || !user) return;
     const unsub = subscribeToMessages(activeConv, (msgs) => {
       setMessages(msgs);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     });
     // Mark as read
     markConversationRead(activeConv, user.uid).catch(() => {});
     setUnreadCounts(prev => ({ ...prev, [activeConv]: 0 }));
     return unsub;
   }, [activeConv, user]);
+
+  useEffect(() => {
+    if (!activeConv || messages.length === 0) return;
+    requestAnimationFrame(() => {
+      messageVirtualizer.scrollToIndex(messages.length - 1, { align: "end" });
+    });
+  }, [activeConv, messages.length, messageVirtualizer]);
+
+  useEffect(() => {
+    messageVirtualizer.measure();
+  }, [messages.length, messageVirtualizer]);
 
   useEffect(() => {
     if (!activeConv || !user) {
@@ -314,10 +332,19 @@ export default function Messages() {
                   key={conv.id as string}
                   className={`chat-list-item${isActive ? " active" : ""}`}
                   onClick={() => setActiveConv(conv.id as string)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setActiveConv(conv.id as string);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open conversation with ${displayName}`}
                   style={{ position: "relative" }}
                 >
                   <div className="avatar avatar-sm" style={{ position: "relative", flexShrink: 0 }}>
-                    {displayPhoto ? <img src={displayPhoto} alt="" /> : initials}
+                    {displayPhoto ? <img src={displayPhoto} alt="" loading="lazy" /> : initials}
                     {unread > 0 && (
                       <span style={{
                         position: "absolute", top: -3, right: -3,
@@ -387,12 +414,13 @@ export default function Messages() {
                       }} 
                       style={{ padding: 4, display: "none", marginRight: -4, marginLeft: -12 }}
                       title="Back to conversations"
+                      aria-label="Back to conversations"
                     >
                       ←
                     </button>
                     <div className="avatar avatar-sm">
                       {displayPhoto ? (
-                        <img src={displayPhoto} alt="" />
+                        <img src={displayPhoto} alt="" loading="lazy" />
                       ) : (
                         (displayName || "?").slice(0, 2).toUpperCase()
                       )}
@@ -426,16 +454,29 @@ export default function Messages() {
                 );
               })()}
 
-              <div className="chat-messages-body">
+              <div className="chat-messages-body" ref={messageListRef}>
                 {messages.length === 0 ? (
                   <div style={{ textAlign: "center", padding: 40, color: "var(--muted)", fontSize: 13 }}>
                     No messages yet. Say hello! 👋
                   </div>
                 ) : (
-                  messages.map((msg) => {
-                    const isMine = (msg.senderId as string) === user?.uid;
-                    return (
-                      <div key={msg.id as string}>
+                  <div style={{ height: messageVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+                    {messageVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const msg = messages[virtualRow.index];
+                      const isMine = (msg.senderId as string) === user?.uid;
+                      return (
+                        <div
+                          key={msg.id as string}
+                          data-index={virtualRow.index}
+                          ref={messageVirtualizer.measureElement}
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "100%",
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                        >
                         <div className={`chat-bubble${isMine ? " mine" : ""}`}>
                           {msg.attachmentUrl ? (
                             <div style={{ marginBottom: msg.text ? 8 : 0 }}>
@@ -443,6 +484,7 @@ export default function Messages() {
                                 <img
                                   src={msg.attachmentUrl as string}
                                   alt="attachment"
+                                  loading="lazy"
                                   style={{ maxWidth: 200, borderRadius: 8, display: "block", marginBottom: 4 }}
                                 />
                               ) : (
@@ -467,11 +509,11 @@ export default function Messages() {
                           {formatMessageTimestamp(msg.timestamp)}
                           {isMine && <span style={{ marginLeft: 4, opacity: 0.5 }}>✓</span>}
                         </div>
-                      </div>
-                    );
-                  })
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-                <div ref={messagesEndRef} />
               </div>
 
               <div className="chat-input-bar" style={{ position: "relative", gap: 8 }}>
@@ -493,6 +535,7 @@ export default function Messages() {
                   className="btn btn-outline btn-icon"
                   onClick={() => fileInputRef.current?.click()}
                   title="Attach file (max 10MB)"
+                  aria-label="Attach file"
                   disabled={attachmentLoading}
                   style={{ padding: "0 12px" }}
                 >
@@ -503,6 +546,7 @@ export default function Messages() {
                   className="btn btn-outline btn-icon"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                   title="Add emoji"
+                  aria-label="Add emoji"
                   style={{ padding: "0 12px" }}
                 >
                   😀
@@ -532,7 +576,7 @@ export default function Messages() {
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Start a New Chat</h3>
-              <button className="modal-close" onClick={() => setShowNewChatModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowNewChatModal(false)} aria-label="Close new chat dialog">✕</button>
             </div>
             <div style={{ padding: "0 0 16px" }}>
               <input 
@@ -559,7 +603,7 @@ export default function Messages() {
                       style={{ padding: "10px 14px" }}
                     >
                       <div className="avatar avatar-sm">
-                        {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" /> : initials}
+                        {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" loading="lazy" /> : initials}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{u.displayName as string || "Anonymous"}</div>

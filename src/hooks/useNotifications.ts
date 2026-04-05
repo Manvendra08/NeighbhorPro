@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
     collection,
+    getDocs,
     limit,
     onSnapshot,
     orderBy,
@@ -90,7 +91,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [loading, setLoading] = useState(true);
     const [readIds, setReadIds] = useState<Set<string>>(new Set());
-    const [isPageHidden, setIsPageHidden] = useState(false);
+    const [isPageHidden, setIsPageHidden] = useState(() => (typeof document !== "undefined" ? document.hidden : false));
 
     useEffect(() => {
         if (!uid) {
@@ -111,7 +112,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         }
     }, [uid]);
 
-    // Handle tab visibility for listener pause/resume
+    // Keep listeners in sync with actual page visibility.
     useEffect(() => {
         const handleVisibilityChange = () => {
             setIsPageHidden(document.hidden);
@@ -151,7 +152,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
             return;
         }
 
-        // Pause listeners when page is hidden (visibility-aware optimization)
+        // Real-time listeners pause when the page is hidden and resubscribe on visibility restore.
         if (isPageHidden) {
             return;
         }
@@ -263,41 +264,38 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         watchBookings("client", "clientId");
         watchBookings("pro", "proId");
 
-        // Consolidated wallet listener (phase 2.2): Combine purchases, payouts, ledger into single stream
-        safeSubscribe("wallet-consolidated", () =>
-            onSnapshot(
-                query(collection(db, "coinPurchases"), where("uid", "==", uid), limit(15)),
-                snap => {
-                    const list: AppNotification[] = snap.docs.flatMap(docSnap => {
-                        const data = docSnap.data() as Record<string, unknown>;
-                        const status = asString(data.status);
-                        if (status !== "completed" && status !== "failed") return [];
+        // Wallet notifications are polled every 30s to keep listener count low.
+        const pollWalletBuckets = async () => {
+            try {
+                const [purchaseSnap, payoutSnap, ledgerSnap] = await Promise.all([
+                    getDocs(query(collection(db, "coinPurchases"), where("uid", "==", uid), limit(15))),
+                    getDocs(query(collection(db, "coinPayouts"), where("uid", "==", uid), limit(15))),
+                    getDocs(query(collection(db, "coinLedger", uid, "entries"), orderBy("createdAt", "desc"), limit(15))),
+                ]);
 
-                        const coinsGranted = typeof data.coinsGranted === "number" ? data.coinsGranted : 0;
-                        const packLabel = asString(data.packLabel, "Coins");
-                        const createdAt = toMillis(data.completedAt ?? data.createdAt);
+                const purchases: AppNotification[] = purchaseSnap.docs.flatMap(docSnap => {
+                    const data = docSnap.data() as Record<string, unknown>;
+                    const status = asString(data.status);
+                    if (status !== "completed" && status !== "failed") return [];
 
-                        return [{
-                            id: `purchase-${docSnap.id}-${status}-${createdAt}`,
-                            kind: "wallet",
-                            title: status === "completed" ? "Wallet top-up successful" : "Wallet top-up failed",
-                            body: status === "completed"
-                                ? `${packLabel} pack credited · +${coinsGranted} NC`
-                                : `${packLabel} pack payment failed`,
-                            createdAt,
-                            actionUrl: "/wallet",
-                            priority: status === "failed" ? "high" : "normal",
-                        }];
-                    });
-                    setBucket("wallet-purchases", list);
-                },
-                () => setBucket("wallet-purchases", [])
-            )
-        );
+                    const coinsGranted = typeof data.coinsGranted === "number" ? data.coinsGranted : 0;
+                    const packLabel = asString(data.packLabel, "Coins");
+                    const createdAt = toMillis(data.completedAt ?? data.createdAt);
 
-        safeSubscribe("wallet-payouts-consolidated", () =>
-            onSnapshot(query(collection(db, "coinPayouts"), where("uid", "==", uid), limit(15)), snap => {
-                const list: AppNotification[] = snap.docs.flatMap(docSnap => {
+                    return [{
+                        id: `purchase-${docSnap.id}-${status}-${createdAt}`,
+                        kind: "wallet",
+                        title: status === "completed" ? "Wallet top-up successful" : "Wallet top-up failed",
+                        body: status === "completed"
+                            ? `${packLabel} pack credited · +${coinsGranted} NC`
+                            : `${packLabel} pack payment failed`,
+                        createdAt,
+                        actionUrl: "/wallet",
+                        priority: status === "failed" ? "high" : "normal",
+                    }];
+                });
+
+                const payouts: AppNotification[] = payoutSnap.docs.flatMap(docSnap => {
                     const data = docSnap.data() as Record<string, unknown>;
                     const status = asString(data.status);
                     if (!["pending", "processed", "failed"].includes(status)) return [];
@@ -320,48 +318,51 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
                         priority: status === "failed" ? "high" : "normal",
                     }];
                 });
-                setBucket("wallet-payouts", list);
-            }, () => setBucket("wallet-payouts", []))
-        );
 
-        safeSubscribe("wallet-ledger-consolidated", () =>
-            onSnapshot(
-                query(collection(db, "coinLedger", uid, "entries"), orderBy("createdAt", "desc"), limit(15)),
-                snap => {
-                    const list: AppNotification[] = snap.docs.flatMap(docSnap => {
-                        const data = docSnap.data() as Record<string, unknown>;
-                        const type = asString(data.type);
-                        if (!["booking_refund", "admin_credit", "admin_debit", "topup", "payout"].includes(type)) {
-                            return [];
-                        }
+                const ledger: AppNotification[] = ledgerSnap.docs.flatMap(docSnap => {
+                    const data = docSnap.data() as Record<string, unknown>;
+                    const type = asString(data.type);
+                    if (!["booking_refund", "admin_credit", "admin_debit", "topup", "payout"].includes(type)) {
+                        return [];
+                    }
 
-                        const amount = typeof data.amount === "number" ? data.amount : 0;
-                        const description = asString(data.description, "Wallet activity");
-                        const createdAt = toMillis(data.createdAt);
+                    const amount = typeof data.amount === "number" ? data.amount : 0;
+                    const description = asString(data.description, "Wallet activity");
+                    const createdAt = toMillis(data.createdAt);
 
-                        return [{
-                            id: `ledger-${docSnap.id}`,
-                            kind: "wallet",
-                            title: type === "booking_refund"
-                                ? "Booking refund credited"
-                                : type === "admin_credit"
-                                    ? "Wallet credited by admin"
-                                    : type === "admin_debit"
-                                        ? "Wallet debited by admin"
-                                        : type === "payout"
-                                            ? "Payout debit recorded"
-                                            : "Wallet top-up credited",
-                            body: `${description} · ${amount > 0 ? "+" : ""}${amount} NC`,
-                            createdAt,
-                            actionUrl: "/wallet",
-                            priority: type === "admin_debit" ? "high" : "normal",
-                        }];
-                    });
-                    setBucket("wallet-ledger", list);
-                },
-                () => setBucket("wallet-ledger", [])
-            )
-        );
+                    return [{
+                        id: `ledger-${docSnap.id}`,
+                        kind: "wallet",
+                        title: type === "booking_refund"
+                            ? "Booking refund credited"
+                            : type === "admin_credit"
+                                ? "Wallet credited by admin"
+                                : type === "admin_debit"
+                                    ? "Wallet debited by admin"
+                                    : type === "payout"
+                                        ? "Payout debit recorded"
+                                        : "Wallet top-up credited",
+                        body: `${description} · ${amount > 0 ? "+" : ""}${amount} NC`,
+                        createdAt,
+                        actionUrl: "/wallet",
+                        priority: type === "admin_debit" ? "high" : "normal",
+                    }];
+                });
+
+                setBucket("wallet-purchases", purchases);
+                setBucket("wallet-payouts", payouts);
+                setBucket("wallet-ledger", ledger);
+            } catch {
+                setBucket("wallet-purchases", []);
+                setBucket("wallet-payouts", []);
+                setBucket("wallet-ledger", []);
+            }
+        };
+
+        void pollWalletBuckets();
+        const walletPollInterval = window.setInterval(() => {
+            void pollWalletBuckets();
+        }, 30000);
 
         safeSubscribe("tickets", () =>
             onSnapshot(
@@ -424,11 +425,18 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
             )
         );
 
-        // Admin listeners consolidated into single interval (60s)
+        // Admin notifications use a consolidated 60s poll.
         if (userProfile?.role === "admin") {
-            safeSubscribe("admin-verifications", () =>
-                onSnapshot(query(collection(db, "users"), where("residentVerificationStatus", "==", "pending"), limit(10)), snap => {
-                    const list: AppNotification[] = snap.docs.map(d => {
+            const pollAdminBuckets = async () => {
+                try {
+                    const [verificationSnap, payoutSnap, ticketSnap, disputeSnap] = await Promise.all([
+                        getDocs(query(collection(db, "users"), where("residentVerificationStatus", "==", "pending"), limit(10))),
+                        getDocs(query(collection(db, "coinPayouts"), where("status", "==", "pending"), orderBy("createdAt", "desc"), limit(10))),
+                        getDocs(query(collection(db, "tickets"), where("status", "==", "open"), orderBy("createdAt", "desc"), limit(10))),
+                        getDocs(query(collection(db, "disputes"), where("status", "==", "raised"), orderBy("createdAt", "desc"), limit(10))),
+                    ]);
+
+                    const verificationList: AppNotification[] = verificationSnap.docs.map(d => {
                         const data = d.data() as Record<string, unknown>;
                         const updatedAt = toMillis(data.updatedAt);
                         const name = asString(data.displayName || data.email, "New User");
@@ -439,91 +447,86 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
                             body: `${name} uploaded residency proof`,
                             createdAt: updatedAt,
                             actionUrl: "/admin/verifications",
-                            priority: "high",
+                            priority: "high" as const,
                         };
                     });
-                    setBucket("admin-verifications", list);
-                }, () => setBucket("admin-verifications", []))
-            );
 
-            safeSubscribe("admin-payouts", () =>
-                onSnapshot(
-                    query(collection(db, "coinPayouts"), where("status", "==", "pending"), orderBy("createdAt", "desc"), limit(10)),
-                    snap => {
-                        const list: AppNotification[] = snap.docs.map(d => {
-                            const data = d.data() as Record<string, unknown>;
-                            const createdAt = toMillis(data.createdAt);
-                            const amount = typeof data.amountRs === "number" ? data.amountRs : 0;
-                            return {
-                                id: `admin-payout-${d.id}-${createdAt}`,
-                                kind: "admin_action",
-                                title: "Pending Payout",
-                                body: `Cash out request: ₹${amount.toLocaleString("en-IN")}`,
-                                createdAt,
-                                actionUrl: "/admin/wallet",
-                                priority: "urgent",
-                            };
-                        });
-                        setBucket("admin-payouts", list);
-                    },
-                    () => setBucket("admin-payouts", [])
-                )
-            );
+                    const payoutList: AppNotification[] = payoutSnap.docs.map(d => {
+                        const data = d.data() as Record<string, unknown>;
+                        const createdAt = toMillis(data.createdAt);
+                        const amount = typeof data.amountRs === "number" ? data.amountRs : 0;
+                        return {
+                            id: `admin-payout-${d.id}-${createdAt}`,
+                            kind: "admin_action",
+                            title: "Pending Payout",
+                            body: `Cash out request: ₹${amount.toLocaleString("en-IN")}`,
+                            createdAt,
+                            actionUrl: "/admin/wallet",
+                            priority: "urgent" as const,
+                        };
+                    });
 
-            safeSubscribe("admin-tickets", () =>
-                onSnapshot(
-                    query(collection(db, "tickets"), where("status", "==", "open"), orderBy("createdAt", "desc"), limit(10)),
-                    snap => {
-                        const list: AppNotification[] = snap.docs.map(d => {
-                            const data = d.data() as Record<string, unknown>;
-                            const createdAt = toMillis(data.createdAt);
-                            const subject = asString(data.subject, "Support query");
-                            return {
-                                id: `admin-ticket-${d.id}-${createdAt}`,
-                                kind: "admin_action",
-                                title: "New Support Ticket",
-                                body: subject,
-                                createdAt,
-                                actionUrl: "/admin/tickets",
-                                priority: "high",
-                            };
-                        });
-                        setBucket("admin-tickets", list);
-                    },
-                    () => setBucket("admin-tickets", [])
-                )
-            );
+                    const ticketList: AppNotification[] = ticketSnap.docs.map(d => {
+                        const data = d.data() as Record<string, unknown>;
+                        const createdAt = toMillis(data.createdAt);
+                        const subject = asString(data.subject, "Support query");
+                        return {
+                            id: `admin-ticket-${d.id}-${createdAt}`,
+                            kind: "admin_action",
+                            title: "New Support Ticket",
+                            body: subject,
+                            createdAt,
+                            actionUrl: "/admin/tickets",
+                            priority: "high" as const,
+                        };
+                    });
 
-            safeSubscribe("admin-disputes", () =>
-                onSnapshot(
-                    query(collection(db, "disputes"), where("status", "==", "raised"), orderBy("createdAt", "desc"), limit(10)),
-                    snap => {
-                        const list: AppNotification[] = snap.docs.map(d => {
-                            const data = d.data() as Record<string, unknown>;
-                            const createdAt = toMillis(data.createdAt);
-                            const reason = asString(data.reason, "Payment dispute");
-                            return {
-                                id: `admin-dispute-${d.id}-${createdAt}`,
-                                kind: "admin_action",
-                                title: "Dispute Raised",
-                                body: reason,
-                                createdAt,
-                                actionUrl: "/admin/tickets",
-                                priority: "urgent",
-                            };
-                        });
-                        setBucket("admin-disputes", list);
-                    },
-                    () => setBucket("admin-disputes", [])
-                )
-            );
+                    const disputeList: AppNotification[] = disputeSnap.docs.map(d => {
+                        const data = d.data() as Record<string, unknown>;
+                        const createdAt = toMillis(data.createdAt);
+                        const reason = asString(data.reason, "Payment dispute");
+                        return {
+                            id: `admin-dispute-${d.id}-${createdAt}`,
+                            kind: "admin_action",
+                            title: "Dispute Raised",
+                            body: reason,
+                            createdAt,
+                            actionUrl: "/admin/tickets",
+                            priority: "urgent" as const,
+                        };
+                    });
+
+                    setBucket("admin-verifications", verificationList);
+                    setBucket("admin-payouts", payoutList);
+                    setBucket("admin-tickets", ticketList);
+                    setBucket("admin-disputes", disputeList);
+                } catch {
+                    setBucket("admin-verifications", []);
+                    setBucket("admin-payouts", []);
+                    setBucket("admin-tickets", []);
+                    setBucket("admin-disputes", []);
+                }
+            };
+
+            void pollAdminBuckets();
+            const adminPollInterval = window.setInterval(() => {
+                void pollAdminBuckets();
+            }, 60000);
+
+            return () => {
+                active = false;
+                unsubs.forEach(unsub => unsub());
+                clearInterval(walletPollInterval);
+                clearInterval(adminPollInterval);
+            };
         }
 
         return () => {
             active = false;
             unsubs.forEach(unsub => unsub());
+            clearInterval(walletPollInterval);
         };
-    }, [uid, userProfile]);
+    }, [uid, userProfile, isPageHidden]);
 
     const unreadCount = useMemo(
         () => notifications.filter(item => !readIds.has(item.id)).length,

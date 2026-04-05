@@ -198,8 +198,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaRef.current);
       confirmationRef.current = result;
       return result.verificationId;
-    } catch (error: any) {
-      const code = error.code;
+    } catch (error: unknown) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? (error as { code?: string }).code
+          : undefined;
       if (code === "auth/invalid-phone-number") throw new Error("The phone number provided is invalid.");
       if (code === "auth/too-many-requests") throw new Error("Too many attempts. Please try again later.");
       if (code === "auth/operation-not-allowed") throw new Error("Phone authentication is not enabled in Firebase.");

@@ -11,6 +11,7 @@ import {
 import { logActivity } from "../services/activityService";
 import { initiateTopUp, type PaymentStatus } from "../services/razorpayService";
 import { formatTimestamp, updateUserProfile } from "../services/firestoreService";
+import { useCoinBalanceQuery } from "../lib/queryClient";
 
 type Tab = "overview" | "buy" | "earn" | "referral" | "payout" | "history" | "terms";
 
@@ -44,7 +45,7 @@ export default function Wallet() {
   const [refLoading, setRefLoading] = useState(false);
   const [copied, setCopied]       = useState(false);
 
-  const balance = userProfile?.coinBalance ?? 0;
+  const { data: balance = userProfile?.coinBalance ?? 0 } = useCoinBalanceQuery(user?.uid, userProfile?.coinBalance ?? 0);
   const isPro   = userProfile?.isServiceProvider;
   const isBusy  = payStatus === "awaiting_payment" || payStatus === "crediting";
   const myCode  = userProfile?.referralCode;

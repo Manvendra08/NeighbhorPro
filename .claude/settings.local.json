@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C \"C:/Users/manve/Downloads/ProNeighbor/.claude/worktrees/crazy-hopper\" log --oneline -5)"
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

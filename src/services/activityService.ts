@@ -1,5 +1,6 @@
 import { collection, query, where, orderBy, limit, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
+import type { FirestoreTimestamp } from "../types/firestore";
 
 export type ActivityEvent =
   | "user.login"
@@ -26,7 +27,7 @@ export interface ActivityLog {
   event: ActivityEvent;
   details: string;
   metadata?: Record<string, unknown>;
-  timestamp: any; // Using any for simplicity as it could be serverTimestamp or plain object
+  timestamp: FirestoreTimestamp;
 }
 
 const ACTIVITY_RATE_LIMIT_MS = 2000;

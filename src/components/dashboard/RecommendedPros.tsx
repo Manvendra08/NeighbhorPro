@@ -37,7 +37,7 @@ export default function RecommendedPros({ uid }: { uid: string }) {
                 color: "var(--accent)", fontWeight: 700, fontSize: 12,
                 overflow: "hidden",
               }}>
-                {(p.photoURL as string) ? <img src={p.photoURL as string} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
+                {(p.photoURL as string) ? <img src={p.photoURL as string} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{(p.displayName as string) || "Pro"}</div>
