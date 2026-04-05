@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { getBookingsForPro, getUserProfile, getBookingsForUser, getReviewDistribution } from "../services/firestoreService";
+import { getBookingsForPro, getUserProfile, getBookingsForUser, getReviewDistribution, getPublicProfile } from "../services/firestoreService";
 import { getLoyaltyPreview, type LoyaltyPreview } from "../services/loyaltyService";
 import DesktopDashboard from "../components/dashboard/DesktopDashboard";
 import MobileDashboard from "../components/dashboard/MobileDashboard";
@@ -61,7 +61,7 @@ export default function Dashboard() {
         if (lastCompleted && lastCompleted.length > 0) {
           const latest = lastCompleted[0];
           setLastCompletedBooking(latest);
-          const proObj = await getUserProfile(latest.proId as string);
+          const proObj = await getPublicProfile(latest.proId as string);
           setLastBookedPro(proObj);
           // @ts-ignore - getLoyaltyPreview might have different signature or missing in some branches
           const loyalty = await getLoyaltyPreview(user.uid, latest.proId as string);
