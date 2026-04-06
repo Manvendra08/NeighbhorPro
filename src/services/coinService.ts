@@ -220,6 +220,23 @@ export function generateReferralCode(params: {
 }
 
 /**
+ * Validate referral code format: must be "PN" + 6 uppercase alphanumeric chars (8 chars total)
+ */
+export function isValidReferralCode(code: string | undefined): boolean {
+  if (!code || typeof code !== "string") return false;
+  const normalized = code.trim().toUpperCase();
+  return /^PN[A-Z0-9]{6}$/.test(normalized);
+}
+
+/**
+ * Normalize referral code: trim whitespace and convert to uppercase
+ */
+export function normalizeReferralCode(code: string | undefined): string {
+  if (!code || typeof code !== "string") return "";
+  return code.trim().toUpperCase();
+}
+
+/**
  * Apply a referral code. Both referrer and new user earn 100 NC
  * on the new user's first completed booking (triggered from booking completion).
  * This function just validates + stores the referral link.
