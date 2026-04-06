@@ -1,10 +1,11 @@
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
   serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc, startAfter,
-  Transaction, type QueryConstraint, type DocumentSnapshot,
+  Transaction, getAggregateFromServer, sum, count, type QueryConstraint, type DocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FirestoreTimestamp } from "../types/firestore";
+
 export type LedgerType =
   | "topup" | "booking_debit" | "booking_refund" | "booking_escrow"
   | "booking_escrow_release" | "payout" | "payout_cancelled"
@@ -58,19 +59,19 @@ export function maskUpiId(upiId: string): string {
   const visiblePrefix = handle.slice(0, 2);
   const visibleSuffix = handle.length > 4 ? handle.slice(-2) : "";
   const maskedLen = Math.max(2, handle.length - visiblePrefix.length - visibleSuffix.length);
-  return `${visiblePrefix}${"*".repeat(maskedLen)}${visibleSuffix}@${domain}`;  
+  return `${visiblePrefix}${"*".repeat(maskedLen)}${visibleSuffix}@${domain}`;
 }
 
 export const COIN_PACKS = [
   { label: "Trial", priceRs: 50, coins: 50, bonus: 0, popular: false },
-  { label: "Starter", priceRs: 200, coins: 200, bonus: 20, popular: false },    
-  { label: "Popular", priceRs: 500, coins: 500, bonus: 75, popular: true },     
-  { label: "Pro", priceRs: 1000, coins: 1000, bonus: 175, popular: false },     
-  { label: "Society", priceRs: 2500, coins: 2500, bonus: 500, popular: false }, 
+  { label: "Starter", priceRs: 200, coins: 200, bonus: 20, popular: false },
+  { label: "Popular", priceRs: 500, coins: 500, bonus: 75, popular: true },
+  { label: "Pro", priceRs: 1000, coins: 1000, bonus: 175, popular: false },
+  { label: "Society", priceRs: 2500, coins: 2500, bonus: 500, popular: false },
 ];
 
 export const EARN_RULES: Record<LedgerType, { coins: number; label: string }> = {
-  earn_signup_bonus: { coins: 100, label: "Welcome bonus ≡ƒÄë" },
+  earn_signup_bonus: { coins: 100, label: "Welcome bonus 🎉" },
   earn_profile: { coins: 20, label: "Profile completed" },
   earn_review: { coins: 10, label: "Review written" },
   earn_referral: { coins: 100, label: "Referral reward" },
@@ -103,13 +104,13 @@ async function queueLedgerCredit(tx: Transaction, params: {
   if (amount <= 0) return false;
 
   const userRef = doc(db, "users", uid);
-  const entryRef = doc(collection(db, "coinLedger", uid, "entries"), entryId);  
+  const entryRef = doc(collection(db, "coinLedger", uid, "entries"), entryId);
   const existingEntry = await tx.get(entryRef);
   if (existingEntry.exists()) return false;
 
   const userSnap = await tx.get(userRef);
-  const newBal = ((userSnap.data()?.coinBalance as number) ?? 0) + amount;      
-  tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });    
+  const newBal = ((userSnap.data()?.coinBalance as number) ?? 0) + amount;
+  tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
   tx.set(entryRef, {
     uid,
     type,
@@ -158,13 +159,13 @@ export async function queueProLoyaltyBonusCredit(
 
 export async function creditLoyaltyCashback(uid: string, bookingId: string, amount: number, serviceName?: string): Promise<void> {
   await runTransaction(db, async tx => {
-    await queueLoyaltyCashbackCredit(tx, uid, bookingId, amount, serviceName);  
+    await queueLoyaltyCashbackCredit(tx, uid, bookingId, amount, serviceName);
   });
 }
 
 export async function creditProLoyaltyBonus(uid: string, bookingId: string, amount: number, serviceName?: string): Promise<void> {
   await runTransaction(db, async tx => {
-    await queueProLoyaltyBonusCredit(tx, uid, bookingId, amount, serviceName);  
+    await queueProLoyaltyBonusCredit(tx, uid, bookingId, amount, serviceName);
   });
 }
 
@@ -194,16 +195,7 @@ export async function getNCTerms(): Promise<NCTerms> {
   return NC_TERMS_DEFAULTS;
 }
 
-const REFERRAL_CODE_REGEX = /^PN[A-Z0-9]{6}$/;
-
-export function normalizeReferralCode(code: string | undefined | null): string {
-  return (code || "").trim().toUpperCase();
-}
-
-export function isValidReferralCode(code: string | undefined | null): boolean {
-  return REFERRAL_CODE_REGEX.test(normalizeReferralCode(code));
-}
-
+// ── Referral ─────────────────────────────────────────────────────────────
 export function generateReferralCode(params: {
   displayName?: string;
   phoneNumber?: string;
@@ -224,7 +216,7 @@ export function generateReferralCode(params: {
   const seed = `${initials}${phoneTail || uidTail}`.replace(/[^A-Z0-9]/g, "");
   const body = seed.padEnd(6, "X").slice(0, 6);
 
-  return normalizeReferralCode(`PN${body}`);
+  return `PN${body}`;
 }
 
 /**
@@ -236,14 +228,11 @@ export async function applyReferralCode(
   newUserUid: string,
   code: string
 ): Promise<{ success: boolean; reason?: string }> {
-  const normalizedCode = normalizeReferralCode(code);
-  if (!normalizedCode) return { success: false, reason: "No code entered." };
-  if (!isValidReferralCode(normalizedCode)) {
-    return { success: false, reason: "Invalid code format. Use PN + 6 letters/numbers." };
-  }
+  if (!code?.trim()) return { success: false, reason: "No code entered." };
+  const upper = code.trim().toUpperCase();
 
   // Find referrer by code
-  const q = query(collection(db, "users"), where("referralCode", "==", normalizedCode), limit(1));
+  const q = query(collection(db, "users"), where("referralCode", "==", upper), limit(1));
   const snap = await getDocs(q);
   if (snap.empty) return { success: false, reason: "Invalid referral code." };
 
@@ -257,7 +246,7 @@ export async function applyReferralCode(
   await setDoc(doc(db, "referrals", newUserUid), {
     newUserUid,
     referrerUid,
-    code: normalizedCode,
+    code: upper,
     status: "pending", // becomes "rewarded" on first booking completion
     createdAt: serverTimestamp(),
   });
@@ -723,28 +712,103 @@ export async function getCoinEconomySummary() {
     "earn_free_consult", "earn_groupsession", "earn_ondemand", "earn_milestone",
   ];
 
-  const [completedPurchasesSnap, processedPayoutsSnap, pendingPayoutsSnap, earnedEntriesSnap] = await Promise.all([
-    getDocs(query(collection(db, "coinPurchases"), where("status", "==", "completed"))),
-    getDocs(query(collection(db, "coinPayouts"), where("status", "==", "processed"))),
-    getDocs(query(collection(db, "coinPayouts"), where("status", "==", "pending"))),
-    getDocs(query(collectionGroup(db, "entries"), where("type", "in", earnTypes))),
-  ]);
+  try {
+    const [
+      completedPurchaseNC,
+      completedPurchaseRevenue,
+      processedPayoutNC,
+      pendingPayoutNC,
+      pendingPayoutCount,
+      totalEarnedNC,
+    ] = await Promise.all([
+      getAggregateFromServer(
+        query(collection(db, "coinPurchases"), where("status", "==", "completed")),
+        { total: sum("coinsGranted") }
+      ),
+      getAggregateFromServer(
+        query(collection(db, "coinPurchases"), where("status", "==", "completed")),
+        { total: sum("amountPaid") }
+      ),
+      getAggregateFromServer(
+        query(collection(db, "coinPayouts"), where("status", "==", "processed")),
+        { total: sum("coinsRedeemed") }
+      ),
+      getAggregateFromServer(
+        query(collection(db, "coinPayouts"), where("status", "==", "pending")),
+        { total: sum("coinsRedeemed") }
+      ),
+      getAggregateFromServer(
+        query(collection(db, "coinPayouts"), where("status", "==", "pending")),
+        { total: count() }
+      ),
+      getAggregateFromServer(
+        query(collectionGroup(db, "entries"), where("type", "in", earnTypes)),
+        { total: sum("amount") }
+      ),
+    ]);
 
-  const totalPurchasedNC = completedPurchasesSnap.docs.reduce((sumNC, d) => sumNC + (Number(d.data()?.coinsGranted) || 0), 0);
-  const totalPurchaseRevenue = completedPurchasesSnap.docs.reduce((sumRs, d) => sumRs + (Number(d.data()?.amountPaid) || 0), 0);
-  const totalPayoutNC = processedPayoutsSnap.docs.reduce((sumNC, d) => sumNC + (Number(d.data()?.coinsRedeemed) || 0), 0);
-  const pendingPayoutNC = pendingPayoutsSnap.docs.reduce((sumNC, d) => sumNC + (Number(d.data()?.coinsRedeemed) || 0), 0);
-  const pendingPayoutCount = pendingPayoutsSnap.size;
-  const totalEarnedNC = earnedEntriesSnap.docs.reduce((sumNC, d) => sumNC + (Number(d.data()?.amount) || 0), 0);
+    return {
+      totalPurchasedNC: completedPurchaseNC.data().total ?? 0,
+      totalPurchaseRevenue: completedPurchaseRevenue.data().total ?? 0,
+      totalPayoutNC: processedPayoutNC.data().total ?? 0,
+      totalEarnedNC: totalEarnedNC.data().total ?? 0,
+      pendingPayoutNC: pendingPayoutNC.data().total ?? 0,
+      pendingPayoutCount: pendingPayoutCount.data().total ?? 0,
+    };
+  } catch (error) {
+    console.warn("Aggregate query failed in getCoinEconomySummary; using fallback totals", error);
 
-  return {
-    totalPurchasedNC,
-    totalPurchaseRevenue,
-    totalPayoutNC,
-    pendingPayoutNC,
-    pendingPayoutCount,
-    totalEarnedNC,
-  };
+    const completedPurchasesSnap = await getDocs(
+      query(collection(db, "coinPurchases"), where("status", "==", "completed"))
+    );
+    const processedPayoutsSnap = await getDocs(
+      query(collection(db, "coinPayouts"), where("status", "==", "processed"))
+    );
+    const pendingPayoutsSnap = await getDocs(
+      query(collection(db, "coinPayouts"), where("status", "==", "pending"))
+    );
+
+    const totalPurchasedNC = completedPurchasesSnap.docs.reduce((sumNC, d) => {
+      return sumNC + (Number(d.data()?.coinsGranted) || 0);
+    }, 0);
+
+    const totalPurchaseRevenue = completedPurchasesSnap.docs.reduce((sumRs, d) => {
+      return sumRs + (Number(d.data()?.amountPaid) || 0);
+    }, 0);
+
+    const totalPayoutNC = processedPayoutsSnap.docs.reduce((sumNC, d) => {
+      return sumNC + (Number(d.data()?.coinsRedeemed) || 0);
+    }, 0);
+
+    const pendingPayoutNC = pendingPayoutsSnap.docs.reduce((sumNC, d) => {
+      return sumNC + (Number(d.data()?.coinsRedeemed) || 0);
+    }, 0);
+
+    const pendingPayoutCount = pendingPayoutsSnap.size;
+
+    let totalEarnedNC = 0;
+    try {
+      const earnedEntriesSnap = await getDocs(
+        query(collectionGroup(db, "entries"), where("type", "in", earnTypes))
+      );
+      totalEarnedNC = earnedEntriesSnap.docs.reduce((sumNC, d) => {
+        return sumNC + (Number(d.data()?.amount) || 0);
+      }, 0);
+    } catch (earnError) {
+      // If the collectionGroup query path is unavailable due index state, keep dashboard operational.
+      console.warn("Failed to compute totalEarnedNC fallback; defaulting to 0", earnError);
+      totalEarnedNC = 0;
+    }
+
+    return {
+      totalPurchasedNC,
+      totalPurchaseRevenue,
+      totalPayoutNC,
+      totalEarnedNC,
+      pendingPayoutNC,
+      pendingPayoutCount,
+    };
+  }
 }
 
 export { getLedger as adminGetLedger };

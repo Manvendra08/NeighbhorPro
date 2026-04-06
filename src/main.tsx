@@ -11,15 +11,14 @@ import { queryClient } from "./lib/queryClient";
 import { initSentry } from "./lib/sentry";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-
 initSentry();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-              <ErrorBoundary>
-                          <App />
-                        </ErrorBoundary>
-    </QueryClientProvider>
-      </StrictMode>
-  );
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ErrorBoundary>
+  </StrictMode>
+);

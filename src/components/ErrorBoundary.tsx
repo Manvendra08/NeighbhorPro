@@ -1,16 +1,18 @@
-import { Component, ErrorInfo, ReactNode } from "react";
-import { auth } from "../firebase";
-import { logErrorBoundaryActivity } from "../services/activityService";
+/**
+ * React Error Boundary - Catches and displays Firestore errors and other exceptions
+ * Wrapped at App and major route sections to provide graceful error recovery
+ */
+import React, { Component, ReactNode } from "react";
 
-type Props = {
+interface Props {
   children: ReactNode;
   fallback?: ReactNode;
-};
+}
 
-type State = {
+interface State {
   hasError: boolean;
   error?: Error;
-};
+}
 
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
@@ -19,11 +21,8 @@ export default class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
-    console.error("Unhandled UI error", error, errorInfo);
-    void logErrorBoundaryActivity(auth.currentUser?.uid, error, {
-      componentStack: errorInfo.componentStack ?? undefined,
-    });
+  componentDidCatch(error: Error, _errorInfo: React.ErrorInfo) {
+    console.error("ErrorBoundary caught:", error.message);
   }
 
   private handleReset = () => {
