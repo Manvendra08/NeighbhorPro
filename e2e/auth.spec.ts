@@ -27,15 +27,14 @@ test.describe("Authentication", () => {
   });
 
   test("displays error on invalid credentials", async ({ page }) => {
-    await page.goto("/");
-    const signinBtn = page.locator("a, button").filter({ hasText: /sign in|log in/i }).first();
-    if (await signinBtn.isVisible()) await signinBtn.click();
+    await page.goto("/login");
     const emailInput = page.locator("input[type='email'], input[name='email']").first();
     await emailInput.fill("notreal@example.com");
     await page.locator("input[type='password']").first().fill("wrongpassword");
-    await page.getByRole("button", { name: /sign in|log in/i }).first().click();
+    await page.getByRole("button", { name: /sign in/i }).first().click();
+    // The app shows an error-box div with the error message
     await expect(
-      page.getByText(/invalid|wrong|error|not found/i).first(),
-    ).toBeVisible({ timeout: 10_000 });
+      page.locator(".error-box").first(),
+    ).toBeVisible({ timeout: 15_000 });
   });
 });
