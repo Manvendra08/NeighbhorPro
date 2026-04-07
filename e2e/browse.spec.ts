@@ -12,8 +12,8 @@ test.describe("Browse Professionals", () => {
   test("landing page renders core value proposition", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("h1, h2").first()).toBeVisible();
-    // Verify at least one CTA button exists
-    await expect(page.getByRole("button").first().or(page.getByRole("link").first())).toBeVisible();
+    // Verify at least one CTA button or link exists
+    await expect(page.locator("button, a[href]").first()).toBeVisible();
   });
 
   test("privacy policy and terms are reachable", async ({ page }) => {
