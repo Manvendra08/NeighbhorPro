@@ -1,0 +1,45 @@
+{
+  "name": "pro-neighbor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "pretest": "node -e \"require('fs').mkdirSync('coverage/.tmp',{recursive:true})\"",
+    "test": "vitest run --coverage --pool=threads",
+    "test:watch": "vitest",
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "seed:test-users": "node scripts/seedTestUsers.cjs"
+  },
+  "dependencies": {
+    "@sentry/react": "^10.47.0",
+    "@tanstack/react-query": "^5.96.2",
+    "@tanstack/react-virtual": "^3.13.23",
+    "emoji-picker-react": "^4.18.0",
+    "firebase": "^10.12.0",
+    "lucide-react": "^1.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^4.1.2",
+    "firebase-admin": "^12.0.0",
+    "jsdom": "^29.0.1",
+    "msw": "^2.12.14",
+    "typescript": "^5.4.5",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.2"
+  }
+}

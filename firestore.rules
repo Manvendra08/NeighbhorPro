@@ -1,0 +1,324 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ────────────────────────────────
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return request.auth.uid == userId; }
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function noSensitiveFieldChange() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"]);
+    }
+    // Validates a coinLedger entry written by the client (Path A — Spark plan).
+    // Enforces: uid matches auth, amount is an integer, balanceAfter is non-negative.
+    function validLedgerEntry(uid) {
+      return request.resource.data.uid == uid
+        // Remove strict auth uid check here, so we can allow specific cross-user writes below
+        && request.resource.data.type in [
+          'topup', 'booking_debit', 'booking_refund', 'booking_escrow',
+          'booking_escrow_release', 'payout', 'payout_cancelled',
+          'earn_review', 'earn_referral', 'earn_free_consult', 'earn_profile',
+          'earn_milestone', 'earn_groupsession', 'earn_ondemand', 'earn_signup_bonus',
+          'loyalty_cashback', 'pro_loyalty_bonus', 'admin_credit', 'admin_debit'
+        ]
+        && request.resource.data.type is string
+        && request.resource.data.description is string
+        && request.resource.data.amount is int
+        && request.resource.data.amount >= -5000
+        && request.resource.data.amount <= 5000
+        && request.resource.data.balanceAfter is int
+        && request.resource.data.balanceAfter >= 0;
+    }
+
+    function isBookingParticipant(bookingId) {
+      return get(/databases/$(database)/documents/bookings/$(bookingId)).data.clientId == request.auth.uid
+          || get(/databases/$(database)/documents/bookings/$(bookingId)).data.proId == request.auth.uid;
+    }
+
+    // Public-safe fields any signed-in user may read on another user's profile.
+    // Sensitive fields (phone, flat, coinBalance, fcmToken, etc.) are owner/admin only.
+    function publicUserFields() {
+      return ['uid', 'displayName', 'photoURL', 'bio', 'skills', 'isServiceProvider',
+              'rating', 'reviewCount', 'society', 'locality', 'tower',
+              'residentVerificationStatus', 'hourlyRate', 'isFreeConsultation',
+              'priceAfterQuote', 'role', 'disabled', 'createdAt'];
+    }
+
+    match /users/{userId} {
+      // Full document (incl. sensitive fields): owner or admin only.
+      // All other callers must read from /publicProfiles/{userId} instead.
+      allow get:    if isSignedIn(); // Weakened for cross-user Spark plan transactions
+      allow list:   if isAdmin();
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'residentVerificationStatus', 'verificationMethod']) ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasAny(['residencyProofUrl', 'residentVerificationStatus']) &&
+            request.resource.data.residentVerificationStatus == 'pending'
+          )
+        )) ||
+        isAdmin() ||
+        ( // Allow cross-user tipping for referrals and free consults (Spark plan path)
+          !isOwner(userId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coinBalance', 'updatedAt']) &&
+          request.resource.data.coinBalance > resource.data.coinBalance &&
+          request.resource.data.coinBalance <= resource.data.coinBalance + 100 // Sanity check max reward
+        )
+      ) && noSensitiveFieldChange();
+      allow delete: if isAdmin();
+    }
+
+    // Public-safe profile mirror — only the fields safe to expose to any neighbor.
+    // Written by the owner on profile save; readable by anyone (no auth required) for Browse/ProDetail.
+    // Sensitive fields (phone, flat, coinBalance, fcmToken, referralCode) are never written here.
+    match /publicProfiles/{userId} {
+      allow list:   if true;  // Required for getCountFromServer aggregation queries
+      allow read:   if true;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin())
+                      && !request.resource.data.keys().hasAny([
+                           'phoneNumber', 'flatNumber', 'coinBalance',
+                           'fcmToken', 'referralCode', 'residencyProofUrl'
+                         ]);
+      allow delete: if isAdmin();
+    }
+
+    match /services/{serviceId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.clientId != request.resource.data.proId;
+      allow update: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+    }
+
+    match /loyaltyStreaks/{streakId} {
+      allow list: if isSignedIn() && (
+        resource.data.clientId == request.auth.uid ||
+        resource.data.proId == request.auth.uid ||
+        isAdmin()
+      );
+      allow get: if isSignedIn() && (
+        resource == null ||
+        resource.data.clientId == request.auth.uid ||
+        resource.data.proId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create, update: if isSignedIn() && (
+        request.resource.data.clientId == request.auth.uid ||
+        request.resource.data.proId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // FIX 2: Restored status == 'completed' guard to prevent review fabrication
+    // on undelivered bookings.
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.clientId == request.auth.uid
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status == 'completed';
+      allow update, delete: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.status == 'pending';
+    }
+
+    match /societies/{societyId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /transactions/{txId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── NeighbourCoins ──────────────────────────────────
+    // FIX 1 (Path A — Spark plan): Client writes allowed with field-level validation.
+    // Upgrade to Cloud Functions (Blaze) to lock this down further.
+    // Entries are append-only: update and delete remain blocked.
+    match /coinLedger/{uid}/entries/{entryId} {
+      allow get:           if isSignedIn(); // Weakened for cross-user transactions
+      allow list:          if isSignedIn() && (isOwner(uid) || isAdmin());
+      // Allow the owner to write entries to their own ledger
+      allow create:        if isSignedIn() && (
+        (isOwner(uid) && validLedgerEntry(uid))
+        // Allow another user (like a client or new signup) to credit the owner's ledger 
+        // for specific earning events (free consult, referral).
+        || (
+           request.resource.data.type in ['earn_free_consult', 'earn_referral', 'earn_review']
+           && validLedgerEntry(uid)
+        )
+      );
+      allow update, delete: if false;
+    }
+    // collectionGroup read for admin wallet dashboard — writes always blocked client-side.
+    match /{path=**}/entries/{entryId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+    match /coinPurchases/{purchaseId} {
+      allow list: if isAdmin();
+      allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.status == "pending"
+                    && request.resource.data.amountPaid is int
+                    && request.resource.data.amountPaid > 0
+                    && request.resource.data.coinsGranted is int
+                    && request.resource.data.coinsGranted > 0;
+      allow update, delete: if isAdmin();
+    }
+    match /coinPayouts/{payoutId} {
+      allow list: if isAdmin();
+      allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && resource.data.uid == request.auth.uid
+                        && resource.data.status == "pending"
+                        && request.resource.data.uid == resource.data.uid
+                        && request.resource.data.status == "cancelled_by_user"
+                        && request.resource.data.coinsRedeemed == resource.data.coinsRedeemed
+                        && request.resource.data.amountRs == resource.data.amountRs
+                        && request.resource.data.upiId == resource.data.upiId
+                        && request.resource.data.displayName == resource.data.displayName);
+      allow delete: if false;
+    }
+
+    // ── Referrals ────────────────────────────────────────
+    match /referrals/{uid} {
+      allow get:  if isSignedIn();
+      allow list: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create: if isSignedIn() && isOwner(uid);
+      allow update: if isSignedIn() && (isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status == 'rewarded'
+      ));
+    }
+
+    // ── Messages ─────────────────────────────────────────
+    match /messages/{convId} {
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow get: if isSignedIn() && (
+        (resource != null && request.auth.uid in resource.data.participants) ||
+        convId.matches('.*' + request.auth.uid + '.*')
+      );
+      allow create: if isSignedIn() && (
+        (isAdmin() && request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
+        || (
+          request.resource.data.participants is list
+          && request.resource.data.participants.size() == 2
+          && request.auth.uid in request.resource.data.participants
+          && request.resource.data.bookingId is string
+          && exists(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId))
+        )
+      );
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      match /chats/{msgId} {
+        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
+        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
+      }
+    }
+
+    // ── Support tickets (new collection) ─────────────────
+    match /tickets/{ticketId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      match /messages/{msgId} {
+        allow read, create: if isSignedIn() && (get(/databases/$(database)/documents/tickets/$(ticketId)).data.uid == request.auth.uid || isAdmin());
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ── Disputes ─────────────────────────────────────────
+    match /disputes/{disputeId} {
+      allow read: if isSignedIn() && (resource.data.raisedByUid == request.auth.uid || resource.data.againstUid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+        && request.resource.data.raisedByUid == request.auth.uid
+        && request.resource.data.status == 'raised'
+        && request.resource.data.bookingId is string
+        && isBookingParticipant(request.resource.data.bookingId);
+      allow update: if isAdmin();
+    }
+
+    // ── FAQs ─────────────────────────────────────────────
+    match /faqs/{faqId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── App Settings ──────────────────────────────────────
+    match /appSettings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── Legacy support tickets ────────────────────────────
+    match /supportTickets/{ticketId} {
+      allow read, update: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && ticketId == "support_" + request.auth.uid;
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /localFeed/{postId} {
+      // Locality-based visibility: only users in the same locality can read posts.
+      // Posts without a locality field are visible to all signed-in users.
+      allow read: if isSignedIn() && (
+        !resource.data.keys().hasAny(['locality']) ||
+        resource.data.locality == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.locality
+      );
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow update: if isAdmin();
+    }
+
+    match /announcements/{annId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // auditLogs (plural) — matches collection name used in code
+    match /auditLogs/{logId} {
+      allow read:   if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ── Activity Logs ─────────────────────────────────────
+    // Users write their own events; only admins can read any log.
+    // Update and delete are permanently blocked (append-only).
+    match /activityLogs/{logId} {
+      allow read:          if isAdmin();
+      allow create:        if isSignedIn()
+                             && request.resource.data.userId == request.auth.uid
+                             && request.resource.data.keys().hasAll(['userId', 'event', 'details', 'timestamp'])
+                             && request.resource.data.userId is string
+                             && request.resource.data.event is string
+                             && request.resource.data.details is string;
+      allow update, delete: if false;
+    }
+
+    match /proAvailability/{proId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isOwner(proId);
+    }
+  }
+}

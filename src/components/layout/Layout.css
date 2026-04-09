@@ -1,0 +1,37 @@
+/* Layout.css */
+
+.email-verification-banner {
+  background: rgba(245, 105, 44, 0.1);
+  border-bottom: 1px solid rgba(245, 105, 44, 0.25);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12;
+  flex-wrap: wrap;
+  font-size: 0.83rem;
+}
+
+.email-verification-text {
+  color: #c2410c;
+}
+
+.email-verification-btn {
+  background: none;
+  border: 1px solid rgba(245, 105, 44, 0.5);
+  color: #F5692C;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.email-verification-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Add other layout classes here if needed */
