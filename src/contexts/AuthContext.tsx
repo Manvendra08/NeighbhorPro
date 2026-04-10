@@ -42,6 +42,7 @@ export interface UserProfile {
   coinBalance: number;
   referralCode?: string;
   emailVerified?: boolean;
+  emailVisible?: boolean;
   phoneVisible?: boolean;
   flatVisible?: boolean;
   deleted?: boolean;
@@ -144,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           uid: u.uid,
         }),
         emailVerified: u.emailVerified,
-        phoneVisible: false, flatVisible: false,
+        emailVisible: false, phoneVisible: false, flatVisible: false,
         createdAt: serverTimestamp(),
       };
       await setDoc(ref, profile);
@@ -250,6 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const update = {
         phoneNumber: auth.currentUser.phoneNumber,
+        phoneVisible: Boolean(userSnap.data()?.phoneVisible),
         referralCode,
         updatedAt: serverTimestamp(),
       };

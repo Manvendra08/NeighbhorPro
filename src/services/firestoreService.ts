@@ -16,6 +16,7 @@ import {
   startAfter,
   QueryDocumentSnapshot,
   DocumentData,
+  deleteField,
   serverTimestamp,
   onSnapshot,
   Unsubscribe,
@@ -32,14 +33,13 @@ import { validateUpload } from "../utils/cloudinary";
    USERS
 ═══════════════════════════════════════════ */
 
-// Fields safe to expose to any signed-in user. Sensitive fields
-// (phoneNumber, flatNumber, coinBalance, fcmToken, referralCode,
-// residencyProofUrl, email) are deliberately excluded.
+// Fields safe to expose to any signed-in user.
 const PUBLIC_PROFILE_FIELDS = [
   'uid', 'displayName', 'photoURL', 'bio', 'skills', 'isServiceProvider',
   'rating', 'reviewCount', 'society', 'locality', 'tower',
   'residentVerificationStatus', 'hourlyRate', 'isFreeConsultation',
   'priceAfterQuote', 'role', 'disabled', 'createdAt', 'highestLoyaltyTier',
+  'emailVisible', 'phoneVisible', 'flatVisible',
 ] as const;
 
 const AVAILABILITY_DAYS = [
@@ -85,6 +85,27 @@ export function normalizeProfileData(data: Record<string, unknown>): Record<stri
   };
 }
 
+function derivePublicProfile(uid: string, source: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = { uid };
+  for (const field of PUBLIC_PROFILE_FIELDS) {
+    if (field in source) safe[field] = source[field as string];
+  }
+
+  const emailVisible = source.emailVisible === true;
+  const phoneVisible = source.phoneVisible === true;
+  const flatVisible = source.flatVisible === true;
+
+  const email = typeof source.email === "string" ? source.email.trim() : "";
+  const phoneNumber = typeof source.phoneNumber === "string" ? source.phoneNumber.trim() : "";
+  const flatNumber = typeof source.flatNumber === "string" ? source.flatNumber.trim() : "";
+
+  if (emailVisible && email) safe.email = email;
+  if (phoneVisible && phoneNumber) safe.phoneNumber = phoneNumber;
+  if (flatVisible && flatNumber) safe.flatNumber = flatNumber;
+
+  return normalizeProfileData(safe);
+}
+
 function normalizeAvailabilityDay(value: unknown): Record<string, unknown> {
   const day = value && typeof value === "object" ? value as Record<string, unknown> : {};
 
@@ -112,10 +133,18 @@ export function normalizeAvailabilityData(data: Record<string, unknown> | null):
  */
 export async function mirrorPublicProfile(uid: string, data: object): Promise<void> {
   const source = data as Record<string, unknown>;
-  const safe: Record<string, unknown> = { uid };
-  for (const field of PUBLIC_PROFILE_FIELDS) {
-    if (field in source) safe[field] = source[field as string];
+  const safe = derivePublicProfile(uid, source);
+
+  if ("emailVisible" in source && source.emailVisible !== true) {
+    safe.email = deleteField();
   }
+  if ("phoneVisible" in source && source.phoneVisible !== true) {
+    safe.phoneNumber = deleteField();
+  }
+  if ("flatVisible" in source && source.flatVisible !== true) {
+    safe.flatNumber = deleteField();
+  }
+
   if (Object.keys(safe).length <= 1) return; // only uid, nothing to write
   await setDoc(
     doc(db, 'publicProfiles', uid),
@@ -139,18 +168,14 @@ export async function getUserProfile(uid: string): Promise<Record<string, unknow
  */
 export async function getPublicProfile(uid: string): Promise<Record<string, unknown> | null> {
   const snap = await getDoc(doc(db, 'publicProfiles', uid));
-  if (snap.exists()) return normalizeProfileData({ uid: snap.id, ...snap.data() });
+  if (snap.exists()) return derivePublicProfile(snap.id, snap.data() as Record<string, unknown>);
   // Legacy fallback: strip sensitive fields from /users document.
   // This can be denied by rules for non-owner/non-admin callers.
   try {
     const userSnap = await getDoc(doc(db, 'users', uid));
     if (!userSnap.exists()) return null;
     const full = userSnap.data() as Record<string, unknown>;
-    const stripped: Record<string, unknown> = { uid };
-    for (const field of PUBLIC_PROFILE_FIELDS) {
-      if (field in full) stripped[field] = full[field as string];
-    }
-    return normalizeProfileData(stripped);
+    return derivePublicProfile(uid, full);
   } catch {
     return null;
   }
@@ -400,7 +425,7 @@ function mergeAndSortProfessionals(
   const merged = new Map<string, Record<string, unknown>>();
   for (const item of docs) {
     if (!merged.has(item.id)) {
-      const normalized = normalizeProfileData({ uid: item.id, ...item.data() });
+      const normalized = derivePublicProfile(item.id, item.data() as Record<string, unknown>);
       if (isProfessionalProfile(normalized)) {
         merged.set(item.id, normalized);
       }

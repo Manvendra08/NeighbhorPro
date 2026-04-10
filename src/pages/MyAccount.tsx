@@ -10,6 +10,11 @@ import { formatTimestamp } from "../services/firestoreService";
 import type { LedgerEntry } from "../services/coinService";
 
 type Tab = "profile" | "availability" | "privacy" | "history" | "activity" | "danger";
+type PrivacySettings = {
+  emailVisible: boolean;
+  phoneVisible: boolean;
+  flatVisible: boolean;
+};
 
 // ── Profile completeness calculation ──────────────────────────────────────
 function profileCompleteness(p: Record<string, unknown> | null): { pct: number; missing: string[] } {
@@ -83,7 +88,8 @@ export default function MyAccount() {
   const [saved, setSaved]     = useState(false);
   const [ledger, setLedger]   = useState<LedgerEntry[] | null>(null);
   const [ledgerLL, setLL]     = useState(false);
-  const [privacy, setPrivacy] = useState({
+  const [privacy, setPrivacy] = useState<PrivacySettings>({
+    emailVisible: userProfile?.emailVisible ?? false,
     phoneVisible: userProfile?.phoneVisible ?? false,
     flatVisible:  userProfile?.flatVisible  ?? false,
   });
@@ -105,7 +111,11 @@ export default function MyAccount() {
       setLedger(data); setLL(false);
     }
     if (t === "privacy" && up) {
-      setPrivacy({ phoneVisible: !!(up.phoneVisible), flatVisible: !!(up.flatVisible) });
+      setPrivacy({
+        emailVisible: !!(up.emailVisible),
+        phoneVisible: !!(up.phoneVisible),
+        flatVisible: !!(up.flatVisible),
+      });
     }
   };
 
@@ -165,7 +175,8 @@ export default function MyAccount() {
             <h3 className="card-title" style={{ marginBottom: 4 }}>Visibility Controls</h3>
             <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Control what other users can see on your profile.</p>
             {[
-              { key: "phoneVisible", label: "Show phone number on profile", desc: "Other verified users can see and call your number." },
+              { key: "emailVisible", label: "Show email on profile", desc: "Other users can see your email only when this is enabled." },
+              { key: "phoneVisible", label: "Show phone number on profile", desc: "Other users can see and call your number only when enabled." },
               { key: "flatVisible",  label: "Show flat number on profile",  desc: "Neighbours can see your flat number for in-person sessions." },
             ].map(({ key, label, desc }) => (
               <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
@@ -174,9 +185,9 @@ export default function MyAccount() {
                   <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>{desc}</div>
                 </div>
                 <button
-                  onClick={() => setPrivacy(p => ({ ...p, [key]: !p[key as keyof typeof p] }))}
-                  style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: privacy[key as keyof typeof privacy] ? "#1B6B8A" : "var(--border)", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
-                  <div style={{ position: "absolute", top: 2, left: privacy[key as keyof typeof privacy] ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+                  onClick={() => setPrivacy(p => ({ ...p, [key]: !p[key as keyof PrivacySettings] }))}
+                  style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: privacy[key as keyof PrivacySettings] ? "#1B6B8A" : "var(--border)", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+                  <div style={{ position: "absolute", top: 2, left: privacy[key as keyof PrivacySettings] ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
                 </button>
               </div>
             ))}
@@ -263,4 +274,3 @@ export default function MyAccount() {
     </div>
   );
 }
-

@@ -134,6 +134,9 @@ export default function ProDetail() {
 
   const initials    = ((pro.displayName as string) || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
   const isOwnProfile = user?.uid === id;
+  const publicEmail = typeof pro.email === "string" ? pro.email.trim() : "";
+  const publicPhone = typeof pro.phoneNumber === "string" ? pro.phoneNumber.trim() : "";
+  const hasPublicContact = !!(publicEmail || publicPhone);
 
   return (
     <div>
@@ -202,6 +205,32 @@ export default function ProDetail() {
           )}
         </div>
       </div>
+
+      {hasPublicContact && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h3 className="card-title" style={{ marginBottom: 14 }}>Contact</h3>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {publicEmail && (
+              <a
+                href={`mailto:${publicEmail}`}
+                className="btn btn-secondary btn-sm"
+                style={{ textDecoration: "none" }}
+              >
+                Email: {publicEmail}
+              </a>
+            )}
+            {publicPhone && (
+              <a
+                href={`tel:${publicPhone}`}
+                className="btn btn-secondary btn-sm"
+                style={{ textDecoration: "none" }}
+              >
+                Call: {publicPhone}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Skills */}
       <div className="card" style={{ marginBottom: 24 }}>

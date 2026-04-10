@@ -78,12 +78,20 @@ service cloud.firestore {
     match /publicProfiles/{userId} {
       allow list:   if true;  // Required for getCountFromServer aggregation queries
       allow read:   if true;
-      allow create: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId)
+                      && !request.resource.data.keys().hasAny([
+                           'coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl'
+                         ])
+                      && (!request.resource.data.keys().hasAny(['phoneNumber']) || request.resource.data.phoneVisible == true)
+                      && (!request.resource.data.keys().hasAny(['email']) || request.resource.data.emailVisible == true)
+                      && (!request.resource.data.keys().hasAny(['flatNumber']) || request.resource.data.flatVisible == true);
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin())
                       && !request.resource.data.keys().hasAny([
-                           'phoneNumber', 'flatNumber', 'coinBalance',
-                           'fcmToken', 'referralCode', 'residencyProofUrl'
-                         ]);
+                           'coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl'
+                         ])
+                      && (!request.resource.data.keys().hasAny(['phoneNumber']) || request.resource.data.phoneVisible == true)
+                      && (!request.resource.data.keys().hasAny(['email']) || request.resource.data.emailVisible == true)
+                      && (!request.resource.data.keys().hasAny(['flatNumber']) || request.resource.data.flatVisible == true);
       allow delete: if isAdmin();
     }
 
