@@ -630,7 +630,15 @@ export default function AdminUsers() {
                     ) : (
                       <>
                         <td className="text-muted">{u.email as string}</td>
-                        <td>{(u.locality as string) || (u.society as string) || <span className="text-muted">—</span>}{(u.tower as string) ? `, ${u.tower}` : ""}</td>
+                        <td>
+                          <div style={{ fontWeight: 500 }}>
+                            {(u.society as string) || (u.locality as string) || <span className="text-muted">—</span>}
+                            {(u.tower as string) ? `, ${u.tower}` : ""}
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                            {(u.flatNumber as string) ? `Flat ${u.flatNumber}` : "—"}
+                          </div>
+                        </td>
                         <td>
                           <span className={`badge ${u.role === "admin" ? "badge-warning" : "badge-muted"}`}>
                             {u.role === "admin" ? "🛡 Admin" : "User"}

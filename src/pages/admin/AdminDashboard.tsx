@@ -12,6 +12,8 @@ type NormalizedTransaction = {
   proEarning: number;
   serviceName: string;
   proName: string;
+  clientName: string;
+  source: "transaction" | "booking";
 };
 
 const toNumber = (value: unknown): number => {
@@ -43,12 +45,36 @@ const toTransaction = (tx: Record<string, unknown>): NormalizedTransaction => {
     proEarning,
     serviceName: String(tx.serviceName ?? "Consultation"),
     proName: String(tx.proName ?? tx.proId ?? "—"),
+    clientName: String(tx.clientName ?? tx.userName ?? "—"),
+    source: "transaction",
+  };
+};
+
+const bookingToTransaction = (booking: Record<string, unknown>): NormalizedTransaction => {
+  const amount = toNumber(booking.amount ?? booking.escrowCoins);
+  const platformFee = toNumber(booking.platformFee);
+  const explicitProEarning = toNumber(booking.proEarning);
+  const commission = platformFee > 0 ? platformFee : Math.round(amount * 0.1);
+  const proEarning = explicitProEarning > 0 ? explicitProEarning : Math.max(0, amount - commission);
+
+  return {
+    id: String(booking.id ?? ""),
+    createdAt: booking.updatedAt ?? booking.createdAt,
+    status: String(booking.status ?? "completed"),
+    amount,
+    commission,
+    proEarning,
+    serviceName: String(booking.serviceName ?? "Consultation"),
+    proName: String(booking.proName ?? booking.proId ?? "—"),
+    clientName: String(booking.clientName ?? booking.clientId ?? "—"),
+    source: "booking",
   };
 };
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ users: 0, bookings: 0, revenue: 0, commission: 0, societies: 0, proEarnings: 0 });
   const [recentBookings, setRecentBookings] = useState<Record<string, unknown>[]>([]);
+  const [allBookings, setAllBookings] = useState<Record<string, unknown>[]>([]);
   const [transactions, setTransactions] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [financialTab, setFinancialTab] = useState<FinancialTab>("revenue");
@@ -108,6 +134,7 @@ export default function AdminDashboard() {
         });
 
         setRecentBookings(bookings.slice(0, 8));
+        setAllBookings(bookings);
         setTransactions(txns);
       } catch (e) {
         console.error("Dashboard load error:", e);
@@ -119,12 +146,22 @@ export default function AdminDashboard() {
   }, []);
 
   const txRows = useMemo(() => transactions.map(toTransaction), [transactions]);
+  const bookingRows = useMemo(
+    () => allBookings
+      .filter(b => {
+        const status = (b.status as string) || "";
+        return status === "completed" || status === "reviewed";
+      })
+      .map(bookingToTransaction),
+    [allBookings]
+  );
+  const transactionBaseRows = txRows.length > 0 ? txRows : bookingRows;
 
   const financialRows = useMemo(() => {
-    if (financialTab === "commission") return txRows.filter(t => t.commission > 0);
-    if (financialTab === "proEarnings") return txRows.filter(t => t.proEarning > 0);
-    return txRows.filter(t => t.amount > 0);
-  }, [financialTab, txRows]);
+    if (financialTab === "commission") return transactionBaseRows.filter(t => t.commission > 0);
+    if (financialTab === "proEarnings") return transactionBaseRows.filter(t => t.proEarning > 0);
+    return transactionBaseRows.filter(t => t.amount > 0);
+  }, [financialTab, transactionBaseRows]);
 
   const statusColor: Record<string, string> = {
     pending: "badge-warning",
@@ -283,8 +320,10 @@ export default function AdminDashboard() {
                       <th>ID</th>
                       <th>Date</th>
                       <th>Service</th>
+                      <th>Client</th>
                       <th>Pro</th>
                       <th>Status</th>
+                      <th>Source</th>
                       <th style={{ textAlign: "right" }}>{financialTab === "revenue" ? "Revenue" : financialTab === "commission" ? "Commission" : "Pro Earnings"}</th>
                       <th style={{ textAlign: "right" }}>{financialTab === "revenue" ? "Commission" : financialTab === "commission" ? "Revenue" : "Commission"}</th>
                     </tr>
@@ -307,10 +346,16 @@ export default function AdminDashboard() {
                           <td className="text-muted text-sm" style={{ fontFamily: "monospace" }}>{(t.id || "").slice(0, 8)}…</td>
                           <td>{formatTimestamp(t.createdAt) || "—"}</td>
                           <td>{t.serviceName}</td>
+                          <td>{t.clientName}</td>
                           <td>{t.proName}</td>
                           <td>
                             <span className={`badge ${statusColor[t.status] || "badge-muted"}`}>
                               {t.status || "—"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="badge badge-muted" style={{ fontSize: 10 }}>
+                              {t.source === "transaction" ? "Transaction" : "Booking"}
                             </span>
                           </td>
                           <td style={{ textAlign: "right", fontWeight: 700 }}>Rs {primaryValue.toLocaleString("en-IN")}</td>
