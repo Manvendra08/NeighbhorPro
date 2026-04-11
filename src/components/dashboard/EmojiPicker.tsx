@@ -17,7 +17,7 @@ export default function EmojiPicker({ onSelect, onClose }: { onSelect: (e: strin
   return (
     <div ref={ref} style={{
       position: "absolute", bottom: "100%", left: 0, marginBottom: 8,
-      background: "#fff", border: "1px solid var(--border)", borderRadius: 12,
+      background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
       padding: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", zIndex: 50,
       width: "min(320px, 90vw)",
     }}>

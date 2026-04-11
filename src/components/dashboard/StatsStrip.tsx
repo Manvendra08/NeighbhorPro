@@ -35,7 +35,7 @@ export default function StatsStrip({ coins, upcoming, proRequests, rating, revie
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                background: "#fff",
+                background: "var(--surface)",
                 border: "1px solid var(--border)",
                 borderRadius: 12,
                 padding: "12px 14px",
@@ -62,7 +62,7 @@ export default function StatsStrip({ coins, upcoming, proRequests, rating, revie
                 right: 0,
                 zIndex: 20,
                 width: 220,
-                background: "#fff",
+                background: "var(--surface)",
                 border: "1px solid var(--border)",
                 borderRadius: 10,
                 padding: "10px 12px",
@@ -85,7 +85,7 @@ export default function StatsStrip({ coins, upcoming, proRequests, rating, revie
           <Link key={item.label} to={item.to} style={{
             flex: "1 1 0", minWidth: 100,
             display: "flex", alignItems: "center", gap: 10,
-            background: "#fff", border: "1px solid var(--border)", borderRadius: 12,
+            background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
             padding: "12px 14px", textDecoration: "none", transition: "border-color 0.15s, box-shadow 0.15s",
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = item.color; e.currentTarget.style.boxShadow = `0 2px 12px ${item.color}15`; }}

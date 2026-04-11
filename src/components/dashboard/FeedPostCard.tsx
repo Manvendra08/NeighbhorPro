@@ -33,7 +33,7 @@ export default function FeedPostCard({ post, uid, onDelete }: {
   return (
     <>
       <div style={{
-        padding: "16px 18px", background: "#fff", borderRadius: 14,
+        padding: "16px 18px", background: "var(--surface)", borderRadius: 14,
         border: "1px solid var(--border)", transition: "box-shadow 0.2s",
         ...(isHidden ? { opacity: 0.45 } : {}),
       }}
@@ -71,7 +71,7 @@ export default function FeedPostCard({ post, uid, onDelete }: {
             {menuOpen && (
               <div role="menu" style={{
                 position: "absolute", right: 0, top: "100%", marginTop: 4,
-                background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+                background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
                 boxShadow: "0 6px 20px rgba(0,0,0,0.1)", overflow: "hidden", zIndex: 30,
                 minWidth: 160,
               }}>

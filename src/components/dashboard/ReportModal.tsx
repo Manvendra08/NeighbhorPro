@@ -29,7 +29,7 @@ export default function ReportModal({ postId, uid, onClose }: { postId: string; 
       padding: 20,
     }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400,
+        background: "var(--surface)", borderRadius: 16, width: "100%", maxWidth: 400,
         padding: "28px 24px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
       }}>
         {result ? (

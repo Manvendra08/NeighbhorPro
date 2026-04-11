@@ -29,7 +29,7 @@ export default function FeedComposer({ uid, displayName, locality }: { uid: stri
 
   return (
     <div style={{
-      background: "#fff", borderRadius: 14, border: "1px solid var(--border)",
+      background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)",
       padding: "18px", marginTop: 8,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>

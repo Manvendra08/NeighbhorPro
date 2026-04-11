@@ -204,6 +204,9 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   }
 
   await updateDoc(userRef, { ...nextData, updatedAt: serverTimestamp() });
+  if (auth.currentUser?.uid === uid && typeof nextDisplayName === "string" && nextDisplayName.trim()) {
+    await updateProfile(auth.currentUser, { displayName: nextDisplayName.trim() }).catch(() => {});
+  }
   // Mirror safe fields to /publicProfiles so other users never need /users
   await mirrorPublicProfile(uid, { ...currentData, ...nextData });
 }

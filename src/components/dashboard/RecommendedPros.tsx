@@ -12,7 +12,7 @@ export default function RecommendedPros({ uid }: { uid: string }) {
 
   return (
     <div style={{
-      background: "#fff", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden",
+      background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden",
     }}>
       <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontWeight: 700, fontSize: 14 }}>⭐ Top Pros</span>

@@ -19,6 +19,7 @@ import type { ActivityLog } from "../../services/activityService";
 
 type UserRow = Record<string, unknown>;
 type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verification";
+const ADMIN_VIEW_AS_KEY = "adminViewAsUid";
 
 export default function AdminUsers() {
   const { userProfile, user } = useAuth();
@@ -318,6 +319,11 @@ export default function AdminUsers() {
       await load();
     } catch { showToast("Delete failed", "error"); }
     setActionLoading(null);
+  };
+
+  const handleLoginAs = (u: UserRow) => {
+    sessionStorage.setItem(ADMIN_VIEW_AS_KEY, u.uid as string);
+    navigate("/account");
   };
 
   const tabs: { key: FilterTab; label: string }[] = [
@@ -657,6 +663,7 @@ export default function AdminUsers() {
                         <td><span className={`badge ${u.disabled ? "badge-error" : "badge-success"}`}>{u.disabled ? "Disabled" : "Active"}</span></td>
                         <td>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button className="btn btn-secondary btn-sm" onClick={() => handleLoginAs(u)} disabled={busy}>Login As</button>
                             <button className={`btn btn-sm ${u.disabled ? "btn-success" : "btn-danger"}`} onClick={() => handleToggleDisable(u)} disabled={busy}>{u.disabled ? "Enable" : "Disable"}</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleToggleRole(u)} disabled={busy}>{u.role === "admin" ? "Demote" : "Make Admin"}</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleTogglePro(u)} disabled={busy} style={{ color: u.isServiceProvider ? "var(--warning)" : "var(--accent)" }}>{u.isServiceProvider ? "Remove Pro" : "Set Pro"}</button>
@@ -726,6 +733,9 @@ export default function AdminUsers() {
                   </div>
                 </div>
                 <div className="modal-actions">
+                  <button className="btn btn-primary btn-sm" onClick={() => { handleLoginAs(selectedUser); setSelectedUser(null); }}>
+                    Login As
+                  </button>
                   <button className={`btn ${selectedUser.disabled ? "btn-success" : "btn-danger"} btn-sm`} onClick={() => { handleToggleDisable(selectedUser); setSelectedUser(null); }}>
                     {selectedUser.disabled ? "Enable User" : "Disable User"}
                   </button>

@@ -57,7 +57,7 @@ export default function MobileDashboard({
           <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>{firstName}</h2>
         </div>
         <Link to="/wallet" style={{
-          display: "flex", alignItems: "center", gap: 6, background: "#fff",
+          display: "flex", alignItems: "center", gap: 6, background: "var(--surface)",
           border: "1px solid var(--border)", borderRadius: 20, padding: "6px 14px",
           textDecoration: "none", fontWeight: 700, fontSize: 13, color: "var(--text)",
         }}>
@@ -73,7 +73,7 @@ export default function MobileDashboard({
           { label: "Rating", value: rating !== null && rating !== undefined ? `${rating}★` : "—", icon: "⭐" },
         ].map(s => (
           <div key={s.label} style={{
-            background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+            background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
             padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
           }}>
             <span style={{ fontSize: 16 }}>{s.icon}</span>
@@ -88,7 +88,7 @@ export default function MobileDashboard({
       {/* Re-book Banner */}
       {lastBookedPro && lastCompletedBooking && !loading && (
         <div style={{
-          margin: "0 12px 16px", padding: "14px 16px", borderRadius: 12, background: "#fff",
+          margin: "0 12px 16px", padding: "14px 16px", borderRadius: 12, background: "var(--surface)",
           border: "1px solid var(--border)",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: loyaltyPreview ? 10 : 0 }}>
@@ -135,7 +135,7 @@ export default function MobileDashboard({
           {upcomingBookings.slice(0, 2).map(b => (
             <div key={b.id as string} onClick={() => navigate("/bookings")} style={{
               display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-              background: "#fff", border: "1px solid var(--border)", borderRadius: 12,
+              background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
               marginBottom: 8, cursor: "pointer",
             }}>
               <span style={{ fontSize: 20 }}>📅</span>
@@ -149,7 +149,7 @@ export default function MobileDashboard({
           {proBookings.slice(0, 1).map(b => (
             <div key={b.id as string} onClick={() => navigate("/bookings")} style={{
               display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-              background: "#fff", border: "2px solid var(--accent2)", borderRadius: 12,
+              background: "var(--surface)", border: "2px solid var(--accent2)", borderRadius: 12,
               marginBottom: 8, cursor: "pointer",
             }}>
               <span style={{ fontSize: 20 }}>🔔</span>

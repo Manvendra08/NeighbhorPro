@@ -168,7 +168,7 @@ export default function DesktopDashboard({
           <RecommendedPros uid={uid} />
 
           {/* Upcoming Bookings */}
-          <div style={{ background: "#fff", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
+          <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
             <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 700, fontSize: 14 }}>📅 Upcoming</span>
               <Link to="/bookings" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600, textDecoration: "none" }}>All</Link>
@@ -206,7 +206,7 @@ export default function DesktopDashboard({
           {/* Pro: New Requests */}
           {isPro && proBookings.length > 0 && (
             <div style={{
-              background: "#fff", borderRadius: 14, border: "2px solid var(--accent2)", overflow: "hidden",
+              background: "var(--surface)", borderRadius: 14, border: "2px solid var(--accent2)", overflow: "hidden",
             }}>
               <div style={{
                 padding: "14px 18px", borderBottom: "1px solid var(--border)",

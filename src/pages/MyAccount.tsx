@@ -1,77 +1,79 @@
-import { useState } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { updateUserProfile } from "../services/firestoreService";
+import { getUserProfile, updateUserProfile } from "../services/firestoreService";
 import Profile from "./Profile";
 import ProAvailabilityEditor from "../components/ProAvailabilityEditor";
-import { getLedger, ledgerColor, ledgerSign } from "../services/coinService";
-import { formatTimestamp } from "../services/firestoreService";
-import type { LedgerEntry } from "../services/coinService";
 
-type Tab = "profile" | "availability" | "privacy" | "history" | "activity" | "danger";
+type Tab = "profile" | "availability" | "privacy" | "danger";
 type PrivacySettings = {
   emailVisible: boolean;
   phoneVisible: boolean;
   flatVisible: boolean;
 };
 
-// ── Profile completeness calculation ──────────────────────────────────────
-function profileCompleteness(p: Record<string, unknown> | null): { pct: number; missing: string[] } {
-  if (!p) return { pct: 0, missing: [] };
+const ADMIN_VIEW_AS_KEY = "adminViewAsUid";
+
+function profileCompleteness(profile: Record<string, unknown> | null): { pct: number; missing: string[] } {
+  if (!profile) return { pct: 0, missing: [] };
+
   const checks: [boolean, string][] = [
-    [!!(p.displayName as string)?.trim(),    "Display name"],
-    [!!(p.bio as string)?.trim(),            "Bio"],
-    [!!(p.society as string)?.trim(),        "Society / community"],
-    [!!(p.flatNumber as string)?.trim(),     "Flat number"],
-    [!!(p.locality as string)?.trim(),       "Locality"],
-    [!!p.photoURL,                            "Profile photo"],
-    [(p.skills as string[])?.length > 0,     "At least one skill"],
-    [!!(p.phoneNumber as string)?.trim(),    "Phone number"],
+    [Boolean((profile.displayName as string)?.trim()), "Display name"],
+    [Boolean((profile.bio as string)?.trim()), "Bio"],
+    [Boolean((profile.society as string)?.trim()), "Society / community"],
+    [Boolean((profile.flatNumber as string)?.trim()), "Flat number"],
+    [Boolean((profile.locality as string)?.trim()), "Locality"],
+    [Boolean(profile.photoURL), "Profile photo"],
+    [Array.isArray(profile.skills) && (profile.skills as string[]).length > 0, "At least one skill"],
+    [Boolean((profile.phoneNumber as string)?.trim()), "Phone number"],
   ];
+
   const missing = checks.filter(([ok]) => !ok).map(([, label]) => label);
   return { pct: Math.round(((checks.length - missing.length) / checks.length) * 100), missing };
 }
 
-
-// ── Delete account sub-component ──────────────────────────────────────────
 function DeleteAccountPanel() {
   const { deleteAccount, user } = useAuth();
   const [confirm, setConfirm] = useState(false);
   const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const isEmailProvider = user?.providerData.some(p => p.providerId === "password");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const isEmailProvider = user?.providerData.some(provider => provider.providerId === "password");
 
   const handleDelete = async () => {
-    setError(""); setLoading(true);
+    setError("");
+    setLoading(true);
     const res = await deleteAccount(isEmailProvider ? password : undefined);
-    if (!res.success) { setError(res.reason ?? "Failed"); setLoading(false); }
-    // On success Firebase logs out automatically
+    if (!res.success) {
+      setError(res.reason ?? "Failed");
+      setLoading(false);
+    }
   };
 
-  if (!confirm) return (
-    <div>
-      <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.6, marginBottom: 16 }}>
-        Your account will be anonymised immediately (DPDP compliant). Bookings and messages are retained for legal purposes for 30 days, then permanently deleted.
-      </p>
-      <button className="btn btn-danger" onClick={() => setConfirm(true)}>Delete My Account</button>
-    </div>
-  );
+  if (!confirm) {
+    return (
+      <div>
+        <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.6, marginBottom: 16 }}>
+          Your account will be anonymized immediately. Bookings and messages are retained for legal purposes for 30 days, then permanently deleted.
+        </p>
+        <button className="btn btn-danger" onClick={() => setConfirm(true)}>Delete My Account</button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "rgba(220,38,38,0.05)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 12, padding: 20 }}>
-      <p style={{ fontWeight: 700, color: "#dc2626", marginBottom: 12 }}>⚠️ This cannot be undone.</p>
+      <p style={{ fontWeight: 700, color: "#dc2626", marginBottom: 12 }}>This cannot be undone.</p>
       {isEmailProvider && (
         <div className="form-group">
           <label className="form-label">Confirm your password</label>
-          <input className="form-input" type="password" placeholder="Enter password" value={password} onChange={e => setPassword(e.target.value)} />
+          <input className="form-input" type="password" placeholder="Enter password" value={password} onChange={event => setPassword(event.target.value)} />
         </div>
       )}
       {error && <div className="error-box" style={{ marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
-        <button className="btn btn-danger" onClick={handleDelete} disabled={loading || (isEmailProvider && !password)}>
-          {loading ? "Deleting…" : "Yes, delete my account"}
+        <button className="btn btn-danger" onClick={handleDelete} disabled={loading || (Boolean(isEmailProvider) && !password)}>
+          {loading ? "Deleting..." : "Yes, delete my account"}
         </button>
         <button className="btn btn-secondary" onClick={() => { setConfirm(false); setError(""); }}>Cancel</button>
       </div>
@@ -79,22 +81,17 @@ function DeleteAccountPanel() {
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────
 export default function MyAccount() {
   const { user, userProfile, logout } = useAuth();
   const [searchParams] = useSearchParams();
-  const [tab, setTab]         = useState<Tab>("profile");
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
-  const [ledger, setLedger]   = useState<LedgerEntry[] | null>(null);
-  const [ledgerLL, setLL]     = useState(false);
-  const [privacy, setPrivacy] = useState<PrivacySettings>({
-    emailVisible: userProfile?.emailVisible ?? false,
-    phoneVisible: userProfile?.phoneVisible ?? false,
-    flatVisible:  userProfile?.flatVisible  ?? false,
-  });
-  const up = userProfile as Record<string, unknown> | null;
-  const { pct, missing } = profileCompleteness(up);
+  const [tab, setTab] = useState<Tab>("profile");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [privacy, setPrivacy] = useState<PrivacySettings>({ emailVisible: false, phoneVisible: false, flatVisible: false });
+  const [viewAsProfile, setViewAsProfile] = useState<Record<string, unknown> | null>(null);
+  const [viewAsUid, setViewAsUid] = useState<string | null>(null);
+  const [viewAsLoading, setViewAsLoading] = useState(false);
+  const [viewAsError, setViewAsError] = useState("");
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
@@ -103,35 +100,99 @@ export default function MyAccount() {
     }
   }, [searchParams, userProfile?.isServiceProvider]);
 
-  const handleTabChange = async (t: Tab) => {
-    setTab(t);
-    if (t === "history" && !ledger && user) {
-      setLL(true);
-      const data = await getLedger(user.uid, 30);
-      setLedger(data); setLL(false);
+  useEffect(() => {
+    const isAdmin = userProfile?.role === "admin";
+    if (!isAdmin) {
+      sessionStorage.removeItem(ADMIN_VIEW_AS_KEY);
+      setViewAsUid(null);
+      setViewAsProfile(null);
+      setViewAsLoading(false);
+      return;
     }
-    if (t === "privacy" && up) {
+
+    const storedUid = sessionStorage.getItem(ADMIN_VIEW_AS_KEY);
+    if (!storedUid || storedUid === user?.uid) {
+      setViewAsUid(null);
+      setViewAsProfile(null);
+      setViewAsLoading(false);
+      return;
+    }
+
+    setViewAsUid(storedUid);
+    setViewAsLoading(true);
+    setViewAsError("");
+    getUserProfile(storedUid)
+      .then(profile => {
+        if (!profile) {
+          sessionStorage.removeItem(ADMIN_VIEW_AS_KEY);
+          setViewAsUid(null);
+          setViewAsProfile(null);
+          setViewAsError("Could not load the selected user.");
+          return;
+        }
+        setViewAsProfile(profile);
+      })
+      .catch(() => {
+        sessionStorage.removeItem(ADMIN_VIEW_AS_KEY);
+        setViewAsUid(null);
+        setViewAsProfile(null);
+        setViewAsError("Could not load the selected user.");
+      })
+      .finally(() => setViewAsLoading(false));
+  }, [user?.uid, userProfile?.role]);
+
+  const isAdminViewAs = userProfile?.role === "admin" && Boolean(viewAsUid && viewAsProfile);
+  const accountProfile = (isAdminViewAs ? viewAsProfile : userProfile) as Record<string, unknown> | null;
+  const accountUid = isAdminViewAs ? viewAsUid : user?.uid ?? null;
+  const { pct, missing } = profileCompleteness(accountProfile);
+
+  useEffect(() => {
+    setPrivacy({
+      emailVisible: Boolean(accountProfile?.emailVisible),
+      phoneVisible: Boolean(accountProfile?.phoneVisible),
+      flatVisible: Boolean(accountProfile?.flatVisible),
+    });
+  }, [accountProfile]);
+
+  const handleTabChange = (nextTab: Tab) => {
+    setTab(nextTab);
+    if (nextTab === "privacy") {
       setPrivacy({
-        emailVisible: !!(up.emailVisible),
-        phoneVisible: !!(up.phoneVisible),
-        flatVisible: !!(up.flatVisible),
+        emailVisible: Boolean(accountProfile?.emailVisible),
+        phoneVisible: Boolean(accountProfile?.phoneVisible),
+        flatVisible: Boolean(accountProfile?.flatVisible),
       });
     }
   };
 
   const savePrivacy = async () => {
-    if (!user) return;
+    if (!accountUid) return;
     setSaving(true);
-    await updateUserProfile(user.uid, privacy);
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
-    setSaving(false);
+    try {
+      await updateUserProfile(accountUid, privacy);
+      if (isAdminViewAs) {
+        setViewAsProfile(prev => (prev ? { ...prev, ...privacy } : prev));
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const TABS: { key: Tab; label: string }[] = [
-    { key: "profile",      label: "Profile" },
-    ...(userProfile?.isServiceProvider ? [{ key: "availability" as Tab, label: "Availability" }] : []),
-    { key: "privacy",      label: "Privacy" },
-    { key: "danger",       label: "⚠️ Account" },
+  const exitViewAs = () => {
+    sessionStorage.removeItem(ADMIN_VIEW_AS_KEY);
+    setViewAsUid(null);
+    setViewAsProfile(null);
+    setViewAsError("");
+    setTab("profile");
+  };
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: "profile", label: "Profile" },
+    ...(!isAdminViewAs && Boolean(accountProfile?.isServiceProvider) ? [{ key: "availability" as Tab, label: "Availability" }] : []),
+    { key: "privacy", label: "Privacy" },
+    { key: "danger", label: isAdminViewAs ? "Session" : "Account" },
   ];
 
   return (
@@ -141,7 +202,6 @@ export default function MyAccount() {
           <h1 className="page-title">My Account</h1>
           <p className="page-subtitle">Manage profile, privacy, and account settings</p>
         </div>
-        {/* Completeness meter */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 18px", minWidth: 200 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: "0.82rem" }}>
             <span style={{ fontWeight: 600 }}>Profile completeness</span>
@@ -153,23 +213,40 @@ export default function MyAccount() {
           {missing.length > 0 && pct < 100 && (
             <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 6 }}>
               Missing: {missing.slice(0, 2).join(", ")}{missing.length > 2 ? ` +${missing.length - 2}` : ""}
-              {missing.includes("Locality") && <span> · Add Society in Profile to auto-fill Locality.</span>}
             </div>
           )}
         </div>
       </div>
 
+      {viewAsError && <div className="error-box" style={{ marginBottom: 16 }}>{viewAsError}</div>}
+      {viewAsLoading && <div className="card" style={{ marginBottom: 16 }}>Loading selected user profile...</div>}
+
+      {isAdminViewAs && accountProfile && (
+        <div className="card" style={{ marginBottom: 20, border: "1px solid rgba(61,126,255,0.25)", background: "var(--accent-dim)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Login As Session</div>
+              <div className="text-muted text-sm">You are viewing the profile for {(accountProfile.displayName as string) || (accountProfile.email as string) || viewAsUid}.</div>
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={exitViewAs}>Exit Login As</button>
+          </div>
+        </div>
+      )}
+
       <div className="tabs">
-        {TABS.map(({ key, label }) => (
+        {tabs.map(({ key, label }) => (
           <button key={key} className={`tab${tab === key ? " active" : ""}`} onClick={() => handleTabChange(key)}>{label}</button>
         ))}
       </div>
 
-      {tab === "profile"      && <Profile />}
-      {tab === "availability" && <ProAvailabilityEditor />}
+      {viewAsLoading ? (
+        <div className="card" style={{ marginTop: 16 }}>Loading selected user profile...</div>
+      ) : (
+        <>
+          {tab === "profile" && <Profile profileOverride={accountProfile} uidOverride={accountUid} isAdminViewAs={isAdminViewAs} />}
+          {tab === "availability" && !isAdminViewAs && <ProAvailabilityEditor />}
 
-      {/* ── PRIVACY ── */}
-      {tab === "privacy" && (
+          {tab === "privacy" && (
         <div style={{ maxWidth: 560 }}>
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 4 }}>Visibility Controls</h3>
@@ -177,7 +254,7 @@ export default function MyAccount() {
             {[
               { key: "emailVisible", label: "Show email on profile", desc: "Other users can see your email only when this is enabled." },
               { key: "phoneVisible", label: "Show phone number on profile", desc: "Other users can see and call your number only when enabled." },
-              { key: "flatVisible",  label: "Show flat number on profile",  desc: "Neighbours can see your flat number for in-person sessions." },
+              { key: "flatVisible", label: "Show flat number on profile", desc: "Neighbors can see your flat number only when enabled." },
             ].map(({ key, label, desc }) => (
               <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
                 <div>
@@ -185,91 +262,44 @@ export default function MyAccount() {
                   <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>{desc}</div>
                 </div>
                 <button
-                  onClick={() => setPrivacy(p => ({ ...p, [key]: !p[key as keyof PrivacySettings] }))}
-                  style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: privacy[key as keyof PrivacySettings] ? "#1B6B8A" : "var(--border)", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+                  onClick={() => setPrivacy(prev => ({ ...prev, [key]: !prev[key as keyof PrivacySettings] }))}
+                  style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: privacy[key as keyof PrivacySettings] ? "#1B6B8A" : "var(--border)", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
+                >
                   <div style={{ position: "absolute", top: 2, left: privacy[key as keyof PrivacySettings] ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
                 </button>
               </div>
             ))}
             <div style={{ marginTop: 20 }}>
-              <button className="btn btn-primary" onClick={savePrivacy} disabled={saving}>{saving ? "Saving…" : saved ? "✓ Saved" : "Save Privacy Settings"}</button>
+              <button className="btn btn-primary" onClick={savePrivacy} disabled={saving}>{saving ? "Saving..." : saved ? "Saved" : "Save Privacy Settings"}</button>
             </div>
           </div>
-
         </div>
-      )}
+          )}
 
-      {/* ── TRANSACTION HISTORY ── */}
-      {tab === "history" && (
-        <div>
-          {ledgerLL ? (
-            <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
-          ) : !ledger || ledger.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">📋</div>
-              <div className="empty-state-title">No transactions yet</div>
-              <div className="empty-state-desc">Your booking and coin activity will appear here once you make your first booking.</div>
-              <a href="/browse" className="btn btn-primary" style={{ marginTop: 16 }}>Browse Professionals</a>
+          {tab === "danger" && (
+        <div style={{ maxWidth: 560 }}>
+          {isAdminViewAs ? (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <h3 className="card-title" style={{ marginBottom: 4 }}>Login As Session</h3>
+              <p className="text-muted text-sm" style={{ marginBottom: 16 }}>End this session to return to your own admin account view.</p>
+              <button className="btn btn-secondary" onClick={exitViewAs}>Exit Login As</button>
             </div>
           ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead><tr><th>Date</th><th>Description</th><th>Type</th><th style={{ textAlign: "right" }}>Amount</th><th style={{ textAlign: "right" }}>Balance</th></tr></thead>
-                <tbody>
-                  {ledger.map(entry => (
-                    <tr key={entry.id}>
-                      <td style={{ color: "var(--muted)", fontSize: 13 }}>{formatTimestamp(entry.createdAt)}</td>
-                      <td style={{ fontWeight: 500 }}>{entry.description}</td>
-                      <td><span className="badge badge-muted" style={{ fontSize: "0.72rem" }}>{entry.type.replace(/_/g, " ")}</span></td>
-                      <td style={{ textAlign: "right", fontWeight: 700, color: ledgerColor(entry.type) }}>{ledgerSign(entry.amount)} NC</td>
-                      <td style={{ textAlign: "right", color: "var(--muted)", fontSize: 13 }}>{entry.balanceAfter.toLocaleString("en-IN")} NC</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="card" style={{ marginBottom: 20 }}>
+                <h3 className="card-title" style={{ marginBottom: 4 }}>Sign Out</h3>
+                <p className="text-muted text-sm" style={{ marginBottom: 16 }}>You will need to sign in again to access your account.</p>
+                <button className="btn btn-secondary" onClick={logout}>Sign Out</button>
+              </div>
+              <div className="card" style={{ border: "1px solid rgba(220,38,38,0.25)" }}>
+                <h3 className="card-title" style={{ marginBottom: 4, color: "#dc2626" }}>Delete Account</h3>
+                <DeleteAccountPanel />
+              </div>
+            </>
           )}
         </div>
-      )}
-
-      {/* ── ACTIVITY ── */}
-      {tab === "activity" && (
-        <div className="card">
-          <div className="card-header"><h3 className="card-title">Recent Activity</h3></div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            {[
-              [true,  "👤", "Account created",          `Joined as ${userProfile?.role || "user"}`,                     "Since registration"],
-              [userProfile?.isServiceProvider, "🛠️", "Service provider", `${(userProfile?.skills as string[])?.length || 0} skills listed`, "Active"],
-              [(userProfile?.reviewCount || 0) > 0, "⭐", "Reviews received", `${userProfile?.reviewCount} reviews · ${(userProfile?.rating as number)?.toFixed(1)} avg`, "Cumulative"],
-              [userProfile?.society,  "🏘️", "Society linked",       userProfile?.society,                                "Active"],
-              [userProfile?.phoneNumber, "📱", "Phone verified",    userProfile?.phoneNumber,                            "Verified"],
-            ].filter(([show]) => show).map(([, icon, title, desc, time]) => (
-              <div key={title as string} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--accent-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{icon as string}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{title as string}</div>
-                  <div style={{ fontSize: 13, color: "var(--muted)" }}>{desc as string}</div>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>{time as string}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── DANGER ZONE ── */}
-      {tab === "danger" && (
-        <div style={{ maxWidth: 560 }}>
-          <div className="card" style={{ marginBottom: 20 }}>
-            <h3 className="card-title" style={{ marginBottom: 4 }}>Sign Out</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>You'll need to sign in again to access your account.</p>
-            <button className="btn btn-secondary" onClick={logout}>Sign Out</button>
-          </div>
-          <div className="card" style={{ border: "1px solid rgba(220,38,38,0.25)" }}>
-            <h3 className="card-title" style={{ marginBottom: 4, color: "#dc2626" }}>Delete Account</h3>
-            <DeleteAccountPanel />
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
