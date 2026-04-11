@@ -171,17 +171,10 @@ export default function ProDetail() {
   const isOwnProfile = user?.uid === id;
   const publicEmail = typeof pro.email === "string" ? pro.email.trim() : "";
   const publicPhone = typeof pro.phoneNumber === "string" ? pro.phoneNumber.trim() : "";
+  const publicTower = typeof pro.tower === "string" ? pro.tower.trim() : "";
   const publicFlatNumber = typeof pro.flatNumber === "string" ? pro.flatNumber.trim() : "";
   const memberSince = formatMemberSince(pro.createdAt);
   const hasPublicContact = Boolean(publicEmail || publicPhone);
-
-  const overviewRows = [
-    { label: "User Name", value: (pro.displayName as string) || "Anonymous" },
-    { label: "Society Name", value: (pro.society as string) || "Not shared" },
-    ...(publicFlatNumber ? [{ label: "Flat Number", value: publicFlatNumber }] : []),
-    { label: "Rating", value: `${(pro.rating as number) || 0} / 5` },
-    ...(memberSince ? [{ label: "Member Since", value: memberSince }] : []),
-  ];
 
   return (
     <div>
@@ -225,7 +218,8 @@ export default function ProDetail() {
             <h1 style={{ fontSize: 24, marginBottom: 4 }}>{(pro.displayName as string) || "Anonymous"}</h1>
             <p className="text-muted" style={{ marginBottom: 8 }}>
               {(pro.society as string) || "Community Member"}
-              {publicFlatNumber ? ` · Flat ${publicFlatNumber}` : ""}
+              {publicTower ? ` | ${publicTower}` : ""}
+              {publicFlatNumber ? ` | Flat ${publicFlatNumber}` : ""}
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12, alignItems: "center" }}>
               <span style={{ color: "var(--warning)", fontWeight: 600 }}>Star {(pro.rating as number) || 0} <span className="text-muted text-sm">({(pro.reviewCount as number) || 0})</span></span>
@@ -253,18 +247,6 @@ export default function ProDetail() {
               }}>Message</button>
             </div>
           )}
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h3 className="card-title" style={{ marginBottom: 14 }}>Profile Overview</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          {overviewRows.map(row => (
-            <div key={row.label} style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
-              <div className="text-muted text-xs" style={{ marginBottom: 4 }}>{row.label}</div>
-              <div style={{ fontWeight: 600 }}>{row.value}</div>
-            </div>
-          ))}
         </div>
       </div>
 

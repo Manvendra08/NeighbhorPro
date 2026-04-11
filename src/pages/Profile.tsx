@@ -109,6 +109,7 @@ type ProfileProps = {
 type ProfileErrors = {
   displayName?: string;
   bio?: string;
+  flatNumber?: string;
   society?: string;
   tower?: string;
   phoneNumber?: string;
@@ -199,14 +200,14 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
 
     const nextErrors: ProfileErrors = {};
     const trimmedBio = bio.trim();
-    const looksPlaceholder = /^(x|xy|xyz|test|bio|na|n\/a|none|hello)$/i.test(trimmedBio);
     const normalizedPhone = phoneNumber.replace(/[\s-]/g, "");
     const phoneRegex = /^\+91[6-9]\d{9}$/;
 
     if (!displayName.trim()) nextErrors.displayName = "Display name is required.";
-    if (trimmedBio && (trimmedBio.length < 20 || looksPlaceholder)) nextErrors.bio = "Write a meaningful bio (minimum 20 characters, no placeholders).";
+    if (trimmedBio.length > 500) nextErrors.bio = "Bio must be 500 characters or less.";
     if (!society.trim()) nextErrors.society = "Society is required.";
     if (!tower.trim()) nextErrors.tower = "Tower / Wing is required.";
+    if (!flatNumber.trim()) nextErrors.flatNumber = "Flat Number is required.";
     if (!normalizedPhone || normalizedPhone === "+91") nextErrors.phoneNumber = "Mobile number is required.";
     else if (!phoneRegex.test(normalizedPhone)) nextErrors.phoneNumber = "Invalid Indian mobile number. Use +91XXXXXXXXXX or +91-XXXXXXXXXX.";
     if (isServiceProvider && targetProfile?.residentVerificationStatus !== "verified") {
@@ -388,9 +389,9 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
           </div>
 
           <div className="form-group">
-            <label className="form-label">Bio <span style={{ color: "var(--muted)", fontSize: "0.75rem", fontWeight: "normal" }}>(optional)</span></label>
-            <textarea className="form-input" value={bio} onChange={(event) => setBio(event.target.value)} placeholder="Tell your neighbors about your professional background in 1-2 sentences." id="profile-bio-input" rows={3} />
-            {errors.bio && <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>{errors.bio}</div>}
+            <label className="form-label">Email ID</label>
+            <input className="form-input" value={targetEmail} readOnly disabled id="profile-email-input" />
+            <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: 4 }}>Auto-filled from signup and cannot be edited.</p>
           </div>
 
           <div className="form-group">
@@ -410,6 +411,13 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
             />
             <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: 4 }}>You can hide or unhide your mobile number in Privacy settings.</p>
             {errors.phoneNumber && <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>{errors.phoneNumber}</div>}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Bio <span style={{ color: "var(--muted)", fontSize: "0.75rem", fontWeight: "normal" }}>(optional)</span></label>
+            <textarea className="form-input" value={bio} onChange={(event) => setBio(event.target.value)} placeholder="Tell your neighbors about your professional background in 1-2 sentences." id="profile-bio-input" rows={3} maxLength={500} />
+            <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: 4, textAlign: "right" }}>{bio.length}/500</p>
+            {errors.bio && <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>{errors.bio}</div>}
           </div>
         </div>
 
@@ -441,8 +449,9 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
               {errors.tower && <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>{errors.tower}</div>}
             </div>
             <div className="form-group">
-              <label className="form-label">Flat Number</label>
+              <label className="form-label">Flat Number <span style={{ color: "var(--error)" }}>*</span></label>
               <input className="form-input" value={flatNumber} onChange={(event) => setFlatNumber(event.target.value)} placeholder="e.g., 402" id="profile-flat-input" />
+              {errors.flatNumber && <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>{errors.flatNumber}</div>}
             </div>
           </div>
 
@@ -609,7 +618,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                   <div>
                     <div style={{ fontWeight: 600 }}>{service.title as string}</div>
                     <div className="text-muted text-sm">
-                      {service.quoteBased ? "Quote-based" : (service.isFree || (service.price as number) === 0) ? "Free" : `${service.price} NC`} · {service.duration as string}
+                      {service.quoteBased ? "Quote-based" : (service.isFree || (service.price as number) === 0) ? "Free" : `${service.price} NC`} | {service.duration as string}
                       {service.category ? <span style={{ marginLeft: 8 }} className="badge badge-muted">{service.category as string}</span> : null}
                     </div>
                   </div>
