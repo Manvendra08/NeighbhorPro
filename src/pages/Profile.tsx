@@ -357,7 +357,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
               <p className="text-muted text-sm">Turn this on to list your skills and offer services to the community.</p>
             </div>
           </div>
-          <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: 48, height: 26 }}>
+          <label className="toggle-switch">
             <input
               type="checkbox"
               checked={isServiceProvider}
@@ -370,10 +370,10 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                 setIsServiceProvider(next);
               }}
               disabled={isAdminViewAs}
-              style={{ opacity: 0, width: 0, height: 0 }}
+              aria-label="Enable Service Provider Mode"
             />
-            <span className="slider" style={{ position: "absolute", cursor: isAdminViewAs ? "default" : "pointer", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isServiceProvider ? "#4ADE80" : "var(--surface-3)", transition: ".4s", borderRadius: 26, border: "1px solid var(--border)" }}>
-              <span style={{ position: "absolute", height: 20, width: 20, left: 2, bottom: 2, backgroundColor: "white", transition: ".4s", borderRadius: "50%", transform: isServiceProvider ? "translateX(22px)" : "none", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+            <span className={`slider ${isAdminViewAs ? 'disabled' : ''}`}>
+              <span className="slider-round" />
             </span>
           </label>
         </div>
