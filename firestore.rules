@@ -89,9 +89,21 @@ service cloud.firestore {
                       && !request.resource.data.keys().hasAny([
                            'coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl'
                          ])
-                      && (!request.resource.data.keys().hasAny(['phoneNumber']) || request.resource.data.phoneVisible == true)
-                      && (!request.resource.data.keys().hasAny(['email']) || request.resource.data.emailVisible == true)
-                      && (!request.resource.data.keys().hasAny(['flatNumber']) || request.resource.data.flatVisible == true);
+                      && (
+                           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['phoneNumber'])
+                           || !request.resource.data.keys().hasAny(['phoneNumber'])
+                           || request.resource.data.phoneVisible == true
+                         )
+                      && (
+                           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email'])
+                           || !request.resource.data.keys().hasAny(['email'])
+                           || request.resource.data.emailVisible == true
+                         )
+                      && (
+                           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['flatNumber'])
+                           || !request.resource.data.keys().hasAny(['flatNumber'])
+                           || request.resource.data.flatVisible == true
+                         );
       allow delete: if isAdmin();
     }
 
