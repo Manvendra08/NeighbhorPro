@@ -86,7 +86,7 @@ service cloud.firestore {
                       && (!request.resource.data.keys().hasAny(['email']) || request.resource.data.get('emailVisible', false) == true)
                       && (!request.resource.data.keys().hasAny(['flatNumber']) || request.resource.data.get('flatVisible', false) == true);
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin())
-                      && !request.resource.data.keys().hasAny([
+                      && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                            'coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl'
                          ])
                       && (
