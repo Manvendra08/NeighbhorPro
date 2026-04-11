@@ -163,6 +163,12 @@ service cloud.firestore {
       // Allow the owner to write entries to their own ledger
       allow create:        if isSignedIn() && (
         (isOwner(uid) && validLedgerEntry(uid))
+        // Allow admins to post manual wallet adjustment entries for any user.
+        || (
+          isAdmin()
+          && request.resource.data.type in ['admin_credit', 'admin_debit']
+          && validLedgerEntry(uid)
+        )
         // Allow another user (like a client or new signup) to credit the owner's ledger 
         // for specific earning events (free consult, referral).
         || (
