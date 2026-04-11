@@ -196,11 +196,15 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   const shouldGenerateReferralCode = !isValidReferralCode(currentReferralCode);
 
   if (shouldGenerateReferralCode && (typeof data.displayName === "string" || typeof data.phoneNumber === "string")) {
-    nextData.referralCode = await generateUniqueReferralCode({
-      displayName: nextDisplayName,
-      phoneNumber: nextPhone,
-      uid,
-    });
+    try {
+      nextData.referralCode = await generateUniqueReferralCode({
+        displayName: nextDisplayName,
+        phoneNumber: nextPhone,
+        uid,
+      });
+    } catch {
+      // Do not block profile updates if referral-code generation query is denied.
+    }
   }
 
   await updateDoc(userRef, { ...nextData, updatedAt: serverTimestamp() });
