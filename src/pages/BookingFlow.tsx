@@ -111,10 +111,19 @@ export default function BookingFlow() {
   const balance = userProfile?.coinBalance ?? 0;
   const hasEnough = isFree || balance >= feeCoins;
 
+  const missingProfileItems: string[] = [];
+  if (!String(userProfile?.displayName || "").trim()) missingProfileItems.push("Full name");
+  if (!String(userProfile?.society || "").trim()) missingProfileItems.push("Society");
+  if (!String(userProfile?.phoneNumber || "").trim()) missingProfileItems.push("Phone number");
+  if (userProfile?.residentVerificationStatus !== "verified") {
+    missingProfileItems.push("Resident verification approval");
+  }
+  const bookingBlockedByProfile = missingProfileItems.length > 0;
+
   const handleSubmit = async () => {
     if (!date || !timeSlot || !selectedSvc) { setError("Please select a service, date, and time slot."); return; }
-    if (userProfile?.residentVerificationStatus !== "verified") {
-      setError("Residency verification is mandatory before booking. Please upload proof in Profile and wait for approval.");
+    if (bookingBlockedByProfile) {
+      setError("Please update your profile to start booking pros.");
       return;
     }
     if (!hasEnough) { setError(`Insufficient balance. You need ${feeCoins} NC but have ${balance} NC.`); return; }
@@ -195,6 +204,30 @@ export default function BookingFlow() {
   );
 
   if (!pro) return <div style={{ textAlign: "center", padding: 80 }}><div className="loader" style={{ margin: "0 auto" }} /></div>;
+
+  if (bookingBlockedByProfile) {
+    return (
+      <div style={{ maxWidth: 640, margin: "0 auto" }}>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>← Back</button>
+        <div className="card" style={{ border: "1px solid rgba(196,136,42,0.35)", background: "rgba(196,136,42,0.05)" }}>
+          <h2 style={{ marginBottom: 8 }}>Update your profile to start booking pros</h2>
+          <p className="text-muted" style={{ marginBottom: 14 }}>
+            You can still access My Bookings and Messages, but new bookings require a complete profile.
+          </p>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Missing items:</div>
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {missingProfileItems.map(item => <li key={item} style={{ marginBottom: 4 }}>{item}</li>)}
+            </ul>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn btn-primary" onClick={() => navigate("/account")}>Go to My Account</button>
+            <button className="btn btn-secondary" onClick={() => navigate("/browse")}>Back to Browse</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>

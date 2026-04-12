@@ -64,7 +64,7 @@ function formatMemberSince(value: unknown): string | null {
 
 export default function ProDetail() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const navigate = useNavigate();
   const [pro, setPro] = useState<Record<string, unknown> | null>(null);
   const [services, setServices] = useState<Record<string, unknown>[]>([]);
@@ -176,6 +176,27 @@ export default function ProDetail() {
   const memberSince = formatMemberSince(pro.createdAt);
   const hasPublicContact = Boolean(publicEmail || publicPhone);
 
+  const getMissingBookingProfileItems = () => {
+    const missing: string[] = [];
+    if (!String(userProfile?.displayName || "").trim()) missing.push("Full name");
+    if (!String(userProfile?.society || "").trim()) missing.push("Society");
+    if (!String(userProfile?.phoneNumber || "").trim()) missing.push("Phone number");
+    if (userProfile?.residentVerificationStatus !== "verified") {
+      missing.push("Resident verification approval");
+    }
+    return missing;
+  };
+
+  const handleBookConsultation = () => {
+    const missing = getMissingBookingProfileItems();
+    if (missing.length > 0) {
+      alert(`Please update your profile to start booking pros.\n\nMissing: ${missing.join(", ")}`);
+      navigate("/account");
+      return;
+    }
+    navigate(`/book/${id}`);
+  };
+
   return (
     <div>
       <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>Back</button>
@@ -234,7 +255,7 @@ export default function ProDetail() {
 
           {!isOwnProfile && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button className="btn btn-primary" onClick={() => navigate(`/book/${id}`)}>Book Consultation</button>
+              <button className="btn btn-primary" onClick={handleBookConsultation}>Book Consultation</button>
               <button className="btn btn-secondary" onClick={async () => {
                 const { getLatestBookingBetweenUsers, getOrCreateConversation } = await import("../services/firestoreService");
                 const latestBooking = await getLatestBookingBetweenUsers(user!.uid, id!);

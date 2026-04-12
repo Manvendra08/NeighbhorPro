@@ -31,7 +31,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export default function BrowsePros() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const isMobile = useIsMobile();
   const [allPros, setAllPros] = useState<BrowsePro[]>([]);
   const [filtered, setFiltered] = useState<BrowsePro[]>([]);
@@ -47,6 +47,27 @@ export default function BrowsePros() {
   const search = searchParams.get("q") ?? "";
   const [localityFilter, setLocalityFilter] = useState("");
   const [towerFilter, setTowerFilter] = useState("");
+
+  const getMissingBookingProfileItems = () => {
+    const missing: string[] = [];
+    if (!String(userProfile?.displayName || "").trim()) missing.push("Full name");
+    if (!String(userProfile?.society || "").trim()) missing.push("Society");
+    if (!String(userProfile?.phoneNumber || "").trim()) missing.push("Phone number");
+    if (userProfile?.residentVerificationStatus !== "verified") {
+      missing.push("Resident verification approval");
+    }
+    return missing;
+  };
+
+  const handleBookNavigation = (uid: string) => {
+    const missing = getMissingBookingProfileItems();
+    if (missing.length > 0) {
+      alert(`Please update your profile to start booking pros.\n\nMissing: ${missing.join(", ")}`);
+      navigate("/account");
+      return;
+    }
+    navigate(`/book/${uid}`);
+  };
 
   const buildServerFilters = () => {
     const locality = localityFilter.trim();
@@ -159,7 +180,7 @@ export default function BrowsePros() {
                   key={pro.uid}
                   pro={pro}
                   mobile
-                  onBook={(uid) => navigate(`/book/${uid}`)}
+                  onBook={handleBookNavigation}
                   onViewProfile={(uid) => navigate(`/pro/${uid}`)}
                 />
               ))}
@@ -268,7 +289,7 @@ export default function BrowsePros() {
                 key={pro.uid}
                 pro={pro}
                 grid={viewMode === "grid"}
-                onBook={(uid) => navigate(`/book/${uid}`)}
+                onBook={handleBookNavigation}
                 onViewProfile={(uid) => navigate(`/pro/${uid}`)}
               />
             ))}
