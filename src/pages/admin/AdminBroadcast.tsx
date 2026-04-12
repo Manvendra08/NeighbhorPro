@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import EmojiPicker from "emoji-picker-react";
+import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getAllUserRows, getAllSocieties } from "../../services/firestoreService";
@@ -22,14 +23,16 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+// DOMPurify config — strict allowlist, no events, no JS URLs
+const PURIFY_CONFIG: DOMPurifyConfig = {
+  ALLOWED_TAGS: ["b", "strong", "i", "em", "u", "p", "br", "ul", "ol", "li"],
+  ALLOWED_ATTR: [],
+  FORBID_CONTENTS: ["script", "style"],
+};
+
 function sanitizeAnnouncementHtml(rawHtml: string): string {
   if (!rawHtml) return "";
-  return rawHtml
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/javascript:/gi, "")
-    .replace(/<(?!\/?(b|strong|i|em|u|p|br|ul|ol|li)\b)[^>]*>/gi, "");
+  return String(DOMPurify.sanitize(rawHtml, PURIFY_CONFIG));
 }
 
 export default function AdminBroadcast() {

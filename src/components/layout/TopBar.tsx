@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { useAuth } from "../../contexts/AuthContext";
 import { useDarkMode } from "../../hooks/useDarkMode";
 import { collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
@@ -22,14 +23,16 @@ type BroadcastDoc = {
   targetSociety?: string | null;
 };
 
+// DOMPurify config — strict allowlist, no events, no JS URLs
+const PURIFY_CONFIG: DOMPurifyConfig = {
+  ALLOWED_TAGS: ["b", "strong", "i", "em", "u", "p", "br", "ul", "ol", "li"],
+  ALLOWED_ATTR: [],
+  FORBID_CONTENTS: ["script", "style"],
+};
+
 function sanitizeBroadcastHtml(rawHtml: string): string {
   if (!rawHtml) return "";
-  return rawHtml
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/javascript:/gi, "")
-    .replace(/<(?!\/?(b|strong|i|em|u|p|br|ul|ol|li)\b)[^>]*>/gi, "");
+  return String(DOMPurify.sanitize(rawHtml, PURIFY_CONFIG));
 }
 
 function isRelevantBroadcast(doc: BroadcastDoc, userProfile: ReturnType<typeof useAuth>["userProfile"]): boolean {

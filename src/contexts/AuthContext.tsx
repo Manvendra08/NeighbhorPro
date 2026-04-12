@@ -132,6 +132,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const ref = doc(db, "users", u.uid);
     const snap = await getDoc(ref);
     if (!snap.exists()) {
+      const referralCode = await generateUniqueReferralCode({
+        displayName: u.displayName ?? "",
+        phoneNumber: u.phoneNumber ?? "",
+        uid: u.uid,
+      });
+
       const profile: UserProfile = {
         uid: u.uid, displayName: u.displayName ?? "", email: u.email ?? "",
         photoURL: u.photoURL ?? "", bio: "", skills: [], hourlyRate: 0,
@@ -139,18 +145,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         residentVerificationStatus: "none", verificationReviewNote: null, verificationMethod: null,
         isServiceProvider: false, priceAfterQuote: false,
         role: "user", rating: 0, reviewCount: 0, coinBalance: 0,
-        referralCode: await generateUniqueReferralCode({
-          displayName: u.displayName ?? "",
-          phoneNumber: u.phoneNumber ?? "",
-          uid: u.uid,
-        }),
+        referralCode,
         emailVerified: u.emailVerified,
         emailVisible: false, phoneVisible: false, flatVisible: false,
         createdAt: serverTimestamp(),
       };
       await setDoc(ref, profile);
-      await mirrorPublicProfile(u.uid, profile);
-      await earnCoins(u.uid, "earn_signup_bonus", u.uid);
+      await setDoc(doc(db, "referralCodes", referralCode), {
+        uid: u.uid,
+        code: referralCode,
+        createdAt: serverTimestamp(),
+      }).catch(() => {});
+      await mirrorPublicProfile(u.uid, profile).catch(() => {});
+      await earnCoins(u.uid, "earn_signup_bonus", u.uid).catch(() => {});
       return true;
     }
     return false;
@@ -171,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logActivity(u.uid, "user.signup", `Applied referral code at signup: ${normalizedReferralCode}`);
       }
     }
-    await sendEmailVerification(u);
+    await sendEmailVerification(u).catch(() => {});
     logActivity(u.uid, "user.signup", `New account created: ${displayName} (${email})`);
   };
   const signInWithGoogle = async (referralCode?: string) => {

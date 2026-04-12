@@ -47,10 +47,22 @@ service cloud.firestore {
               'priceAfterQuote', 'role', 'disabled', 'createdAt'];
     }
 
+    // Referral code index used for code -> uid resolution without querying /users.
+    match /referralCodes/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.code == code
+        && request.resource.data.code is string
+        && request.resource.data.code.matches('^PN[A-Z0-9]{6}$');
+      allow update, delete: if isAdmin();
+    }
+
     match /users/{userId} {
       // Full document (incl. sensitive fields): owner or admin only.
       // All other callers must read from /publicProfiles/{userId} instead.
-      allow get:    if isSignedIn(); // Weakened for cross-user Spark plan transactions
+      allow get:    if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list:   if isAdmin();
       allow create: if isSignedIn() && isOwner(userId);
       allow update: if isSignedIn() && (
@@ -146,7 +158,7 @@ service cloud.firestore {
     // Upgrade to Cloud Functions (Blaze) to lock this down further.
     // Entries are append-only: update and delete remain blocked.
     match /coinLedger/{uid}/entries/{entryId} {
-      allow get:           if isSignedIn(); // Weakened for cross-user transactions
+      allow get:           if isSignedIn() && (isOwner(uid) || isAdmin());
       allow list:          if isSignedIn() && (isOwner(uid) || isAdmin());
       // Allow the owner to write entries to their own ledger
       allow create:        if isSignedIn() && (

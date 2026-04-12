@@ -202,6 +202,13 @@ export function generateReferralCode(params: {
   uid?: string;
 }): string {
   const { displayName = "", phoneNumber = "", uid = "" } = params;
+
+  // Prefer UID-derived code for stability and near-zero collision risk.
+  const uidSeed = uid.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  if (uidSeed.length >= 6) {
+    return `PN${uidSeed.slice(-6)}`;
+  }
+
   const parts = displayName.trim().split(/\s+/).filter(Boolean);
 
   // Required format: "PN" + 6 uppercase alphanumeric characters.
@@ -241,19 +248,20 @@ export async function generateUniqueReferralCode(params: {
   phoneNumber?: string;
   uid?: string;
 }): Promise<string> {
-  let candidate = generateReferralCode(params);
+  // UID-based code generation is deterministic and practically collision-free.
+  // Avoiding Firestore reads here keeps signup reliable even if index rules lag behind.
+  return generateReferralCode(params);
+}
 
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const existing = await getDocs(query(collection(db, "users"), where("referralCode", "==", candidate), limit(1)));
-    if (existing.empty) return candidate;
-
-    const seed = `${Date.now()}${Math.random()}${params.uid || ""}`.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
-    const body = seed.slice(Math.max(0, seed.length - 6)).padStart(6, "X").slice(0, 6);
-    candidate = `PN${body}`;
+async function getReferrerUidFromCode(code: string): Promise<string | null> {
+  try {
+    const codeSnap = await getDoc(doc(db, "referralCodes", code));
+    if (!codeSnap.exists()) return null;
+    const uid = codeSnap.data()?.uid;
+    return typeof uid === "string" && uid.trim() ? uid : null;
+  } catch {
+    return null;
   }
-
-  // Last resort fallback. Practically unreachable with the collision loop above.
-  return `PN${Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, "X").slice(0, 6)}`;
 }
 
 /**
@@ -268,12 +276,8 @@ export async function applyReferralCode(
   if (!code?.trim()) return { success: false, reason: "No code entered." };
   const upper = code.trim().toUpperCase();
 
-  // Find referrer by code
-  const q = query(collection(db, "users"), where("referralCode", "==", upper), limit(1));
-  const snap = await getDocs(q);
-  if (snap.empty) return { success: false, reason: "Invalid referral code." };
-
-  const referrerUid = snap.docs[0].id;
+  const referrerUid = await getReferrerUidFromCode(upper);
+  if (!referrerUid) return { success: false, reason: "Invalid referral code." };
   if (referrerUid === newUserUid) return { success: false, reason: "Can't refer yourself." };
 
   // Check not already applied
@@ -298,10 +302,8 @@ export async function applyReferralCodeAtSignup(
   const upper = normalizeReferralCode(code);
   if (!isValidReferralCode(upper)) return { success: false, reason: "Invalid referral code." };
 
-  const refSnap = await getDocs(query(collection(db, "users"), where("referralCode", "==", upper), limit(1)));
-  if (refSnap.empty) return { success: false, reason: "Invalid referral code." };
-
-  const referrerUid = refSnap.docs[0].id;
+  const referrerUid = await getReferrerUidFromCode(upper);
+  if (!referrerUid) return { success: false, reason: "Invalid referral code." };
   if (referrerUid === newUserUid) return { success: false, reason: "Can't refer yourself." };
 
   const rule = EARN_RULES.earn_referral;

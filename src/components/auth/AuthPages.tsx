@@ -181,10 +181,16 @@ export function RegisterPage() {
       navigate("/dashboard");
     } catch (err: unknown) {
       const msg = (err as { code?: string })?.code;
+      const detail = (err as { message?: string })?.message;
       setError(
         msg === "auth/email-already-in-use" ? "This email is already registered." :
           msg === "auth/invalid-email" ? "Invalid email address." :
-            "Registration failed. Please try again."
+            msg === "auth/weak-password" ? "Password is too weak. Use at least 8 characters." :
+              msg === "auth/too-many-requests" ? "Too many attempts. Please wait and try again." :
+                msg === "auth/network-request-failed" ? "Network error. Check your internet and try again." :
+                  msg === "permission-denied" ? "Signup setup is incomplete. Please contact support." :
+                    detail ? `Registration failed: ${detail}` :
+                      "Registration failed. Please try again."
       );
     } finally { setLoading(false); }
   };
