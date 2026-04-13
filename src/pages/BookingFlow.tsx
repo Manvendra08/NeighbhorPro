@@ -276,8 +276,9 @@ export default function BookingFlow() {
 
           {services.length > 0 && (
             <div className="form-group">
-              <label className="form-label">Service Category</label>
+              <label className="form-label" htmlFor="service-category">Service Category</label>
               <select
+                id="service-category"
                 className="form-input"
                 value={selectedCat}
                 onChange={(e) => {
@@ -320,13 +321,13 @@ export default function BookingFlow() {
 
           <div style={{ display: "flex", gap: 16 }}>
             <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Date <span style={{ color: "var(--error)" }}>*</span></label>
-              <input type="date" className="form-input" value={date} onChange={e => { setDate(e.target.value); setTS(""); }} min={new Date().toISOString().split("T")[0]} required />
+              <label className="form-label" htmlFor="booking-date">Date <span style={{ color: "var(--error)" }}>*</span></label>
+              <input id="booking-date" type="date" className="form-input" value={date} onChange={e => { setDate(e.target.value); setTS(""); }} min={new Date().toISOString().split("T")[0]} required />
             </div>
 
             <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Start Time <span style={{ color: "var(--error)" }}>*</span> {checkingAvail && <span style={{ fontSize: 10, color: "var(--accent)", marginLeft: 8 }}>Checking…</span>}</label>
-              <select className="form-input" value={timeSlot} onChange={e => setTS(e.target.value)} required disabled={!date || checkingAvail}>
+              <label className="form-label" htmlFor="start-time">Start Time <span style={{ color: "var(--error)" }}>*</span> {checkingAvail && <span style={{ fontSize: 10, color: "var(--accent)", marginLeft: 8 }}>Checking…</span>}</label>
+              <select id="start-time" className="form-input" value={timeSlot} onChange={e => setTS(e.target.value)} required disabled={!date || checkingAvail}>
                 <option value="">
                   {date 
                     ? (checkingAvail 
@@ -346,13 +347,14 @@ export default function BookingFlow() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Brief of service</label>
-            <textarea className="form-input" placeholder="Describe what you need help with…" value={notes} onChange={e => setNotes(e.target.value)} />
+            <label className="form-label" htmlFor="booking-notes">Brief of service</label>
+            <textarea id="booking-notes" className="form-input" placeholder="Describe what you need help with…" value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Attachment (optional)</label>
+            <label className="form-label" htmlFor="booking-attachment">Attachment (optional)</label>
             <input
+              id="booking-attachment"
               type="file"
               className="form-input"
               accept="image/*,.pdf,.doc,.docx"

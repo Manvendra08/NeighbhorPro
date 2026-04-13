@@ -78,7 +78,7 @@ function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket;
       {/* Clients can add follow-up comments while ticket is open or being worked on. */}
       {(localStatus === "open" || localStatus === "in_progress") && (
         <form onSubmit={send} style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-          <input className="form-input" placeholder="Type your message…" value={text} onChange={e => setText(e.target.value)} style={{ flex: 1 }} />
+          <input className="form-input" placeholder="Type your message…" value={text} onChange={e => setText(e.target.value)} style={{ flex: 1 }} aria-label="Type your message" />
           <button type="submit" className="btn btn-primary" disabled={sending || !text.trim()}>{sending ? "…" : "Send"}</button>
         </form>
       )}
@@ -146,14 +146,15 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
         {error && <div className="error-box" style={{ marginBottom: 16 }}>{error}</div>}
         <div style={{ display: "flex", gap: 16 }}>
           <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">Category *</label>
-            <select className="form-input" value={category} onChange={e => setCategory(e.target.value as typeof CATEGORIES[number])}>
+            <label className="form-label" htmlFor="ticket-category">Category *</label>
+            <select id="ticket-category" className="form-input" value={category} onChange={e => setCategory(e.target.value as typeof CATEGORIES[number])}>
               {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">Ticket Number</label>
+            <label className="form-label" htmlFor="ticket-number">Ticket Number</label>
             <input
+              id="ticket-number"
               className="form-input"
               value={ticketNumber || "Generating…"}
               readOnly
@@ -164,12 +165,12 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
           </div>
         </div>
         <div className="form-group">
-          <label className="form-label">Subject *</label>
-          <input className="form-input" placeholder="Brief description of your issue" value={subject} onChange={e => setSubject(e.target.value)} />
+          <label className="form-label" htmlFor="ticket-subject">Subject *</label>
+          <input id="ticket-subject" className="form-input" placeholder="Brief description of your issue" value={subject} onChange={e => setSubject(e.target.value)} />
         </div>
         <div className="form-group">
-          <label className="form-label">Description *</label>
-          <textarea className="form-input" placeholder="Please describe your issue in detail…" value={description} onChange={e => setDesc(e.target.value)} style={{ minHeight: 120 }} />
+          <label className="form-label" htmlFor="ticket-description">Description *</label>
+          <textarea id="ticket-description" className="form-input" placeholder="Please describe your issue in detail…" value={description} onChange={e => setDesc(e.target.value)} style={{ minHeight: 120 }} />
         </div>
         <button type="submit" className="btn btn-primary" disabled={submitting || !ticketNumber}>{submitting ? "Submitting…" : "Submit Ticket"}</button>
       </div>

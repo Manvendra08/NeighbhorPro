@@ -249,14 +249,14 @@ export default function AdminBroadcast() {
 
           <div className="grid grid-2" style={{ gap: 14, marginBottom: 18 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Target Audience</label>
-              <select className="form-input" value={form.target} onChange={e => set("target", e.target.value)}>
+              <label className="form-label" htmlFor="broadcast-target">Target Audience</label>
+              <select id="broadcast-target" className="form-input" value={form.target} onChange={e => set("target", e.target.value)}>
                 {TARGETS.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Priority</label>
-              <select className="form-input" value={form.priority} onChange={e => set("priority", e.target.value)}>
+              <label className="form-label" htmlFor="broadcast-priority">Priority</label>
+              <select id="broadcast-priority" className="form-input" value={form.priority} onChange={e => set("priority", e.target.value)}>
                 <option value="normal">🔵 Normal</option>
                 <option value="high">🟠 High</option>
                 <option value="urgent">🔴 Urgent</option>
@@ -266,8 +266,8 @@ export default function AdminBroadcast() {
 
           <div className="grid grid-2" style={{ gap: 14, marginBottom: 18 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Display Mode</label>
-              <select className="form-input" value={form.displayMode} onChange={e => set("displayMode", e.target.value)}>
+              <label className="form-label" htmlFor="broadcast-displayMode">Display Mode</label>
+              <select id="broadcast-displayMode" className="form-input" value={form.displayMode} onChange={e => set("displayMode", e.target.value)}>
                 <option value="topbar">Top Bar Text</option>
                 <option value="popup">On-screen Pop-up</option>
               </select>
@@ -280,8 +280,8 @@ export default function AdminBroadcast() {
 
           {form.target === "Society-Specific" && (
             <div className="form-group">
-              <label className="form-label">Select Society</label>
-              <select className="form-input" value={form.targetSociety} onChange={e => set("targetSociety", e.target.value)}>
+              <label className="form-label" htmlFor="broadcast-targetSociety">Select Society</label>
+              <select id="broadcast-targetSociety" className="form-input" value={form.targetSociety} onChange={e => set("targetSociety", e.target.value)}>
                 <option value="">— Choose society —</option>
                 {societies.map(s => <option key={s.id as string} value={s.id as string}>{s.name as string}</option>)}
               </select>

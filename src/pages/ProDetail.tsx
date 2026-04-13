@@ -356,14 +356,14 @@ export default function ProDetail() {
               <button className="modal-close" onClick={() => setShowReport(false)}>x</button>
             </div>
             <div className="form-group">
-              <label className="form-label">Reason</label>
-              <select className="form-input" value={reportReason} onChange={event => setReportReason(event.target.value)}>
+              <label className="form-label" htmlFor="report-reason">Reason</label>
+              <select id="report-reason" className="form-input" value={reportReason} onChange={event => setReportReason(event.target.value)}>
                 {["Spam / Fake Profile", "Inappropriate Behavior", "Did not deliver service", "Off-platform payment request", "Other"].map(reason => <option key={reason}>{reason}</option>)}
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Details</label>
-              <textarea className="form-input" placeholder="Provide details to help us investigate..." value={reportComment} onChange={event => setReportComment(event.target.value)} />
+              <label className="form-label" htmlFor="report-details">Details</label>
+              <textarea id="report-details" className="form-input" placeholder="Provide details to help us investigate..." value={reportComment} onChange={event => setReportComment(event.target.value)} />
             </div>
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setShowReport(false)}>Cancel</button>

@@ -527,6 +527,7 @@ export default function Messages() {
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   accept="image/*,.pdf,.doc,.docx,.txt"
+                  aria-label="Attach file"
                 />
 
                 <button
