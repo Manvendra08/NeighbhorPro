@@ -450,6 +450,46 @@
   transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
+/* Category groups */
+.lp-cat-group {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.lp-cat-group-heading {
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(1rem, 3.5vw, 1.2rem);
+  font-weight: 700;
+  color: #0C1B2E;
+  margin: 0;
+}
+
+.lp-cat-group-subtitle {
+  font-size: clamp(0.78rem, 2.5vw, 0.88rem);
+  color: #5C6E84;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.lp-coming-soon {
+  display: inline-block;
+  background: rgba(245, 105, 44, 0.12);
+  color: #F5692C;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lp-cat-card--dim {
+  opacity: 0.55 !important;
+  pointer-events: none;
+}
+
 /* Features */
 .lp-feature-card-dark {
   background: rgba(255, 255, 255, 0.08);

@@ -85,6 +85,69 @@ export default function LandingPage() {
   const px = isMobile ? "5%" : "6%";
   const navLinks: [string, string][] = [["How It Works", "how"], ["Features", "features"], ["Services", "categories"], ["Early Access", "early"]];
 
+  const serviceGroups = [
+    {
+      tag: "recurring",
+      heading: "Learn, grow, repeat.",
+      subtitle: "Weekly or monthly commitments with pros in your society.",
+      comingSoon: false,
+      items: [
+        { icon: "📚", label: "Tuition & Coaching" },
+        { icon: "🧘", label: "Yoga & Fitness" },
+        { icon: "🎵", label: "Music & Dance" },
+        { icon: "🗣️", label: "Language Classes" },
+        { icon: "🥗", label: "Nutrition & Diet" },
+        { icon: "💼", label: "Career Coaching" },
+      ],
+    },
+    {
+      tag: "home",
+      heading: "Everyday needs, one flat away.",
+      subtitle: "On-demand help from neighbours you already trust.",
+      comingSoon: false,
+      items: [
+        { icon: "📊", label: "Tax & CA" },
+        { icon: "⚖️", label: "Legal Advisory" },
+        { icon: "🏥", label: "Doctor Consults" },
+        { icon: "✨", label: "Beauty & Grooming" },
+        { icon: "🐾", label: "Pet Care" },
+        { icon: "🎉", label: "Event Planning" },
+        { icon: "📷", label: "Photography" },
+        { icon: "🏠", label: "Interior Design" },
+      ],
+    },
+    {
+      tag: "office",
+      heading: "Your office runs better with neighbours.",
+      subtitle: "Freelancer, founder, or remote worker — find pros a floor away.",
+      comingSoon: false,
+      items: [
+        { icon: "💼", label: "Professional Services" },
+        { icon: "🎨", label: "Design & Branding" },
+        { icon: "📱", label: "Digital Marketing" },
+        { icon: "📝", label: "Resume & LinkedIn" },
+        { icon: "💹", label: "Accounting & GST" },
+        { icon: "📈", label: "Investment Planning" },
+      ],
+    },
+    {
+      tag: "business",
+      heading: "Turn your hobby into a hustle.",
+      subtitle: "Society-based micro-businesses coming to your app soon.",
+      comingSoon: true,
+      items: [
+        { icon: "🍱", label: "Food & Catering" },
+        { icon: "👗", label: "Apparels & Fashion" },
+        { icon: "💍", label: "Fashion Jewellery" },
+        { icon: "👜", label: "Customized Bags" },
+        { icon: "🏡", label: "Home Decor & Crafts" },
+        { icon: "🎁", label: "Handmade Gifts" },
+        { icon: "🎂", label: "Baking & Desserts" },
+        { icon: "🌸", label: "Mehendi & Rangoli" },
+      ],
+    },
+  ];
+
   const residentSteps = [
     ["01", "🏠", "Join Your Society", "Sign up with your society code. Only genuine residents and pros get in."],
     ["02", "🔍", "Browse & Filter", "Search by category, rating, price, or availability. See neighbour endorsements."],
@@ -397,20 +460,25 @@ export default function LandingPage() {
       <section id="categories" style={{ background: "#F4F7FB", padding: `clamp(40px,6vw,64px) ${px}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Tag>Service Categories</Tag>
-          <h2 className="lp-section-h2">20+ categories, all inside your gates.</h2>
+          <h2 className="lp-section-h2">30+ categories, all inside your gates.</h2>
           <p className="lp-section-p">From tax filing to yoga — your society has more talent than you think.</p>
-          <div className="lp-cat-grid" style={{ gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 8 : 14 }}>
-            {["📊", "💹", "⚖️", "🏥", "🧠", "🧘", "🥗", "📚", "💻", "🎨", "📷", "🎵", "💼", "🎉", "🐾", "✨"].map((icon, index) => {
-              const labels = ["Tax & CA", "Investment", "Legal", "Health", "Mental Health", "Fitness & Yoga", "Nutrition", "Tutoring", "IT & Tech", "Design", "Photography", "Music & Arts", "Career Coaching", "Event Planning", "Pet Care", "Beauty"];
-              const name = labels[index];
-              return (
-                <div key={name} className="lp-cat-card" style={{ opacity: 1, transform: "none" }}>
-                  <span style={{ fontSize: isMobile ? "1.2rem" : "1.4rem" }}>{icon}</span>
-                  <span style={{ fontSize: "clamp(0.78rem,2.5vw,0.88rem)", fontWeight: 600, color: "#0C1B2E" }}>{name}</span>
-                </div>
-              );
-            })}
-          </div>
+          {serviceGroups.map((group) => (
+            <div key={group.tag} className="lp-cat-group lp-reveal" style={{ marginTop: 32 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <h3 className="lp-cat-group-heading">{group.heading}</h3>
+                {group.comingSoon && <span className="lp-coming-soon">Coming Soon</span>}
+              </div>
+              <p className="lp-cat-group-subtitle">{group.subtitle}</p>
+              <div className="lp-cat-grid" style={{ gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 8 : 14 }}>
+                {group.items.map(({ icon, label }) => (
+                  <div key={label} className={`lp-cat-card${group.comingSoon ? " lp-cat-card--dim" : ""}`} style={{ opacity: 1, transform: "none" }}>
+                    <span style={{ fontSize: isMobile ? "1.2rem" : "1.4rem" }}>{icon}</span>
+                    <span style={{ fontSize: "clamp(0.78rem,2.5vw,0.88rem)", fontWeight: 600, color: "#0C1B2E" }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
