@@ -21,7 +21,7 @@ function useIsMobile() {
 /* ── tiny shared helpers ── */
 function Tag({ children, dark, orange }: { children: React.ReactNode; dark?: boolean; orange?: boolean }) {
   const className = `lp-tag ${orange ? "lp-tag-orange" : dark ? "lp-tag-dark" : "lp-tag-default"}`;
-  return <div className={className}>{children}</div>;
+  return <h2 className={className}>{children}</h2>;
 }
 
 export default function LandingPage() {
@@ -174,6 +174,12 @@ export default function LandingPage() {
             </p>
             <div className="lp-hero-join-wrap">
               <div className="lp-sub-label lp-sub-label-hero">Get notified when Park Street goes live</div>
+              <div className="lp-hero-expansion-row">
+                <span className="lp-hero-expansion-text">Not from Park Street?</span>
+                <Link className="lp-hero-expansion-link" to="/contact?topic=partnership&intent=society-launch">
+                  &rarr; Register your society for the next launch
+                </Link>
+              </div>
               <div className="lp-hero-btns">
                 <button onClick={() => navigate("/register")} className="lp-btn-primary lp-btn-hero-primary" style={{ padding: isMobile ? "12px 24px" : "14px 32px" }}>
                   Join Waitlist
@@ -198,7 +204,7 @@ export default function LandingPage() {
                 {[["⚡", "Instant Booking", "Book real-time slots"], ["🔒", "Society-Verified", "Lives in your community"]].map(([icon, title, desc]) => (
                   <div key={title} className="lp-hero-feature-card">
                     <div style={{ fontSize: "1.4rem", marginBottom: 8 }}>{icon}</div>
-                    <strong style={{ display: "block", fontSize: "0.88rem", marginBottom: 4 }}>{title}</strong>
+                    <h3 style={{ display: "block", fontSize: "0.88rem", margin: "0 0 4px", fontWeight: 700, fontFamily: "inherit", lineHeight: 1.35 }}>{title}</h3>
                     <small style={{ fontSize: "0.75rem", opacity: 0.7 }}>{desc}</small>
                   </div>
                 ))}
@@ -263,7 +269,7 @@ export default function LandingPage() {
               ["⭐ Build Reputation", "Verified badges, reviews boost your discovery rank"],
             ].map(([title, desc]) => (
               <div key={title as string} className="lp-pro-benefit-card">
-                <strong className="lp-pro-benefit-title">{title}</strong>
+                <h3 className="lp-pro-benefit-title">{title}</h3>
                 <span className="lp-pro-benefit-desc">{desc}</span>
               </div>
             ))}
@@ -298,7 +304,7 @@ export default function LandingPage() {
                   <div key={title} style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: "linear-gradient(135deg, rgba(13,107,107,0.12), rgba(27,107,138,0.08))", border: "1px solid rgba(13,107,107,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem" }}>{icon}</div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: "0.92rem", color: "#0C1B2E", marginBottom: 2 }}>{title}</div>
+                      <h3 style={{ margin: "0 0 2px", fontWeight: 700, fontSize: "0.92rem", color: "#0C1B2E", fontFamily: "inherit", lineHeight: 1.35 }}>{title}</h3>
                       <div style={{ fontSize: "0.8rem", color: "#5C6E84", lineHeight: 1.5 }}>{desc}</div>
                     </div>
                   </div>
@@ -455,19 +461,21 @@ export default function LandingPage() {
                 <div key={title as string} className="lp-benefit-item">
                   <div className="lp-benefit-icon">{icon}</div>
                   <div>
-                    <strong style={{ display: "block", fontSize: "clamp(0.88rem,3vw,0.95rem)", fontWeight: 700, color: "#0C1B2E", marginBottom: 2 }}>{title}</strong>
+                    <h3 style={{ display: "block", fontSize: "clamp(0.88rem,3vw,0.95rem)", fontWeight: 700, color: "#0C1B2E", margin: "0 0 2px", fontFamily: "inherit", lineHeight: 1.35 }}>{title}</h3>
                     <span style={{ fontSize: "clamp(0.78rem,2.5vw,0.84rem)", color: "#5C6E84" }}>{desc}</span>
                   </div>
                 </div>
               ))}
-              <div style={{ background: "linear-gradient(135deg, #FFF8F5, #E8F4FD)", border: "2px solid #F5692C", borderRadius: "20px", padding: "14px", margin: "10px 0", textAlign: "center" }}>
-                <div style={{ fontSize: "clamp(0.9rem,3vw,1rem)", fontWeight: 600, color: "#F5692C" }}>
-                  🎁 Refer a neighbour · Earn ₹200 in NeighbourCoins · No cap on referrals
+              <div className="lp-early-cta-row">
+                <div className="lp-early-referral-box" style={{ background: "linear-gradient(135deg, #FFF8F5, #E8F4FD)", border: "2px solid #F5692C", borderRadius: "20px", padding: "14px", textAlign: "center" }}>
+                  <div style={{ fontSize: "clamp(0.9rem,3vw,1rem)", fontWeight: 600, color: "#F5692C" }}>
+                    🎁 Refer a neighbour · Earn ₹200 in NeighbourCoins · No cap on referrals
+                  </div>
                 </div>
+                <button onClick={() => navigate("/register")} className="lp-btn-secondary lp-early-cta-btn" style={{ padding: "14px 32px", fontSize: "clamp(0.88rem,3vw,1rem)", boxShadow: "0 6px 20px rgba(245,105,44,0.35)", width: "auto" }}>
+                  Reserve My Founder Spot
+                </button>
               </div>
-              <button onClick={() => navigate("/register")} className="lp-btn-secondary" style={{ marginTop: 8, padding: "14px 32px", fontSize: "clamp(0.88rem,3vw,1rem)", boxShadow: "0 6px 20px rgba(245,105,44,0.35)", width: isMobile ? "100%" : "auto" }}>
-                Reserve My Founder Spot
-              </button>
             </div>
           </div>
         </div>

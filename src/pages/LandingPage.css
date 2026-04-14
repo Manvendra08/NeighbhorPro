@@ -233,6 +233,35 @@
   text-align: left;
 }
 
+.lp-hero-expansion-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lp-hero-expansion-text {
+  font-size: var(--text-sm, 13px);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.lp-hero-expansion-link {
+  font-size: var(--text-sm, 13px);
+  color: var(--color-primary, #F5692C);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+#lp-root .lp-hero-expansion-link:hover {
+  text-decoration: underline;
+}
+
+#lp-root .lp-hero-expansion-link:focus-visible {
+  outline: 2px solid rgba(245, 105, 44, 0.45);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .lp-hero-expectation {
   margin-top: 12px;
   font-size: 0.8rem;
@@ -371,21 +400,20 @@
   line-height: 1.6;
   max-width: 540px;
   margin-bottom: 24px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Tags */
 .lp-tag {
   display: inline-block;
   font-size: clamp(0.65rem, 2vw, 0.76rem);
+  font-family: inherit;
   font-weight: 700;
   letter-spacing: 1px;
+  line-height: 1.2;
   text-transform: uppercase;
   padding: 5px 14px;
   border-radius: 50px;
-  margin-bottom: 14px;
+  margin: 0 0 14px;
 }
 
 .lp-tag-default {
@@ -501,6 +529,23 @@
   margin-top: 2px;
 }
 
+.lp-early-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.lp-early-referral-box {
+  flex: 1;
+}
+
+.lp-early-cta-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-top: 0 !important;
+}
+
 /* CTA Band */
 .lp-cta-band {
   text-align: center;
@@ -526,8 +571,11 @@
 
 .lp-pro-benefit-title {
   display: block;
+  margin: 0 0 6px;
+  font-family: inherit;
+  font-weight: 700;
+  line-height: 1.35;
   font-size: clamp(0.88rem, 2.5vw, 1rem);
-  margin-bottom: 6px;
   color: #fff;
 }
 
@@ -865,6 +913,8 @@
   .lp-pro-benefit-card { padding: 14px 12px; }
   .lp-hero-features-grid { grid-template-columns: 1fr; }
   .lp-faq-summary { padding: 14px 0; }
+  .lp-early-cta-row { gap: 10px; }
+  .lp-early-cta-btn { padding: 12px 18px !important; }
   .lp-footer-app-signals { max-width: 100%; }
   .lp-footer-app-line { align-items: flex-start; }
   .lp-footer-tooltip { left: 0; transform: none; width: 210px; }
