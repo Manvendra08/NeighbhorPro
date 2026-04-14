@@ -26,6 +26,7 @@
   align-items: center;
   justify-content: space-between;
   background: rgba(255, 255, 255, 0.95);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   transition: box-shadow 0.3s;
@@ -191,6 +192,7 @@
   border: 1.5px solid rgba(255, 255, 255, 0.4);
   padding: 14px 32px;
   font-size: clamp(0.88rem, 3vw, 1rem);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -245,8 +247,15 @@
   gap: 16px;
 }
 
+.lp-hero-features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .lp-hero-feature-card {
   background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 16px;
@@ -305,6 +314,7 @@
 /* Steps */
 .lp-step-card {
   background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 16px;
@@ -333,8 +343,8 @@
 
 .lp-step-connector {
   display: flex;
-  alignItems: "center";
-  justifyContent: "center";
+  align-items: center;
+  justify-content: center;
   padding: 0 8px;
   margin-top: -24px;
 }
@@ -361,6 +371,9 @@
   line-height: 1.6;
   max-width: 540px;
   margin-bottom: 24px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Tags */
@@ -444,7 +457,7 @@
   max-width: 1200px;
   margin: 0 auto;
   display: grid;
-  gap: 64px;
+  gap: 42px;
   align-items: center;
 }
 
@@ -507,6 +520,7 @@
   border-radius: 14px;
   padding: 16px 14px;
   text-align: left;
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -684,8 +698,46 @@
 .lp-footer-grid {
   display: grid;
   gap: 40px;
-  padding-bottom: 32px;
+  padding-bottom: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lp-footer-socials {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: nowrap;
+}
+
+.lp-footer-social-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lp-footer-app-signals-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lp-footer-social-link {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted, var(--muted));
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.lp-footer-social-link:hover {
+  color: var(--color-text, var(--text));
 }
 
 .lp-footer-h4 {
@@ -756,7 +808,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  marginTop: -24px;
+  margin-top: -24px;
 }
 
 /* Use Cases */
@@ -811,10 +863,14 @@
   .lp-feature-card-dark { padding: 12px; }
   .lp-pro-benefits-row { grid-template-columns: 1fr; }
   .lp-pro-benefit-card { padding: 14px 12px; }
+  .lp-hero-features-grid { grid-template-columns: 1fr; }
   .lp-faq-summary { padding: 14px 0; }
   .lp-footer-app-signals { max-width: 100%; }
   .lp-footer-app-line { align-items: flex-start; }
   .lp-footer-tooltip { left: 0; transform: none; width: 210px; }
+  .lp-footer-socials { margin-top: 12px; flex-direction: row; align-items: center; gap: 10px; }
+  .lp-footer-social-links { width: auto; }
+  .lp-footer-app-signals-right { align-items: center; }
   .lp-footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
   #lp-root { padding-top: 0; }
 }

@@ -126,7 +126,7 @@ export default function LandingPage() {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
-              aria-expanded={mobileMenuOpen}
+              aria-expanded={mobileMenuOpen ? true : false}
               aria-controls="landing-mobile-menu"
               style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
             >
@@ -167,7 +167,7 @@ export default function LandingPage() {
               Launching May 2026 · Park Street, Wakad
             </div>
             <h1 className="lp-h1">
-              Your Society's<br />Expert Network,<br /><span className="lp-logo-accent">Built Right.</span>
+              Your Society's<br />Professionals Network,<br /><span className="lp-logo-accent">Right here.</span>
             </h1>
             <p className="lp-p-hero">
               Connect with verified professionals who live in your gated community. CA, doctor, yoga, tutor — booked in minutes.
@@ -223,7 +223,7 @@ export default function LandingPage() {
       <section id="how" style={{ padding: `clamp(40px,6vw,72px) ${px}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Tag>How It Works</Tag>
-          <h2 className="lp-section-h2">From need to booking<br />in under 3 minutes.</h2>
+          <h2 className="lp-section-h2">From need to booking in under 15 minutes.</h2>
           <p className="lp-section-p">No cold calls. No WhatsApp forwards. A clean, trusted marketplace inside your gates.</p>
           <div style={{ marginBottom: 24 }}>
             <div className="lp-tabs">
@@ -445,7 +445,7 @@ export default function LandingPage() {
           <div>
             <Tag>Early Joiner Benefits</Tag>
             <h2 className="lp-section-h2">First 200 get founder perks for life.</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
               {[
                 ["🏆", "Founder Badge", "Permanent social trust signal on every profile."],
                 ["💰", "Zero Platform Fee — 6 Months", "Pros keep 100%. Residents get 3 free credits."],
@@ -460,15 +460,14 @@ export default function LandingPage() {
                   </div>
                 </div>
               ))}
-              <div style={{ background: "linear-gradient(135deg, #FFF8F5, #E8F4FD)", border: "2px solid #F5692C", borderRadius: "20px", padding: "16px", margin: "20px 0", textAlign: "center" }}>
+              <div style={{ background: "linear-gradient(135deg, #FFF8F5, #E8F4FD)", border: "2px solid #F5692C", borderRadius: "20px", padding: "14px", margin: "10px 0", textAlign: "center" }}>
                 <div style={{ fontSize: "clamp(0.9rem,3vw,1rem)", fontWeight: 600, color: "#F5692C" }}>
                   🎁 Refer a neighbour · Earn ₹200 in NeighbourCoins · No cap on referrals
                 </div>
               </div>
-              <button onClick={() => navigate("/register")} className="lp-btn-secondary" style={{ marginTop: 28, padding: "14px 32px", fontSize: "clamp(0.88rem,3vw,1rem)", boxShadow: "0 6px 20px rgba(245,105,44,0.35)", width: isMobile ? "100%" : "auto" }}>
+              <button onClick={() => navigate("/register")} className="lp-btn-secondary" style={{ marginTop: 8, padding: "14px 32px", fontSize: "clamp(0.88rem,3vw,1rem)", boxShadow: "0 6px 20px rgba(245,105,44,0.35)", width: isMobile ? "100%" : "auto" }}>
                 Reserve My Founder Spot
               </button>
-              <div className="lp-sub-label">Claim your #1–200 badge + lifetime perks</div>
             </div>
           </div>
         </div>
@@ -527,21 +526,8 @@ export default function LandingPage() {
                 <img src="/images/logo_new.png" alt="PN" loading="lazy" style={{ height: 42, borderRadius: 8 }} />
                 <span className="lp-logo-text" style={{ color: "#fff", fontSize: "1rem" }}>ProNeighbor</span>
               </Link>
-              <p style={{ fontSize: "0.84rem", lineHeight: 1.7, maxWidth: 260 }}>The professional services marketplace for gated communities.</p>
+              <p style={{ fontSize: "0.84rem", lineHeight: 1.7, maxWidth: 260 }}>Hyperlocal Professionals Network.</p>
               <p style={{ marginTop: 10, fontSize: "0.76rem" }}>📍 Park Street, Wakad, Pune · May 2026</p>
-              <div className="lp-footer-app-signals">
-                <div className="lp-footer-app-line">
-                  <span>📱 Add to Home Screen - Works like a native app</span>
-                  <span className="lp-footer-tooltip-wrap" tabIndex={0} aria-label="Info about install">
-                    <span className="lp-footer-tooltip-trigger">i</span>
-                    <span className="lp-footer-tooltip">Use your browser menu and tap Add to Home Screen for an app-like experience.</span>
-                  </span>
-                </div>
-                <div className="lp-footer-app-badge" role="status" aria-label="Play Store app coming soon">
-                  <span className="lp-footer-play-icon" aria-hidden="true">▶</span>
-                  <span>Mobile App - Coming soon</span>
-                </div>
-              </div>
             </div>
             {[
               ["Product", [["How it Works", "#how"], ["Features", "#features"], ["Categories", "#categories"], ["Early Access", "#early"]]],
@@ -555,6 +541,35 @@ export default function LandingPage() {
                 ))}
               </div>
             ))}
+          </div>
+          <div className="lp-footer-socials">
+            <div className="lp-footer-social-links" aria-label="Social links">
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="lp-footer-social-link" aria-label="Instagram">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                  <rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  <circle cx="17" cy="7" r="1.2" fill="currentColor" />
+                </svg>
+              </a>
+              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="lp-footer-social-link" aria-label="LinkedIn">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                  <rect x="3" y="3" width="18" height="18" rx="3" ry="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M8 10.5v6M8 8.2v.01M12 16.5v-3.5c0-1.4.8-2.3 2.1-2.3s1.9.9 1.9 2.3v3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </a>
+              <a href="https://chat.whatsapp.com/" target="_blank" rel="noopener noreferrer" className="lp-footer-social-link" aria-label="WhatsApp Community">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                  <path d="M12 4a8 8 0 0 0-6.9 12L4 20l4.1-1.1A8 8 0 1 0 12 4Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M9.6 9.4c.2-.5.4-.5.7-.5h.5c.2 0 .4.1.5.3l.8 1.7c.1.2.1.4 0 .6l-.4.6c-.1.1-.1.3 0 .4.3.5.8 1 1.3 1.3.1.1.3.1.4 0l.6-.4c.2-.1.4-.1.6 0l1.7.8c.2.1.3.3.3.5v.5c0 .3 0 .5-.5.7-.8.3-1.9.2-3.5-.6-1.2-.7-2.4-1.9-3.1-3.1-.8-1.6-.9-2.7-.6-3.5Z" fill="currentColor" />
+                </svg>
+              </a>
+            </div>
+            <div className="lp-footer-app-signals-right">
+              <div className="lp-footer-app-badge" role="status" aria-label="Play Store app coming soon">
+                <span className="lp-footer-play-icon" aria-hidden="true">▶</span>
+                <span>Mobile App - Coming soon</span>
+              </div>
+            </div>
           </div>
           <div className="lp-footer-bottom">
             <span>© 2026 ProNeighbor. All rights reserved.</span>

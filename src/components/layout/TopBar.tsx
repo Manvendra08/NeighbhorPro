@@ -296,7 +296,6 @@ export default function TopBar() {
             title={userProfile?.displayName || user?.email || ""}
             aria-label="Open user menu"
             aria-haspopup="menu"
-            aria-expanded={dropdownOpen ? "true" : "false"}
           >
             {user?.photoURL ? <img src={user.photoURL} alt="avatar" loading="lazy" /> : initials}
           </button>

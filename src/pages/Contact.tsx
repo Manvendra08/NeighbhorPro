@@ -170,6 +170,8 @@ export default function Contact() {
                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, fontSize: '0.9rem' }}>Subject</label>
                     <select 
                       required 
+                      aria-label="Subject"
+                      title="Subject"
                       style={{ 
                         width: '100%', 
                         padding: '12px 16px', 
