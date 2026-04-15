@@ -4,6 +4,7 @@ import {
   createService,
   deleteService,
   getAllSocieties,
+  getPlatformSettings,
   getServicesByUser,
   updateService,
   updateUserProfile,
@@ -11,6 +12,7 @@ import {
   uploadResidencyProof,
 } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
+import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../constants/serviceCatalog";
 
 const SKILL_SUGGESTIONS = [
   "Tax Filing & ITR",
@@ -78,28 +80,6 @@ const SKILL_SUGGESTIONS = [
   "Pet Grooming",
 ];
 
-const SERVICE_CATEGORIES = [
-  "Tax & CA",
-  "Investment & Wealth",
-  "Legal",
-  "Health & Wellness",
-  "Mental Health",
-  "Fitness & Yoga",
-  "Nutrition & Diet",
-  "Tutoring & Academics",
-  "Test Prep",
-  "IT & Tech",
-  "Design & Creative",
-  "Photography",
-  "Music & Arts",
-  "Career Coaching",
-  "Language Learning",
-  "Event Planning",
-  "Beauty & Grooming",
-  "Pet Care",
-  "Other",
-];
-
 type ProfileProps = {
   profileOverride?: Record<string, unknown> | null;
   uidOverride?: string | null;
@@ -151,6 +131,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   const [svcQuote, setSvcQuote] = useState(false);
   const [svcDuration, setSvcDuration] = useState("30 min");
   const [svcCategory, setSvcCategory] = useState("");
+  const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
 
   useEffect(() => {
     if (!targetProfile) return;
@@ -177,6 +158,16 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       }
     };
     loadSocieties();
+  }, []);
+
+  useEffect(() => {
+    getPlatformSettings()
+      .then((settings) => {
+        setServiceCategories(normalizeServiceCategories(settings.serviceCategories));
+      })
+      .catch(() => {
+        setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
+      });
   }, []);
 
   useEffect(() => {
@@ -599,7 +590,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                   <label className="form-label">Category</label>
                   <select className="form-input" value={svcCategory} onChange={(event) => setSvcCategory(event.target.value)} id="svc-category-select">
                     <option value="">Select...</option>
-                    {SERVICE_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+                    {serviceCategories.map(category => <option key={category} value={category}>{category}</option>)}
                   </select>
                 </div>
               </div>

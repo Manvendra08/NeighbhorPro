@@ -18,7 +18,6 @@ import MyBookings     from "./pages/MyBookings";
 import Messages       from "./pages/Messages";
 import Support        from "./pages/Support";
 import MyAccount      from "./pages/MyAccount";
-import PublicProfile  from "./pages/PublicProfile";
 import Wallet         from "./pages/Wallet";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy  from "./pages/PrivacyPolicy";
@@ -60,7 +59,6 @@ export default function App() {
             <Route path="/bookings"         element={<ProtectedRoute userOnly><MyBookings /></ProtectedRoute>} />
             <Route path="/bookings/:id"     element={<ProtectedRoute userOnly><BookingDetail /></ProtectedRoute>} />
             <Route path="/wallet"           element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
-            <Route path="/profile/:uid"     element={<ProtectedRoute><PublicProfile /></ProtectedRoute>} />
             <Route path="/profile"          element={<Navigate to="/account" replace />} />
             <Route path="/account"          element={<ProtectedRoute><MyAccount /></ProtectedRoute>} />
             <Route path="/messages"         element={<ProtectedRoute><Messages /></ProtectedRoute>} />

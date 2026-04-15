@@ -30,9 +30,11 @@ export async function logAudit(
 
 export default function AdminAuditLog() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [usersById, setUsersById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [userFilter, setUserFilter] = useState("All");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
@@ -53,8 +55,38 @@ export default function AdminAuditLog() {
   useEffect(() => {
     const load = async () => {
       try {
-        const snap = await getDocs(query(collection(db, "auditLogs"), orderBy("createdAt", "desc")));
-        setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const [auditSnap, activitySnap, usersSnap] = await Promise.all([
+          getDocs(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"))),
+          getDocs(query(collection(db, "activityLogs"), orderBy("timestamp", "desc"))),
+          getDocs(collection(db, "users")),
+        ]);
+
+        const nameMap: Record<string, string> = {};
+        usersSnap.docs.forEach((docRow) => {
+          const data = docRow.data() as Record<string, unknown>;
+          nameMap[docRow.id] = (data.displayName as string) || (data.email as string) || docRow.id;
+        });
+        setUsersById(nameMap);
+
+        const auditRows = auditSnap.docs.map((d) => ({ id: d.id, source: "audit", ...d.data() }));
+        const activityRows = activitySnap.docs.map((d) => {
+          const row = d.data() as Record<string, unknown>;
+          const userId = (row.userId as string) || "";
+          return {
+            id: `activity-${d.id}`,
+            source: "activity",
+            action: `activity.${(row.event as string) || "unknown"}`,
+            adminId: userId,
+            adminName: nameMap[userId] || "User",
+            targetId: userId,
+            details: (row.details as string) || "",
+            metadata: (row.metadata as Record<string, unknown>) || {},
+            createdAt: row.timestamp,
+            timestamp: row.timestamp,
+          };
+        });
+
+        setLogs([...auditRows, ...activityRows]);
       } catch { /* ignore */ }
       setLoading(false);
     };
@@ -63,11 +95,16 @@ export default function AdminAuditLog() {
 
   const filtered = logs.filter(l => {
     const matchFilter = filter === "All" || l.action === filter;
+    const actorId = (l.adminId as string) || (l.userId as string) || "";
+    const targetId = (l.targetId as string) || "";
+    const matchUserFilter = userFilter === "All" || actorId === userFilter || targetId === userFilter;
     const q = search.toLowerCase();
     const matchSearch = !q ||
       ((l.action as string) || "").includes(q) ||
       ((l.adminName as string) || "").toLowerCase().includes(q) ||
-      ((l.details as string) || "").toLowerCase().includes(q);
+      ((l.details as string) || "").toLowerCase().includes(q) ||
+      actorId.toLowerCase().includes(q) ||
+      targetId.toLowerCase().includes(q);
     const createdAtMillis = toMillis(l.createdAt);
 
     let inDateRange = true;
@@ -84,7 +121,18 @@ export default function AdminAuditLog() {
       }
     }
 
-    return matchFilter && matchSearch && inDateRange;
+    return matchFilter && matchSearch && matchUserFilter && inDateRange;
+  });
+
+  const userOptions = Array.from(new Set(
+    logs.flatMap((item) => [
+      (item.adminId as string) || "",
+      (item.targetId as string) || "",
+    ]).filter(Boolean)
+  )).sort((a, b) => {
+    const aLabel = usersById[a] || a;
+    const bLabel = usersById[b] || b;
+    return aLabel.localeCompare(bLabel);
   });
 
   const actionColor = (action: string) => {
@@ -130,6 +178,17 @@ export default function AdminAuditLog() {
           onChange={e => setSearch(e.target.value)}
           style={{ maxWidth: 280, padding: "8px 12px" }}
         />
+        <select
+          className="form-input"
+          style={{ maxWidth: 240, padding: "8px 12px" }}
+          value={userFilter}
+          onChange={e => setUserFilter(e.target.value)}
+        >
+          <option value="All">All Users</option>
+          {userOptions.map((uid) => (
+            <option key={uid} value={uid}>{usersById[uid] ? `${usersById[uid]} (${uid.slice(0, 8)}...)` : uid}</option>
+          ))}
+        </select>
         <select className="form-input" style={{ maxWidth: 200, padding: "8px 12px" }} value={filter} onChange={e => setFilter(e.target.value)}>
           {ACTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -177,10 +236,10 @@ export default function AdminAuditLog() {
             <thead>
               <tr>
                 <th>Timestamp</th>
-                <th>Admin</th>
+                <th>Actor</th>
                 <th>Action</th>
                 <th>Details</th>
-                <th>Target ID</th>
+                <th>User</th>
               </tr>
             </thead>
             <tbody>
@@ -197,9 +256,16 @@ export default function AdminAuditLog() {
                       <span className={`badge ${actionColor(l.action as string)}`} style={{ fontSize: 11 }}>{l.action as string}</span>
                     </div>
                   </td>
-                  <td style={{ fontSize: 13, color: "var(--muted)", maxWidth: 300 }}>{l.details as string || "—"}</td>
+                  <td style={{ fontSize: 13, color: "var(--muted)", maxWidth: 300 }}>
+                    {(l.details as string) || "—"}
+                    {Object.keys((l.metadata as Record<string, unknown>) || {}).length > 0 && (
+                      <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
+                        {JSON.stringify(l.metadata).slice(0, 180)}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ fontSize: 11, fontFamily: "monospace", color: "var(--muted)" }}>
-                    {l.targetId ? (l.targetId as string).slice(0, 12) + "…" : "—"}
+                    {l.targetId ? `${usersById[l.targetId as string] || "User"} (${(l.targetId as string).slice(0, 8)}...)` : "—"}
                   </td>
                 </tr>
               ))}

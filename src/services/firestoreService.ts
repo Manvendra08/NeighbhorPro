@@ -672,6 +672,11 @@ export async function getProAvailability(proId: string) {
   return null;
 }
 
+
+export async function getPlatformSettings(): Promise<Record<string, unknown>> {
+  const snap = await getDoc(doc(db, "config", "platformSettings"));
+  return snap.exists() ? (snap.data() as Record<string, unknown>) : {};
+}
 export async function updateProAvailability(proId: string, availabilityData: Record<string, unknown>) {
   await setDoc(doc(db, "proAvailability", proId), { ...availabilityData, updatedAt: serverTimestamp() }, { merge: true });
 }

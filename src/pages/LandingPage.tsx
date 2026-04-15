@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./LandingPage.css";
+import { getPlatformSettings } from "../services/firestoreService";
+import { DEFAULT_SERVICE_CATEGORIES, SERVICE_CATEGORY_ICONS, normalizeServiceCategories } from "../constants/serviceCatalog";
 
 function useIsMobile() {
   const [m, setM] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 768 : false));
@@ -38,6 +40,7 @@ export default function LandingPage() {
   });
   const [tab, setTab] = useState("resident");
   const [counter, setCounter] = useState(0);
+  const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
   const adminEmail = "support@proneighbor.com";
 
   useEffect(() => {
@@ -83,6 +86,16 @@ export default function LandingPage() {
     };
 
     requestAnimationFrame(animate);
+  }, []);
+
+  useEffect(() => {
+    getPlatformSettings()
+      .then((settings) => {
+        setServiceCategories(normalizeServiceCategories(settings.serviceCategories));
+      })
+      .catch(() => {
+        setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
+      });
   }, []);
 
   const scrollTo = (id: string) => {
@@ -153,6 +166,7 @@ export default function LandingPage() {
       ],
     },
   ];
+  void serviceGroups;
 
   const residentSteps = [
     ["01", "🏠", "Join Your Society", "Sign up with your society code. Only genuine residents and pros get in."],
@@ -491,23 +505,20 @@ export default function LandingPage() {
           <Tag>Service Categories</Tag>
           <h2 className="lp-section-h2">30+ categories, all inside your gates.</h2>
           <p className="lp-section-p">From tax filing to yoga — your society has more talent than you think.</p>
-          {serviceGroups.map((group) => (
-            <div key={group.tag} className="lp-cat-group lp-reveal" style={{ marginTop: 32 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                <h3 className="lp-cat-group-heading">{group.heading}</h3>
-                {group.comingSoon && <span className="lp-coming-soon">Coming Soon</span>}
-              </div>
-              <p className="lp-cat-group-subtitle">{group.subtitle}</p>
-              <div className="lp-cat-grid" style={{ gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 8 : 14 }}>
-                {group.items.map(({ icon, label }) => (
-                  <div key={label} className={`lp-cat-card${group.comingSoon ? " lp-cat-card--dim" : ""}`} style={{ opacity: 1, transform: "none" }}>
-                    <span style={{ fontSize: isMobile ? "1.2rem" : "1.4rem" }}>{icon}</span>
-                    <span style={{ fontSize: "clamp(0.78rem,2.5vw,0.88rem)", fontWeight: 600, color: "#0C1B2E" }}>{label}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="lp-cat-group lp-reveal" style={{ marginTop: 32 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <h3 className="lp-cat-group-heading">Live Service Categories</h3>
             </div>
-          ))}
+            <p className="lp-cat-group-subtitle">These categories stay in sync with Browse and Profile service selection.</p>
+            <div className="lp-cat-grid" style={{ gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 8 : 14 }}>
+              {serviceCategories.map((label) => (
+                <div key={label} className="lp-cat-card" style={{ opacity: 1, transform: "none" }}>
+                  <span style={{ fontSize: isMobile ? "1.2rem" : "1.4rem" }}>{SERVICE_CATEGORY_ICONS[label] || "✨"}</span>
+                  <span style={{ fontSize: "clamp(0.78rem,2.5vw,0.88rem)", fontWeight: 600, color: "#0C1B2E" }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 

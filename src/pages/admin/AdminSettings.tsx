@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
+import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../../constants/serviceCatalog";
 
 type Settings = {
   commissionRate: number;
@@ -19,6 +20,7 @@ type Settings = {
   featureReviews: boolean;
   featureMessaging: boolean;
   featurePremiumSocieties: boolean;
+  serviceCategories: string[];
 };
 
 const DEFAULTS: Settings = {
@@ -27,6 +29,7 @@ const DEFAULTS: Settings = {
   platformName: "ProNeighbor", maxSocietiesPerCity: 50, freeTrialDays: 30,
   minBookingAmount: 0, maintenanceMessage: "We'll be back shortly. Scheduled maintenance.",
   featureReviews: true, featureMessaging: true, featurePremiumSocieties: true,
+  serviceCategories: [...DEFAULT_SERVICE_CATEGORIES],
 };
 
 export default function AdminSettings() {
@@ -41,6 +44,7 @@ export default function AdminSettings() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [dirty, setDirty] = useState(false);
   const [showMaintModal, setShowMaintModal] = useState(false);
+  const [newServiceCategory, setNewServiceCategory] = useState("");
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
@@ -50,6 +54,7 @@ export default function AdminSettings() {
         const snap = await getDoc(doc(db, "config", "platformSettings"));
         if (snap.exists()) {
           const data = { ...DEFAULTS, ...snap.data() as Settings };
+          data.serviceCategories = normalizeServiceCategories((snap.data() as Record<string, unknown>).serviceCategories);
           setSettings(data);
           setPrevSettings(data);
         }
@@ -72,7 +77,9 @@ export default function AdminSettings() {
       // Build a diff summary for the audit log
       const changed: string[] = [];
       (Object.keys(settings) as (keyof Settings)[]).forEach(k => {
-        if (settings[k] !== prevSettings[k]) {
+        const nextValue = Array.isArray(settings[k]) ? JSON.stringify(settings[k]) : settings[k];
+        const prevValue = Array.isArray(prevSettings[k]) ? JSON.stringify(prevSettings[k]) : prevSettings[k];
+        if (nextValue !== prevValue) {
           changed.push(`${k}: ${prevSettings[k]} → ${settings[k]}`);
         }
       });
@@ -125,6 +132,21 @@ export default function AdminSettings() {
   );
 
   if (loading) return <div style={{ textAlign: "center", padding: 80 }}><div className="loader" style={{ margin: "0 auto" }} /></div>;
+
+  const addServiceCategory = () => {
+    const next = newServiceCategory.trim();
+    if (!next) return;
+    if (settings.serviceCategories.includes(next)) {
+      showToast("Category already exists", false);
+      return;
+    }
+    set("serviceCategories", [...settings.serviceCategories, next]);
+    setNewServiceCategory("");
+  };
+
+  const removeServiceCategory = (category: string) => {
+    set("serviceCategories", settings.serviceCategories.filter((item) => item !== category));
+  };
 
   return (
     <div>
@@ -218,6 +240,43 @@ export default function AdminSettings() {
             <Toggle label="Messaging" desc="In-app chat between users" k="featureMessaging" />
             <Toggle label="Reviews & Ratings" desc="Allow users to leave reviews" k="featureReviews" />
             <Toggle label="Premium Societies" desc="Society subscription upgrades" k="featurePremiumSocieties" />
+          </div>
+
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h3 className="card-title" style={{ marginBottom: 8 }}>🧩 Service Categories</h3>
+            <p className="text-muted text-sm" style={{ marginBottom: 12 }}>
+              These categories are used on Landing, Browse Pros, and Profile service dropdown.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <input
+                className="form-input"
+                placeholder="Add new category"
+                value={newServiceCategory}
+                onChange={(event) => setNewServiceCategory(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addServiceCategory();
+                  }
+                }}
+              />
+              <button className="btn btn-secondary btn-sm" onClick={addServiceCategory}>Add</button>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {settings.serviceCategories.map((category) => (
+                <span key={category} className="badge badge-muted" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  {category}
+                  <button
+                    type="button"
+                    onClick={() => removeServiceCategory(category)}
+                    style={{ border: "none", background: "transparent", cursor: "pointer", color: "inherit", fontWeight: 700, padding: 0, lineHeight: 1 }}
+                    aria-label={`Remove ${category}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </div>

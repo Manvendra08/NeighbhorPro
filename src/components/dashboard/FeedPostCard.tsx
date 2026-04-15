@@ -36,7 +36,7 @@ export default function FeedPostCard({ post, uid, onDelete }: {
   const authorSociety = (post.society as string) || "";
   const authorTower = (post.tower as string) || "";
   const locationParts = [authorSociety, authorTower].filter(Boolean);
-  const profileHref = authorId ? `/profile/${authorId}` : "/account?tab=profile";
+  const profileHref = authorId ? `/pro/${authorId}` : "/browse";
 
   return (
     <>

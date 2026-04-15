@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { listProfessionals, BROWSE_PAGE_SIZE } from "../services/firestoreService";
+import { listProfessionals, BROWSE_PAGE_SIZE, getPlatformSettings } from "../services/firestoreService";
 import { useAuth } from "../contexts/AuthContext";
 import { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
@@ -10,24 +10,10 @@ import EmptyState from "../components/common/EmptyState";
 import ProCard from "../components/common/ProCard";
 import SkeletonLoader from "../components/common/SkeletonLoader";
 import FormField from "../components/common/FormField";
+import { DEFAULT_SERVICE_CATEGORIES, SERVICE_CATEGORY_ICONS, normalizeServiceCategories } from "../constants/serviceCatalog";
 
 type BrowsePro = UserSummary & Record<string, unknown> & {
   category?: string;
-};
-
-const CATEGORIES = [
-  "All", "Tax & CA", "Investment", "Legal", "Health", "Mental Health",
-  "Fitness", "Nutrition", "Tutoring", "IT & Tech",
-  "Design", "Photography", "Music", "Career", "Language",
-  "Events", "Beauty", "Pet Care", "Other",
-];
-
-const CATEGORY_ICONS: Record<string, string> = {
-  "All": "🌐", "Tax & CA": "📊", "Investment": "📈", "Legal": "⚖️", "Health": "🏥",
-  "Mental Health": "🧠", "Fitness": "💪", "Nutrition": "🥗", "Tutoring": "📚",
-  "IT & Tech": "💻", "Design": "🎨", "Photography": "📷", "Music": "🎵",
-  "Career": "🚀", "Language": "🌍", "Events": "🎉", "Beauty": "💄",
-  "Pet Care": "🐾", "Other": "✨",
 };
 
 export default function BrowsePros() {
@@ -47,6 +33,8 @@ export default function BrowsePros() {
   const search = searchParams.get("q") ?? "";
   const [localityFilter, setLocalityFilter] = useState("");
   const [towerFilter, setTowerFilter] = useState("");
+  const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
+  const categories = ["All", ...serviceCategories];
 
   const getMissingBookingProfileItems = () => {
     const missing: string[] = [];
@@ -95,6 +83,16 @@ export default function BrowsePros() {
 
   useEffect(() => { loadPage(true); }, []);
   useEffect(() => { loadPage(true); }, [localityFilter, towerFilter]);
+
+  useEffect(() => {
+    getPlatformSettings()
+      .then((settings) => {
+        setServiceCategories(normalizeServiceCategories(settings.serviceCategories));
+      })
+      .catch(() => {
+        setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
+      });
+  }, []);
 
   useEffect(() => {
     let result = allPros;
@@ -150,9 +148,9 @@ export default function BrowsePros() {
 
         {/* Category scroll */}
         <div className="m-category-scroll">
-          {CATEGORIES.map(c => (
+          {categories.map(c => (
             <button key={c} className={`m-category-pill${category === c ? " active" : ""}`} onClick={() => setCategory(c)}>
-              <span>{CATEGORY_ICONS[c] || "✨"}</span>
+              <span>{c === "All" ? "🌐" : (SERVICE_CATEGORY_ICONS[c] || "✨")}</span>
               <span>{c}</span>
             </button>
           ))}
@@ -243,10 +241,10 @@ export default function BrowsePros() {
         </div>
 
         <div className="filter-chips" style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 20, paddingBottom: 4, scrollbarWidth: "none" }}>
-          {CATEGORIES.map(c => (
+          {categories.map(c => (
             <button key={c} className={`chip${category === c ? " active" : ""}`} onClick={() => setCategory(c)}
               style={{ padding: "8px 18px", borderRadius: 12, fontSize: 14, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-              <span>{CATEGORY_ICONS[c] || "✨"}</span> {c}
+              <span>{c === "All" ? "🌐" : (SERVICE_CATEGORY_ICONS[c] || "✨")}</span> {c}
             </button>
           ))}
         </div>

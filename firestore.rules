@@ -282,6 +282,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // ── Legacy support tickets ────────────────────────────
     match /supportTickets/{ticketId} {
       allow read, update: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
