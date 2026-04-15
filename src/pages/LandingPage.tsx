@@ -29,8 +29,16 @@ export default function LandingPage() {
   const isMobile = useIsMobile();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [societyModalOpen, setSocietyModalOpen] = useState(false);
+  const [societyForm, setSocietyForm] = useState({
+    societyName: "",
+    area: "",
+    city: "",
+    pinCode: "",
+  });
   const [tab, setTab] = useState("resident");
   const [counter, setCounter] = useState(0);
+  const adminEmail = "support@proneighbor.com";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -112,7 +120,6 @@ export default function LandingPage() {
         { icon: "✨", label: "Beauty & Grooming" },
         { icon: "🐾", label: "Pet Care" },
         { icon: "🎉", label: "Event Planning" },
-        { icon: "📷", label: "Photography" },
         { icon: "🏠", label: "Interior Design" },
       ],
     },
@@ -143,7 +150,6 @@ export default function LandingPage() {
         { icon: "🏡", label: "Home Decor & Crafts" },
         { icon: "🎁", label: "Handmade Gifts" },
         { icon: "🎂", label: "Baking & Desserts" },
-        { icon: "🌸", label: "Mehendi & Rangoli" },
       ],
     },
   ];
@@ -159,6 +165,24 @@ export default function LandingPage() {
     ["02", "📅", "Receive Bookings", "Residents in your society discover and book you directly. Accept, reschedule, or decline — you control your calendar."],
     ["03", "💰", "Earn & Grow", "Complete sessions, collect NeighbourCoins and UPI payouts, build reviews. Top-rated Pros get featured placement."],
   ];
+
+  const submitSocietyRequest = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const subject = encodeURIComponent(`Society launch request: ${societyForm.societyName || "New society"}`);
+    const body = encodeURIComponent(
+      [
+        "A new society registration request was submitted from the landing page.",
+        "",
+        `Society name: ${societyForm.societyName}`,
+        `Area: ${societyForm.area}`,
+        `City: ${societyForm.city}`,
+        `Pin code: ${societyForm.pinCode}`,
+      ].join("\n")
+    );
+
+    window.location.href = `mailto:${adminEmail}?subject=${subject}&body=${body}`;
+    setSocietyModalOpen(false);
+  };
 
   return (
     <div id="lp-root">
@@ -237,12 +261,6 @@ export default function LandingPage() {
             </p>
             <div className="lp-hero-join-wrap">
               <div className="lp-sub-label lp-sub-label-hero">Get notified when Park Street goes live</div>
-              <div className="lp-hero-expansion-row">
-                <span className="lp-hero-expansion-text">Not from Park Street?</span>
-                <Link className="lp-hero-expansion-link" to="/contact?topic=partnership&intent=society-launch">
-                  &rarr; Register your society for the next launch
-                </Link>
-              </div>
               <div className="lp-hero-btns">
                 <button onClick={() => navigate("/register")} className="lp-btn-primary lp-btn-hero-primary" style={{ padding: isMobile ? "12px 24px" : "14px 32px" }}>
                   Join Waitlist
@@ -254,6 +272,17 @@ export default function LandingPage() {
                 <div className="lp-progress-bar" style={{ width: `${(counter / 200) * 100}%` }} />
               </div>
               <span className="lp-waitlist-label">{counter} / 200 founding spots claimed</span>
+            </div>
+            <div className="lp-hero-expansion-stack" style={{ marginTop: 14, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+              <span className="lp-hero-expansion-text">Not from Park Street?</span>
+              <button
+                type="button"
+                onClick={() => setSocietyModalOpen(true)}
+                className="lp-hero-expansion-link"
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+              >
+                &rarr; Register your society for the next launch
+              </button>
             </div>
           </div>
 
@@ -548,6 +577,114 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {societyModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="society-modal-title"
+          onClick={() => setSocietyModalOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 500,
+            background: "rgba(7, 18, 31, 0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              background: "#fff",
+              borderRadius: 20,
+              padding: 20,
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.25)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 16 }}>
+              <div>
+                <div className="lp-sub-label" style={{ marginBottom: 8 }}>Society launch request</div>
+                <h3 id="society-modal-title" style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "#0C1B2E" }}>Register your society</h3>
+              </div>
+              <button
+                type="button"
+                aria-label="Close society request form"
+                onClick={() => setSocietyModalOpen(false)}
+                style={{ background: "none", border: "none", fontSize: 20, lineHeight: 1, cursor: "pointer", color: "#5C6E84" }}
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={submitSocietyRequest} style={{ display: "grid", gap: 12 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0C1B2E" }}>Society name</span>
+                <input
+                  value={societyForm.societyName}
+                  onChange={(event) => setSocietyForm((current) => ({ ...current, societyName: event.target.value }))}
+                  required
+                  placeholder="Green Valley Residency"
+                  style={{ width: "100%", border: "1px solid rgba(12,27,46,0.14)", borderRadius: 12, padding: "12px 14px", font: "inherit" }}
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0C1B2E" }}>Area</span>
+                <input
+                  value={societyForm.area}
+                  onChange={(event) => setSocietyForm((current) => ({ ...current, area: event.target.value }))}
+                  required
+                  placeholder="Park Street"
+                  style={{ width: "100%", border: "1px solid rgba(12,27,46,0.14)", borderRadius: 12, padding: "12px 14px", font: "inherit" }}
+                />
+              </label>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#0C1B2E" }}>City</span>
+                  <input
+                    value={societyForm.city}
+                    onChange={(event) => setSocietyForm((current) => ({ ...current, city: event.target.value }))}
+                    required
+                    placeholder="Pune"
+                    style={{ width: "100%", border: "1px solid rgba(12,27,46,0.14)", borderRadius: 12, padding: "12px 14px", font: "inherit" }}
+                  />
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#0C1B2E" }}>Pin code</span>
+                  <input
+                    value={societyForm.pinCode}
+                    onChange={(event) => setSocietyForm((current) => ({ ...current, pinCode: event.target.value }))}
+                    required
+                    inputMode="numeric"
+                    placeholder="411057"
+                    style={{ width: "100%", border: "1px solid rgba(12,27,46,0.14)", borderRadius: 12, padding: "12px 14px", font: "inherit" }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+                <button type="button" onClick={() => setSocietyModalOpen(false)} className="lp-btn-secondary" style={{ padding: "11px 18px", fontSize: 14 }}>
+                  Cancel
+                </button>
+                <button type="submit" className="lp-btn-primary" style={{ padding: "11px 18px", fontSize: 14 }}>
+                  Send to admin
+                </button>
+              </div>
+
+              <div style={{ fontSize: 12, color: "#5C6E84", lineHeight: 1.5 }}>
+                This will open an email draft to {adminEmail} with the society details prefilled.
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── FAQ ── */}
       <section id="faq" className="lp-faq-section" style={{ padding: `clamp(40px,6vw,64px) ${px}` }}>
