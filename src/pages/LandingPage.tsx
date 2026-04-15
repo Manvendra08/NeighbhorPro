@@ -279,7 +279,7 @@ export default function LandingPage() {
                 type="button"
                 onClick={() => setSocietyModalOpen(true)}
                 className="lp-hero-expansion-link"
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+                style={{ marginTop: 4, cursor: "pointer", textAlign: "left" }}
               >
                 &rarr; Register your society for the next launch
               </button>

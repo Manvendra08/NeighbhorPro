@@ -2,7 +2,14 @@ import { useState, useRef } from "react";
 import { createFeedPost } from "../../services/firestoreService";
 import EmojiPicker from "./EmojiPicker";
 
-export default function FeedComposer({ uid, displayName, locality }: { uid: string; displayName: string; locality?: string }) {
+export default function FeedComposer({ uid, displayName, locality, tower, society, authorPhotoURL }: {
+  uid: string;
+  displayName: string;
+  locality?: string;
+  tower?: string;
+  society?: string;
+  authorPhotoURL?: string;
+}) {
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -12,7 +19,15 @@ export default function FeedComposer({ uid, displayName, locality }: { uid: stri
     if (!text.trim() || posting) return;
     setPosting(true);
     try {
-      await createFeedPost({ authorId: uid, authorName: displayName, content: text.trim(), locality });
+      await createFeedPost({
+        authorId: uid,
+        authorName: displayName,
+        authorPhotoURL,
+        content: text.trim(),
+        locality,
+        tower,
+        society,
+      });
       setText(""); setShowEmoji(false);
     } finally { setPosting(false); }
   };

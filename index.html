@@ -37,23 +37,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-
-    <!-- Register service worker only in production. -->
-    <script type="module">
-      if (!('serviceWorker' in navigator)) {
-        // Browser doesn't support service workers.
-      } else if (import.meta.env.PROD) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker
-            .register('/sw.js')
-            .catch((err) => console.warn('SW registration failed:', err));
-        });
-      } else {
-        // In dev, clear any previously registered SW to avoid Vite/HMR conflicts.
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          registrations.forEach((registration) => registration.unregister());
-        });
-      }
-    </script>
   </body>
 </html>

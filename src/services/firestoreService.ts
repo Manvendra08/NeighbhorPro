@@ -937,7 +937,13 @@ export function formatTimestampTime(ts: unknown): string {
    LOCAL FEED
 ═══════════════════════════════════════════ */
 export async function createFeedPost(data: {
-  authorId: string; authorName: string; content: string; locality?: string; tower?: string;
+  authorId: string;
+  authorName: string;
+  authorPhotoURL?: string;
+  content: string;
+  locality?: string;
+  society?: string;
+  tower?: string;
 }) {
   const ref = await addDoc(collection(db, "localFeed"), {
     ...data,
@@ -1000,8 +1006,8 @@ export async function reportFeedPost(
   return { success: true };
 }
 
-/** Toggle a reaction (❤️ or 👍) on a feed post. */
-export async function toggleReactionToFeedPost(postId: string, uid: string, type: "heart" | "thumb") {
+/** Toggle a reaction (👏 or 👍) on a feed post. */
+export async function toggleReactionToFeedPost(postId: string, uid: string, type: "clap" | "thumb") {
   const postRef = doc(db, "localFeed", postId);
 
   await runTransaction(db, async tx => {

@@ -35,6 +35,9 @@ export default function MobileDashboard({
   const uid = user!.uid as string;
   const displayName = (userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "User";
   const locality = (userProfile as { locality?: string } | null)?.locality;
+  const tower = (userProfile as { tower?: string } | null)?.tower;
+  const society = (userProfile as { society?: string } | null)?.society;
+  const authorPhotoURL = (userProfile as { photoURL?: string } | null)?.photoURL;
 
   const [posts, setPosts] = useState<Record<string, unknown>[]>([]);
 
@@ -129,6 +132,17 @@ export default function MobileDashboard({
         </div>
       )}
 
+      <div style={{ padding: "0 12px 16px" }}>
+        <FeedComposer
+          uid={uid}
+          displayName={displayName}
+          locality={locality}
+          tower={tower}
+          society={society}
+          authorPhotoURL={authorPhotoURL}
+        />
+      </div>
+
       {/* Action cards (Upcoming + Pro Requests) */}
       {!loading && (upcomingBookings.length > 0 || proBookings.length > 0) && (
         <div style={{ padding: "0 12px 16px" }}>
@@ -180,11 +194,6 @@ export default function MobileDashboard({
             <FeedPostCard key={p.id as string} post={p} uid={uid} onDelete={handleDelete} />
           ))
         )}
-      </div>
-
-      {/* Composer at bottom */}
-      <div style={{ padding: "0 12px 24px" }}>
-        <FeedComposer uid={uid} displayName={displayName} locality={locality} />
       </div>
 
       {/* Browse CTA */}

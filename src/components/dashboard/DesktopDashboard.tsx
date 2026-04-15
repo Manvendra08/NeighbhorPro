@@ -37,6 +37,9 @@ export default function DesktopDashboard({
   const uid = user!.uid as string;
   const displayName = (userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "User";
   const locality = (userProfile as { locality?: string } | null)?.locality;
+  const tower = (userProfile as { tower?: string } | null)?.tower;
+  const society = (userProfile as { society?: string } | null)?.society;
+  const authorPhotoURL = (userProfile as { photoURL?: string } | null)?.photoURL;
 
   const [posts, setPosts] = useState<Record<string, unknown>[]>([]);
 
@@ -134,6 +137,16 @@ export default function DesktopDashboard({
             </div>
           )}
 
+          {/* Composer */}
+          <FeedComposer
+            uid={uid}
+            displayName={displayName}
+            locality={locality}
+            tower={tower}
+            society={society}
+            authorPhotoURL={authorPhotoURL}
+          />
+
           {/* Feed Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--text)" }}>
@@ -156,9 +169,6 @@ export default function DesktopDashboard({
               ))
             )}
           </div>
-
-          {/* Composer at BOTTOM */}
-          <FeedComposer uid={uid} displayName={displayName} locality={locality} />
         </div>
 
         {/* RIGHT SIDEBAR */}

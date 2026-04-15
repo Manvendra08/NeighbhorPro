@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { toggleReactionToFeedPost } from "../../services/firestoreService";
 import { relativeTime } from "../../utils/time";
 import ReportModal from "./ReportModal";
 
-type ReactionType = "heart" | "thumb";
+type ReactionType = "heart" | "clap" | "thumb";
 type FeedReactions = Record<string, ReactionType>;
 
 export default function FeedPostCard({ post, uid, onDelete }: {
@@ -15,8 +16,9 @@ export default function FeedPostCard({ post, uid, onDelete }: {
   const isOwn = (post.authorId as string) === uid;
   const isHidden = post.hidden === true;
   const reactions = ((post.reactions as FeedReactions | undefined) ?? {}) as FeedReactions;
-  const userReaction = reactions[uid];
-  const heartCount = Object.values(reactions).filter((reaction) => reaction === "heart").length;
+  const userReactionRaw = reactions[uid];
+  const userReaction = userReactionRaw === "heart" ? "clap" : userReactionRaw;
+  const clapCount = Object.values(reactions).filter((reaction) => reaction === "clap" || reaction === "heart").length;
   const thumbCount = Object.values(reactions).filter((reaction) => reaction === "thumb").length;
 
   useEffect(() => {
@@ -29,6 +31,12 @@ export default function FeedPostCard({ post, uid, onDelete }: {
   if (isHidden && !isOwn) return null; // Hide reported posts from others
 
   const initials = ((post.authorName as string) || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const authorPhotoURL = (post.authorPhotoURL as string) || "";
+  const authorId = (post.authorId as string) || "";
+  const authorSociety = (post.society as string) || "";
+  const authorTower = (post.tower as string) || "";
+  const locationParts = [authorSociety, authorTower].filter(Boolean);
+  const profileHref = authorId ? `/profile/${authorId}` : "/account?tab=profile";
 
   return (
     <>
@@ -46,11 +54,29 @@ export default function FeedPostCard({ post, uid, onDelete }: {
             width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
             background: "linear-gradient(135deg, var(--accent-dim), var(--surface-2))",
             color: "var(--accent)", fontWeight: 700, fontSize: 13,
-          }}>{initials}</div>
+          }}>
+            {authorPhotoURL ? (
+              <img
+                src={authorPhotoURL}
+                alt=""
+                loading="lazy"
+                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+              />
+            ) : initials}
+          </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>
+            <Link
+              to={profileHref}
+              style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", textDecoration: "none" }}
+              title="View profile"
+            >
               {(post.authorName as string) || "Neighbor"}
-            </div>
+            </Link>
+            {locationParts.length > 0 && (
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>
+                🏢 {locationParts.join(" · ")}
+              </div>
+            )}
             <div style={{ fontSize: 11, color: "var(--muted)" }}>{relativeTime(post.createdAt)}</div>
           </div>
           {/* Context menu */}
@@ -99,18 +125,18 @@ export default function FeedPostCard({ post, uid, onDelete }: {
         <div style={{ display: "flex", gap: 20, marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(0,0,0,0.03)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button
-              onClick={() => toggleReactionToFeedPost(post.id as string, uid, "heart")}
+              onClick={() => toggleReactionToFeedPost(post.id as string, uid, "clap")}
               style={{
                 display: "flex", alignItems: "center", gap: 5, border: "none",
-                cursor: "pointer", fontSize: 13, color: userReaction === "heart" ? "#E0245E" : "var(--muted)",
+                cursor: "pointer", fontSize: 13, color: userReaction === "clap" ? "#C26C07" : "var(--muted)",
                 transition: "transform 0.1s", padding: "4px 8px", borderRadius: 8,
-                background: userReaction === "heart" ? "rgba(224,36,94,0.08)" : "transparent",
+                background: userReaction === "clap" ? "rgba(194,108,7,0.12)" : "transparent",
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = userReaction === "heart" ? "rgba(224,36,94,0.12)" : "var(--surface-2)")}
-              onMouseLeave={e => (e.currentTarget.style.background = userReaction === "heart" ? "rgba(224,36,94,0.08)" : "transparent")}
+              onMouseEnter={e => (e.currentTarget.style.background = userReaction === "clap" ? "rgba(194,108,7,0.18)" : "var(--surface-2)")}
+              onMouseLeave={e => (e.currentTarget.style.background = userReaction === "clap" ? "rgba(194,108,7,0.12)" : "transparent")}
             >
-              <span>{userReaction === "heart" ? "❤️" : "🤍"}</span>
-              <span style={{ fontWeight: 600 }}>{heartCount}</span>
+              <span>👏</span>
+              <span style={{ fontWeight: 600 }}>{clapCount}</span>
             </button>
 
             <button
