@@ -87,6 +87,18 @@ export const ServiceSchema = z.object({
 
 export type ServiceInput = z.infer<typeof ServiceSchema>;
 
+export const AdminServiceUpdateSchema = z.object({
+  title: z.string().min(3).max(100).optional(),
+  description: z.string().max(500).optional(),
+  category: z.string().min(1).optional(),
+  price: z.number().nonnegative().optional(),
+  isFree: z.boolean().optional(),
+  duration: z.string().optional(),
+  adminNotes: z.string().max(1000).optional(),
+});
+
+export type AdminServiceUpdateInput = z.infer<typeof AdminServiceUpdateSchema>;
+
 // ── Activity Schema ───────────────────────────────────────────────────────────
 export const ActivitySchema = z.object({
   uid: z.string().min(1, "User ID required"),

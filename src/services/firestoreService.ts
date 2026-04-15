@@ -529,6 +529,17 @@ export async function getAllServices(
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
 }
+export async function getAllServicesUnpaginated(): Promise<Record<string, unknown>[]> {
+  const all: Record<string, unknown>[] = [];
+  let cursor: QueryDocumentSnapshot | null = null;
+  while (true) {
+    const { data, nextCursor } = await getAllServices(200, cursor);
+    all.push(...data);
+    if (!nextCursor) break;
+    cursor = nextCursor;
+  }
+  return all;
+}
 export async function updateService(id: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, "services", id), { ...data, updatedAt: serverTimestamp() });
 }
@@ -676,6 +687,16 @@ export async function getProAvailability(proId: string) {
 export async function getPlatformSettings(): Promise<Record<string, unknown>> {
   const snap = await getDoc(doc(db, "config", "platformSettings"));
   return snap.exists() ? (snap.data() as Record<string, unknown>) : {};
+}
+export async function updatePlatformCategories(categories: string[]): Promise<void> {
+  await setDoc(
+    doc(db, "config", "platformSettings"),
+    {
+      serviceCategories: categories,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }
 export async function updateProAvailability(proId: string, availabilityData: Record<string, unknown>) {
   await setDoc(doc(db, "proAvailability", proId), { ...availabilityData, updatedAt: serverTimestamp() }, { merge: true });

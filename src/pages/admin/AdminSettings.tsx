@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
@@ -44,7 +45,6 @@ export default function AdminSettings() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [dirty, setDirty] = useState(false);
   const [showMaintModal, setShowMaintModal] = useState(false);
-  const [newServiceCategory, setNewServiceCategory] = useState("");
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
@@ -132,21 +132,6 @@ export default function AdminSettings() {
   );
 
   if (loading) return <div style={{ textAlign: "center", padding: 80 }}><div className="loader" style={{ margin: "0 auto" }} /></div>;
-
-  const addServiceCategory = () => {
-    const next = newServiceCategory.trim();
-    if (!next) return;
-    if (settings.serviceCategories.includes(next)) {
-      showToast("Category already exists", false);
-      return;
-    }
-    set("serviceCategories", [...settings.serviceCategories, next]);
-    setNewServiceCategory("");
-  };
-
-  const removeServiceCategory = (category: string) => {
-    set("serviceCategories", settings.serviceCategories.filter((item) => item !== category));
-  };
 
   return (
     <div>
@@ -244,39 +229,12 @@ export default function AdminSettings() {
 
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 8 }}>🧩 Service Categories</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 12 }}>
-              These categories are used on Landing, Browse Pros, and Profile service dropdown.
+            <p className="text-muted text-sm" style={{ marginBottom: 8 }}>
+              Service categories are managed on the Service Management page.
             </p>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <input
-                className="form-input"
-                placeholder="Add new category"
-                value={newServiceCategory}
-                onChange={(event) => setNewServiceCategory(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addServiceCategory();
-                  }
-                }}
-              />
-              <button className="btn btn-secondary btn-sm" onClick={addServiceCategory}>Add</button>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {settings.serviceCategories.map((category) => (
-                <span key={category} className="badge badge-muted" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  {category}
-                  <button
-                    type="button"
-                    onClick={() => removeServiceCategory(category)}
-                    style={{ border: "none", background: "transparent", cursor: "pointer", color: "inherit", fontWeight: 700, padding: 0, lineHeight: 1 }}
-                    aria-label={`Remove ${category}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
+            <Link to="/admin/services" className="btn btn-secondary btn-sm" style={{ display: "inline-flex" }}>
+              Open Service Management
+            </Link>
           </div>
         </div>
       </div>

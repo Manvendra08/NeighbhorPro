@@ -6,7 +6,28 @@ import { captureAuditEvent, type AuditMetadata } from "../../services/auditServi
 
 type LogEntry = Record<string, unknown>;
 
-const ACTION_TYPES = ["All", "user.disable", "user.enable", "user.delete", "user.role_change", "society.create", "society.delete", "broadcast.send", "ticket.close", "settings.update", "service.approve", "service.reject", "review.delete"];
+const ACTION_TYPES = [
+  "All",
+  "user.disable",
+  "user.enable",
+  "user.delete",
+  "user.role_change",
+  "society.create",
+  "society.delete",
+  "broadcast.send",
+  "ticket.close",
+  "settings.update",
+  "service.approve",
+  "service.reject",
+  "service.delete",
+  "service.edit",
+  "service.bulk_featured",
+  "category.add",
+  "category.remove",
+  "category.rename",
+  "category.reset",
+  "review.delete",
+];
 
 export async function logAudit(
   action: string,

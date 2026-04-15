@@ -132,7 +132,13 @@ export interface Service {
   isFree: boolean;
   duration: string;
   category: string;
+  status?: "pending" | "approved" | "featured" | "rejected";
+  moderationReason?: string;
+  moderatedBy?: string;
+  moderatedAt?: unknown;
+  adminNotes?: string;
   createdAt: unknown;
+  updatedAt?: unknown;
 }
 
 // ── Transaction ───────────────────────────────────────────────────────────────
