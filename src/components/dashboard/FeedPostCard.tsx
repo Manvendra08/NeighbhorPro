@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { toggleReactionToFeedPost } from "../../services/firestoreService";
+import { getPublicProfile } from "../../services/firestoreService";
 import { relativeTime } from "../../utils/time";
 import ReportModal from "./ReportModal";
 
@@ -20,6 +21,7 @@ export default function FeedPostCard({ post, uid, onDelete }: {
   const userReaction = userReactionRaw === "heart" ? "clap" : userReactionRaw;
   const clapCount = Object.values(reactions).filter((reaction) => reaction === "clap" || reaction === "heart").length;
   const thumbCount = Object.values(reactions).filter((reaction) => reaction === "thumb").length;
+  const [fallbackProfile, setFallbackProfile] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -28,13 +30,36 @@ export default function FeedPostCard({ post, uid, onDelete }: {
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
 
+  useEffect(() => {
+    const authorId = (post.authorId as string) || "";
+    if (!authorId) return;
+
+    const hasPhoto = Boolean((post.authorPhotoURL as string) || "");
+    const hasSociety = Boolean((post.society as string) || "");
+    const hasTower = Boolean((post.tower as string) || "");
+    if (hasPhoto && hasSociety && hasTower) return;
+
+    let active = true;
+    getPublicProfile(authorId)
+      .then((profile) => {
+        if (active) setFallbackProfile(profile);
+      })
+      .catch(() => {
+        if (active) setFallbackProfile(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [post.authorId, post.authorPhotoURL, post.society, post.tower]);
+
   if (isHidden && !isOwn) return null; // Hide reported posts from others
 
   const initials = ((post.authorName as string) || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const authorPhotoURL = (post.authorPhotoURL as string) || "";
+  const authorPhotoURL = (post.authorPhotoURL as string) || (fallbackProfile?.photoURL as string) || "";
   const authorId = (post.authorId as string) || "";
-  const authorSociety = (post.society as string) || "";
-  const authorTower = (post.tower as string) || "";
+  const authorSociety = (post.society as string) || (fallbackProfile?.society as string) || "";
+  const authorTower = (post.tower as string) || (fallbackProfile?.tower as string) || "";
   const locationParts = [authorSociety, authorTower].filter(Boolean);
   const profileHref = authorId ? `/pro/${authorId}` : "/browse";
 
