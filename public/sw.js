@@ -1,7 +1,7 @@
 // ProNeighbor Service Worker
 // Caches app shell for offline/fast load. Dynamic data always fetches fresh.
 
-const CACHE_NAME = 'proneighbor-v2';
+const CACHE_NAME = 'proneighbor-v3-20260415';
 
 // App shell files to pre-cache.
 const PRECACHE = [
