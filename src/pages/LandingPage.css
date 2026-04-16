@@ -571,7 +571,8 @@
 
 .lp-early-cta-row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 14px;
   margin-top: 10px;
 }
@@ -583,6 +584,7 @@
 .lp-early-cta-btn {
   flex-shrink: 0;
   white-space: nowrap;
+  align-self: flex-start;
   margin-top: 0 !important;
 }
 
@@ -1118,7 +1120,7 @@
   padding: 8px 12px 0;
   overflow-x: auto;
   flex-shrink: 0;
-  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .app-chips::-webkit-scrollbar { display: none; }
 

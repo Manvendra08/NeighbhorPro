@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./LandingPage.css";
 import { getPlatformSettings } from "../services/firestoreService";
-import { DEFAULT_SERVICE_CATEGORIES, SERVICE_CATEGORY_ICONS, normalizeServiceCategories } from "../constants/serviceCatalog";
+import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../constants/serviceCatalog";
 
 function useIsMobile() {
   const [m, setM] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 768 : false));
@@ -166,7 +166,7 @@ export default function LandingPage() {
       ],
     },
   ];
-  void serviceGroups;
+  const groupTagIcons: Record<string, string> = { recurring: "🔄", home: "🏠", office: "💼", business: "🛍️" };
 
   const residentSteps = [
     ["01", "🏠", "Join Your Society", "Sign up with your society code. Only genuine residents and pros get in."],
@@ -503,21 +503,40 @@ export default function LandingPage() {
       <section id="categories" style={{ background: "#F4F7FB", padding: `clamp(40px,6vw,64px) ${px}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Tag>Service Categories</Tag>
-          <h2 className="lp-section-h2">30+ categories, all inside your gates.</h2>
+          <h2 className="lp-section-h2">20+ categories, all inside your gates.</h2>
           <p className="lp-section-p">From tax filing to yoga — your society has more talent than you think.</p>
-          <div className="lp-cat-group lp-reveal" style={{ marginTop: 32 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <h3 className="lp-cat-group-heading">Live Service Categories</h3>
-            </div>
-            <p className="lp-cat-group-subtitle">These categories stay in sync with Browse and Profile service selection.</p>
-            <div className="lp-cat-grid" style={{ gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 8 : 14 }}>
-              {serviceCategories.map((label) => (
-                <div key={label} className="lp-cat-card" style={{ opacity: 1, transform: "none" }}>
-                  <span style={{ fontSize: isMobile ? "1.2rem" : "1.4rem" }}>{SERVICE_CATEGORY_ICONS[label] || "✨"}</span>
-                  <span style={{ fontSize: "clamp(0.78rem,2.5vw,0.88rem)", fontWeight: 600, color: "#0C1B2E" }}>{label}</span>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 28 : 36, marginTop: 32 }}>
+            {serviceGroups.map((group) => (
+              <div key={group.tag} className="lp-cat-group lp-reveal" style={{ position: "relative" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                  <span style={{ fontSize: "1.1rem" }}>{groupTagIcons[group.tag] || "✨"}</span>
+                  <h3 className="lp-cat-group-heading">{group.heading}</h3>
+                  {group.comingSoon && <span className="lp-coming-soon">Coming Soon</span>}
                 </div>
-              ))}
-            </div>
+                <p className="lp-cat-group-subtitle">{group.subtitle}</p>
+                <div
+                  className="lp-cat-grid"
+                  style={{
+                    gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(${Math.min(group.items.length, 4)}, 1fr)`,
+                    gap: isMobile ? 8 : 14,
+                  }}
+                >
+                  {group.items
+                    .filter((item) => group.comingSoon || serviceCategories.includes(item.label))
+                    .map((item) => (
+                      <div
+                        key={item.label}
+                        className={`lp-cat-card${group.comingSoon ? " lp-cat-card--dim" : ""}`}
+                        style={{ opacity: 1, transform: "none" }}
+                      >
+                        <span style={{ fontSize: isMobile ? "1.2rem" : "1.4rem" }}>{item.icon}</span>
+                        <span style={{ fontSize: "clamp(0.78rem,2.5vw,0.88rem)", fontWeight: 600, color: "#0C1B2E" }}>{item.label}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
