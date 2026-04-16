@@ -65,10 +65,82 @@
 [data-theme="dark"] .btn-ghost:hover { background: rgba(255,255,255,0.05); }
 [data-theme="dark"] .error-box { background: rgba(255,92,92,0.1); }
 
+/* Admin users page */
+[data-theme="dark"] .au-toast { box-shadow: 0 12px 28px rgba(0,0,0,0.45); }
+[data-theme="dark"] .au-stat-card,
+[data-theme="dark"] .au-table-container,
+[data-theme="dark"] .au-verify-card,
+[data-theme="dark"] .au-role-modal,
+[data-theme="dark"] .au-delete-modal,
+[data-theme="dark"] .au-add-modal,
+[data-theme="dark"] .au-drawer,
+[data-theme="dark"] .au-actions__dropdown { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .au-table--striped tbody tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+[data-theme="dark"] .au-table tbody tr:hover td { background: rgba(255,255,255,0.04); }
+[data-theme="dark"] .au-verify-card__proof-thumb,
+[data-theme="dark"] .au-actions__trigger { background: var(--surface-2); border-color: var(--border); }
+[data-theme="dark"] .au-toolbar__tabs .tab { background: var(--surface); border-color: var(--border); color: var(--text-2); }
+[data-theme="dark"] .au-toolbar__tabs .tab.active { background: rgba(42,143,173,0.18); border-color: var(--accent); color: var(--accent); }
+
+/* Dashboard redesign */
+[data-theme="dark"] .db-greeting {
+  background:
+    radial-gradient(circle at top right, rgba(232, 107, 72, 0.18), transparent 32%),
+    linear-gradient(135deg, rgba(18, 31, 45, 0.96), rgba(24, 46, 60, 0.92));
+  border-color: rgba(42, 143, 173, 0.22);
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.34);
+}
+
+[data-theme="dark"] .db-section,
+[data-theme="dark"] .db-quick-actions__item,
+[data-theme="dark"] .db-stats-card,
+[data-theme="dark"] .db-pipeline__card,
+[data-theme="dark"] .db-pipeline__empty,
+[data-theme="dark"] .db-performance__meta,
+[data-theme="dark"] .db-profile-nudge__ring-center,
+[data-theme="dark"] .db-recommended__item,
+[data-theme="dark"] .db-feed-empty {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .db-week-strip__day,
+[data-theme="dark"] .db-pipeline__col,
+[data-theme="dark"] .db-category-chips__item,
+[data-theme="dark"] .db-pipeline__tab span {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .db-stats-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), var(--surface));
+}
+
+[data-theme="dark"] .db-week-strip__day--today {
+  background: linear-gradient(180deg, rgba(42, 143, 173, 0.22), rgba(42, 143, 173, 0.1));
+  border-color: rgba(42, 143, 173, 0.24);
+}
+
+[data-theme="dark"] .db-profile-nudge {
+  background: linear-gradient(135deg, rgba(224, 168, 48, 0.14), rgba(42, 143, 173, 0.12));
+  border-color: rgba(224, 168, 48, 0.24);
+}
+
+[data-theme="dark"] .db-rebook-banner {
+  background: linear-gradient(135deg, rgba(42, 143, 173, 0.12), rgba(232, 107, 72, 0.12));
+}
+
+[data-theme="dark"] .db-recommended__why,
+[data-theme="dark"] .db-pipeline__tab.is-active {
+  background: rgba(42, 143, 173, 0.18);
+}
+
+[data-theme="dark"] .db-feed-empty {
+  border-style: dashed;
+}
+
 /* Smooth theme transition */
 body, .card, .stat-card, .topbar, .sidebar, .mobile-header, .mobile-tab-bar,
 .form-input, .table-wrap, .modal, .user-dropdown, .pro-card, .btn {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.1s ease;
 }
-
-

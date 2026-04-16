@@ -10,9 +10,23 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     function noSensitiveFieldChange() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"]);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role", "coinBalance", "fcmToken", "disabled"]);
     }
-    // Validates a coinLedger entry written by the client (Path A — Spark plan).
+    
+    // Check missing fields and types for base user document
+    function validUserDoc() {
+      let data = request.resource.data;
+      return (data.displayName is string && data.displayName.size() <= 100)
+          && (data.email is string)
+          && (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000))
+          && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20));
+    }
+    // Check if the user is writing too fast (spammer protection).
+    // Note: requires the document being updated/created to include an updatedAt / createdAt field matching request.time.
+    function rateLimitPassed(collectionName) {
+      return !exists(/databases/$(database)/documents/activityRateLimits/$(request.auth.uid)) ||
+             request.time > get(/databases/$(database)/documents/activityRateLimits/$(request.auth.uid)).data.lastWrite + duration.value(2, 's');
+    }
     // Enforces: uid matches auth, amount is an integer, balanceAfter is non-negative.
     function validLedgerEntry(uid) {
       return request.resource.data.uid == uid
@@ -22,7 +36,7 @@ service cloud.firestore {
           'booking_escrow_release', 'payout', 'payout_cancelled',
           'earn_review', 'earn_referral', 'earn_free_consult', 'earn_profile',
           'earn_milestone', 'earn_groupsession', 'earn_ondemand', 'earn_signup_bonus',
-          'loyalty_cashback', 'pro_loyalty_bonus', 'admin_credit', 'admin_debit'
+          'admin_credit', 'admin_debit'
         ]
         && request.resource.data.type is string
         && request.resource.data.description is string
@@ -64,7 +78,7 @@ service cloud.firestore {
       // All other callers must read from /publicProfiles/{userId} instead.
       allow get:    if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list:   if isAdmin();
-      allow create: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && validUserDoc();
       allow update: if isSignedIn() && (
         (isOwner(userId) && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'residentVerificationStatus', 'verificationMethod']) ||
@@ -80,7 +94,7 @@ service cloud.firestore {
           request.resource.data.coinBalance > resource.data.coinBalance &&
           request.resource.data.coinBalance <= resource.data.coinBalance + 100 // Sanity check max reward
         )
-      ) && noSensitiveFieldChange();
+      ) && (!isOwner(userId) || validUserDoc()) && noSensitiveFieldChange();
       allow delete: if isAdmin();
     }
 
@@ -97,34 +111,24 @@ service cloud.firestore {
 
     match /services/{serviceId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() 
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 100
+        && request.resource.data.category is string
+        && request.resource.data.description is string;
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /bookings/{bookingId} {
       allow read: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.clientId != request.resource.data.proId;
+      allow create: if isSignedIn()
+        && request.resource.data.clientId != request.resource.data.proId
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.escrowCoins >= 0;
       allow update: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
-    }
-
-    match /loyaltyStreaks/{streakId} {
-      allow list: if isSignedIn() && (
-        resource.data.clientId == request.auth.uid ||
-        resource.data.proId == request.auth.uid ||
-        isAdmin()
-      );
-      allow get: if isSignedIn() && (
-        resource == null ||
-        resource.data.clientId == request.auth.uid ||
-        resource.data.proId == request.auth.uid ||
-        isAdmin()
-      );
-      allow create, update: if isSignedIn() && (
-        request.resource.data.clientId == request.auth.uid ||
-        request.resource.data.proId == request.auth.uid ||
-        isAdmin()
-      );
-      allow delete: if isAdmin();
     }
 
     // FIX 2: Restored status == 'completed' guard to prevent review fabrication

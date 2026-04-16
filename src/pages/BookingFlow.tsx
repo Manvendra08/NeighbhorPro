@@ -7,8 +7,6 @@ import {
 } from "../services/firestoreService";
 import { holdEscrow } from "../services/coinService";
 import { logActivity } from "../services/activityService";
-import LoyaltyStreakWidget from "../components/LoyaltyStreakWidget";
-import { getLoyaltyPreview, type LoyaltyPreview } from "../services/loyaltyService";
 
 export default function BookingFlow() {
   const { id: proId } = useParams<{ id: string }>();
@@ -34,7 +32,6 @@ export default function BookingFlow() {
   const [checkingAvail, setCA] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [selectedCat, setCat] = useState<string>("All");
-  const [loyaltyPreview, setLoyaltyPreview] = useState<LoyaltyPreview | null>(null);
 
   const preselectedServiceId = searchParams.get("serviceId");
   const rebookDate = searchParams.get("date") ?? "";
@@ -93,17 +90,6 @@ export default function BookingFlow() {
     if (!rebookTimeSlot || timeSlot || availableSlots.length === 0) return;
     if (availableSlots.includes(rebookTimeSlot)) setTS(rebookTimeSlot);
   }, [availableSlots, rebookTimeSlot, timeSlot]);
-
-  useEffect(() => {
-    if (!user?.uid || !proId || !selectedSvc) {
-      setLoyaltyPreview(null);
-      return;
-    }
-    getLoyaltyPreview(user.uid, proId, ((selectedSvc.price as number) || 0))
-      .then(setLoyaltyPreview)
-      .catch(() => setLoyaltyPreview(null));
-  }, [user?.uid, proId, selectedSvc]);
-
 
   const isSelf = user?.uid === proId;
   const isFree = (selectedSvc?.price as number) === 0;
@@ -254,23 +240,7 @@ export default function BookingFlow() {
 
           {isRebookFlow && (
             <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "rgba(13,107,107,0.06)", border: "1px solid rgba(13,107,107,0.15)", color: "#0d6b6b", fontSize: "0.88rem" }}>
-              ↻ Quick re-book loaded with your previous service preferences. Confirm the next slot and keep your loyalty streak active.
-            </div>
-          )}
-
-          {loyaltyPreview && (
-            <div style={{ marginBottom: 16 }}>
-              <LoyaltyStreakWidget
-                streakCount={loyaltyPreview.streakCount}
-                tier={loyaltyPreview.tier}
-                cashbackPct={loyaltyPreview.cashbackPct}
-                cashbackCoins={loyaltyPreview.cashbackCoins}
-                nextTier={loyaltyPreview.nextTier}
-                bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
-                projected
-                title="Projected loyalty streak"
-                subtitle={`Current streak: ${loyaltyPreview.currentStreak} · Current tier: ${loyaltyPreview.currentTier}`}
-              />
+              ↻ Quick re-book loaded with your previous service preferences. Confirm next slot and continue.
             </div>
           )}
 
@@ -368,6 +338,19 @@ export default function BookingFlow() {
                     setAttachment(null);
                     return;
                   }
+                  
+                  const allowedTypes = [
+                    "image/jpeg", "image/png", "image/webp", "image/gif",
+                    "application/pdf", 
+                    "application/msword", 
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  ];
+                  if (!allowedTypes.includes(file.type)) {
+                    alert("Invalid file type. Only images, PDF, and Word documents are allowed.");
+                    e.target.value = "";
+                    setAttachment(null);
+                    return;
+                  }
                 }
                 setAttachment(file || null);
               }}
@@ -389,21 +372,6 @@ export default function BookingFlow() {
           {!isFree && (
             <div style={{ background: "rgba(27,107,138,0.06)", border: "1px solid rgba(27,107,138,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: "0.82rem", color: "#1B6B8A" }}>
               🔒 <strong>NC held securely.</strong> Payment is released to the pro only after the session is marked complete.
-            </div>
-          )}
-
-          {loyaltyPreview && (
-            <div style={{ marginBottom: 16 }}>
-              <LoyaltyStreakWidget
-                streakCount={loyaltyPreview.streakCount}
-                tier={loyaltyPreview.tier}
-                cashbackPct={loyaltyPreview.cashbackPct}
-                cashbackCoins={loyaltyPreview.cashbackCoins}
-                nextTier={loyaltyPreview.nextTier}
-                bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
-                compact
-                projected
-              />
             </div>
           )}
 
@@ -494,23 +462,6 @@ export default function BookingFlow() {
               </div>
             ))}
           </div>
-
-          {loyaltyPreview && (
-            <div style={{ marginBottom: 20, textAlign: "left" }}>
-              <LoyaltyStreakWidget
-                streakCount={loyaltyPreview.streakCount}
-                tier={loyaltyPreview.tier}
-                cashbackPct={loyaltyPreview.cashbackPct}
-                cashbackCoins={loyaltyPreview.cashbackCoins}
-                nextTier={loyaltyPreview.nextTier}
-                bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
-                compact
-                projected
-                title="Keep the streak alive"
-                subtitle="Rewards are credited after the session is completed on-platform."
-              />
-            </div>
-          )}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             {convId && (

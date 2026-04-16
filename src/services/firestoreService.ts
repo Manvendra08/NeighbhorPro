@@ -38,7 +38,7 @@ const PUBLIC_PROFILE_FIELDS = [
   'uid', 'displayName', 'photoURL', 'bio', 'skills', 'isServiceProvider',
   'rating', 'reviewCount', 'society', 'locality', 'tower',
   'residentVerificationStatus', 'hourlyRate', 'isFreeConsultation',
-  'priceAfterQuote', 'role', 'disabled', 'createdAt', 'highestLoyaltyTier',
+  'priceAfterQuote', 'role', 'disabled', 'createdAt',
   'emailVisible', 'phoneVisible', 'flatVisible',
 ] as const;
 

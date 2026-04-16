@@ -5,6 +5,8 @@ import { getAllServices, getPublicProfile, getServicesByUser } from "../services
 export const PROFILE_STALE_TIME = 5 * 60 * 1000;
 export const SERVICES_STALE_TIME = 2 * 60 * 1000;
 export const BALANCE_STALE_TIME = 30 * 1000;
+export const DASHBOARD_LEDGER_STALE_TIME = 60 * 1000;
+export const DASHBOARD_BOOKINGS_STALE_TIME = 30 * 1000;
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,6 +22,8 @@ export const queryKeys = {
   servicesByUser: (uid: string) => ["services", "user", uid] as const,
   allServices: (limit: number) => ["services", "all", limit] as const,
   coinBalance: (uid: string) => ["wallet", "balance", uid] as const,
+  dashboardLedger: (uid: string) => ["dashboard", "ledger", uid] as const,
+  dashboardUserBookings: (uid: string) => ["dashboard", "bookings", "user", uid] as const,
 };
 
 export function fetchCachedPublicProfile(uid: string) {

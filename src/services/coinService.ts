@@ -1,7 +1,7 @@
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
   serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc, startAfter,
-  Transaction, getAggregateFromServer, sum, count, type QueryConstraint, type DocumentSnapshot,
+  getAggregateFromServer, sum, count, type QueryConstraint, type DocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FirestoreTimestamp } from "../types/firestore";
@@ -11,7 +11,6 @@ export type LedgerType =
   | "booking_escrow_release" | "payout" | "payout_cancelled"
   | "earn_review" | "earn_referral" | "earn_free_consult" | "earn_profile"
   | "earn_milestone" | "earn_groupsession" | "earn_ondemand" | "earn_signup_bonus"
-  | "loyalty_cashback" | "pro_loyalty_bonus"
   | "admin_credit" | "admin_debit";
 
 export interface LedgerEntry {
@@ -86,88 +85,9 @@ export const EARN_RULES: Record<LedgerType, { coins: number; label: string }> = 
   booking_refund: { coins: 0, label: "Booking refund" },
   payout: { coins: 0, label: "Payout processed" },
   payout_cancelled: { coins: 0, label: "Payout cancelled" },
-  loyalty_cashback: { coins: 0, label: "Loyalty cashback" },
-  pro_loyalty_bonus: { coins: 0, label: "Loyalty pro bonus" },
   admin_credit: { coins: 0, label: "Admin credit" },
   admin_debit: { coins: 0, label: "Admin debit" },
 };
-
-async function queueLedgerCredit(tx: Transaction, params: {
-  uid: string;
-  entryId: string;
-  type: LedgerType;
-  amount: number;
-  description: string;
-  refId: string;
-}) {
-  const { uid, entryId, type, amount, description, refId } = params;
-  if (amount <= 0) return false;
-
-  const userRef = doc(db, "users", uid);
-  const entryRef = doc(collection(db, "coinLedger", uid, "entries"), entryId);
-  const existingEntry = await tx.get(entryRef);
-  if (existingEntry.exists()) return false;
-
-  const userSnap = await tx.get(userRef);
-  const newBal = ((userSnap.data()?.coinBalance as number) ?? 0) + amount;
-  tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
-  tx.set(entryRef, {
-    uid,
-    type,
-    amount,
-    balanceAfter: newBal,
-    description,
-    refId,
-    createdAt: serverTimestamp(),
-  } as LedgerEntry);
-  return true;
-}
-
-export async function queueLoyaltyCashbackCredit(
-  tx: Transaction,
-  uid: string,
-  bookingId: string,
-  amount: number,
-  serviceName = "session",
-) {
-  return queueLedgerCredit(tx, {
-    uid,
-    entryId: `${bookingId}_loyalty_cashback`,
-    type: "loyalty_cashback",
-    amount,
-    description: `Loyalty cashback for ${serviceName}`,
-    refId: bookingId,
-  });
-}
-
-export async function queueProLoyaltyBonusCredit(
-  tx: Transaction,
-  uid: string,
-  bookingId: string,
-  amount: number,
-  serviceName = "session",
-) {
-  return queueLedgerCredit(tx, {
-    uid,
-    entryId: `${bookingId}_pro_loyalty_bonus`,
-    type: "pro_loyalty_bonus",
-    amount,
-    description: `Loyalty bonus for ${serviceName}`,
-    refId: bookingId,
-  });
-}
-
-export async function creditLoyaltyCashback(uid: string, bookingId: string, amount: number, serviceName?: string): Promise<void> {
-  await runTransaction(db, async tx => {
-    await queueLoyaltyCashbackCredit(tx, uid, bookingId, amount, serviceName);
-  });
-}
-
-export async function creditProLoyaltyBonus(uid: string, bookingId: string, amount: number, serviceName?: string): Promise<void> {
-  await runTransaction(db, async tx => {
-    await queueProLoyaltyBonusCredit(tx, uid, bookingId, amount, serviceName);
-  });
-}
 
 // ── NC Terms (read from appSettings, fallback defaults) ──────────────────
 export interface NCTerms {

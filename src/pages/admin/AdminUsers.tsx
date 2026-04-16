@@ -19,7 +19,6 @@ import type { ActivityLog } from "../../services/activityService";
 
 type UserRow = Record<string, unknown>;
 type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verification";
-const ADMIN_VIEW_AS_KEY = "adminViewAsUid";
 
 export default function AdminUsers() {
   const { userProfile, user } = useAuth();
@@ -48,6 +47,7 @@ export default function AdminUsers() {
 
   const [queueRefreshTime, setQueueRefreshTime] = useState<Date | null>(null);
   const [queueLoading, setQueueLoading] = useState(false);
+  const [openMenuUid, setOpenMenuUid] = useState<string | null>(null);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -94,6 +94,19 @@ export default function AdminUsers() {
       void refreshQueue();
     }
   }, []);
+
+  useEffect(() => {
+    if (!openMenuUid) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!(event.target instanceof HTMLElement)) return;
+      if (event.target.closest(`[data-au-menu="${openMenuUid}"]`)) return;
+      setOpenMenuUid(null);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMenuUid]);
 
   const counts = {
     all: users.length,
@@ -322,17 +335,19 @@ export default function AdminUsers() {
   };
 
   const handleLoginAs = (u: UserRow) => {
-    sessionStorage.setItem(ADMIN_VIEW_AS_KEY, u.uid as string);
-    navigate("/account");
+    navigate("/account?viewAsUid=" + u.uid);
   };
 
-  const tabs: { key: FilterTab; label: string }[] = [
-    { key: "all", label: "All" }, { key: "active", label: "Active" },
-    { key: "disabled", label: "Disabled" }, { key: "admins", label: "Admins" },
-    { key: "pros", label: "Service Pros" }, { key: "verification", label: "📋 Verification" },
+  const tabs = [
+    { key: "all" as const, label: "All Users", shortLabel: "All", icon: "👥", accent: "var(--accent)", description: "Platform base" },
+    { key: "active" as const, label: "Active Users", shortLabel: "Active", icon: "✅", accent: "var(--success)", description: "Can sign in now" },
+    { key: "disabled" as const, label: "Disabled", shortLabel: "Disabled", icon: "⛔", accent: "var(--error)", description: "Blocked accounts" },
+    { key: "admins" as const, label: "Admins", shortLabel: "Admins", icon: "🛡", accent: "var(--warning)", description: "Full control access" },
+    { key: "pros" as const, label: "Service Pros", shortLabel: "Pros", icon: "⭐", accent: "var(--accent2)", description: "Marketplace professionals" },
+    { key: "verification" as const, label: "Verification Queue", shortLabel: "Verification", icon: "📋", accent: "#1d7499", description: "Pending residency proof" },
   ];
 
-  const openUserModal = async (u: UserRow) => {
+  const openUserModal = (u: UserRow) => {
     setSelectedUser(u);
     setShowActivity(false);
     setActivityLogs([]);
@@ -365,6 +380,26 @@ export default function AdminUsers() {
     return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
+  const exportUsers = () => {
+    const csv = ["Name,Email,Society,Role,Pro,Status"]
+      .concat(users.map((u: UserRow) => `"${u.displayName}","${u.email}","${u.society || ""}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`))
+      .join("\n");
+    const a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+    a.download = "users.csv";
+    a.click();
+  };
+
+  const getProofUrl = (u: UserRow) => (u.residencyProofUrl as string) || "";
+  const isPdfUrl = (url: string) => /\.pdf($|[?#])/i.test(url) || url.toLowerCase().includes("application/pdf");
+
+  const closeRoleModal = () => {
+    setShowRoleModal(false);
+    setRoleModalUser(null);
+    setRoleUnderstandsWarning(false);
+    setRoleNameConfirmation("");
+  };
+
   const handleConfirmRoleEscalation = async () => {
     if (!roleModalUser) return;
     
@@ -382,10 +417,7 @@ export default function AdminUsers() {
     }
     
     // Close modal first
-    setShowRoleModal(false);
-    setRoleModalUser(null);
-    setRoleUnderstandsWarning(false);
-    setRoleNameConfirmation("");
+    closeRoleModal();
     
     // Now perform the escalation
     await doAction(
@@ -396,63 +428,35 @@ export default function AdminUsers() {
     );
   };
 
-  const columnGroup = tab === "verification"
-    ? (
-      <colgroup>
-        <col style={{ width: "22%" }} />
-        <col style={{ width: "18%" }} />
-        <col style={{ width: "14%" }} />
-        <col style={{ width: "12%" }} />
-        <col style={{ width: "14%" }} />
-        <col style={{ width: "20%" }} />
-      </colgroup>
-    )
-    : (
-      <colgroup>
-        <col style={{ width: "18%" }} />
-        <col style={{ width: "18%" }} />
-        <col style={{ width: "14%" }} />
-        <col style={{ width: "10%" }} />
-        <col style={{ width: "8%" }} />
-        <col style={{ width: "12%" }} />
-        <col style={{ width: "10%" }} />
-        <col style={{ width: "10%" }} />
-      </colgroup>
-    );
+  const totalUsers = users.length || 1;
 
   return (
-    <div>
+    <div className="au-page">
       {toast && (
-        <div style={{
-          position: "fixed", top: 20, right: 24, zIndex: 9999,
-          background: toast.type === "success" ? "var(--success)" : "var(--error)",
-          color: "#fff", padding: "10px 20px", borderRadius: "var(--radius-sm)",
-          fontWeight: 600, fontSize: 13, boxShadow: "var(--shadow-lg)", animation: "dropIn 0.2s ease",
-        }} role="status" aria-live="polite" aria-atomic="true">{toast.msg}</div>
+        <div className={`au-toast au-toast--${toast.type}`} role="status" aria-live="polite" aria-atomic="true">
+          {toast.msg}
+        </div>
       )}
 
-
       {showRoleModal && roleModalUser && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 9998,
-        }}>
-          <div className="card" style={{ maxWidth: 420, padding: 20, borderRadius: "var(--radius-lg)" }}>
-            <h2 style={{ marginTop: 0, marginBottom: 12, fontSize: 18, fontWeight: 700 }}>Grant Admin Access</h2>
-            <div style={{ backgroundColor: "var(--warning-dim)", padding: 12, borderRadius: "var(--radius-sm)", marginBottom: 16, fontSize: 13 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--warning)" }}>⚠ Warning: Full Platform Access</div>
-              <div style={{ color: "var(--text)" }}>Admins can modify any user account, disable access, approve financial transactions, and access sensitive data. Grant carefully.</div>
+        <div className="au-role-modal-overlay" onClick={closeRoleModal}>
+          <div className="card au-role-modal" onClick={e => e.stopPropagation()}>
+            <h2>Grant Admin Access</h2>
+            <div className="au-role-modal__warning">
+              <div className="au-role-modal__warning-title">Warning: Full Platform Access</div>
+              <div>Admins can modify any user account, disable access, approve financial transactions, and access sensitive data. Grant carefully.</div>
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+            <div className="form-group">
+              <label className="au-role-modal__checkbox">
                 <input type="checkbox" checked={roleUnderstandsWarning} onChange={e => setRoleUnderstandsWarning(e.target.checked)} />
-                I understand the risks and want to proceed
+                <span>I understand risks and want to proceed</span>
               </label>
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500 }}>
-                Type user's name to confirm: <strong>{((roleModalUser.displayName as string) || (roleModalUser.email as string) || roleModalUser.uid as string)}</strong>
+            <div className="form-group">
+              <label className="form-label">
+                Type user name to confirm:
+                {" "}
+                <strong>{((roleModalUser.displayName as string) || (roleModalUser.email as string) || roleModalUser.uid as string)}</strong>
               </label>
               <input
                 type="text"
@@ -460,17 +464,13 @@ export default function AdminUsers() {
                 placeholder={((roleModalUser.displayName as string) || (roleModalUser.email as string) || roleModalUser.uid as string)}
                 value={roleNameConfirmation}
                 onChange={e => setRoleNameConfirmation(e.target.value)}
-                style={{ width: "100%", padding: "8px 12px", fontSize: 13 }}
               />
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="au-role-modal__actions">
               <button
                 className="btn btn-ghost btn-sm"
                 onClick={() => {
-                  setShowRoleModal(false);
-                  setRoleModalUser(null);
-                  setRoleUnderstandsWarning(false);
-                  setRoleNameConfirmation("");
+                  closeRoleModal();
                 }}
               >
                 Cancel
@@ -488,312 +488,378 @@ export default function AdminUsers() {
         </div>
       )}
 
-      <div className="page-header">
+      <div className="page-header au-page-header">
         <div>
           <h1 className="page-title">User Management</h1>
-          <p className="page-subtitle">{users.length} registered users on platform</p>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => {
-            const csv = ["Name,Email,Society,Role,Pro,Status"]
-              .concat(users.map((u: UserRow) => `"${u.displayName}","${u.email}","${u.society || ""}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`))
-              .join("\n");
-            const a = document.createElement("a");
-            a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-            a.download = "users.csv"; a.click();
-          }}>⬇ Export CSV</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAddModal(true)}>+ Add User</button>
+          <p className="page-subtitle">{users.length} registered users across admin, resident, pro, and verification flows</p>
         </div>
       </div>
 
-      <div className="grid grid-4" style={{ marginBottom: 24 }}>
-        {[
-          { label: "Total Users", val: counts.all, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, color: "var(--accent)" },
-          { label: "Active Users", val: counts.active, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>, color: "var(--success)" },
-          { label: "Disabled", val: counts.disabled, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, color: "var(--error)" },
-          { label: "Admins", val: counts.admins, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, color: "var(--warning)" },
-        ].map(c => (
-          <div className="stat-card" key={c.label} style={{ padding: "20px" }}>
-            <div className="stat-icon" style={{ background: c.color, color: "white", marginBottom: 8 }}>{c.icon}</div>
-            <div className="stat-value" style={{ fontSize: 24 }}>{c.val}</div>
-            <div className="stat-label">{c.label}</div>
-          </div>
-        ))}
+      <div className="au-stat-grid">
+        {tabs.map(card => {
+          const value = counts[card.key];
+          const pct = card.key === "all" ? 100 : Math.round((value / totalUsers) * 100);
+          return (
+            <button
+              key={card.key}
+              type="button"
+              className={`au-stat-card au-stat-card--clickable${tab === card.key ? " au-stat-card--active" : ""}`}
+              onClick={() => setTab(card.key)}
+            >
+              <div className="au-stat-card__top">
+                <div className="au-stat-card__icon" style={{ color: card.accent }}>{card.icon}</div>
+                <div className="au-stat-card__pct">{pct}%</div>
+              </div>
+              <div className="au-stat-card__value">{value}</div>
+              <div className="au-stat-card__label">{card.label}</div>
+              <div className="au-stat-card__meta">{card.description}</div>
+              <div className="au-stat-card__progress" aria-hidden="true">
+                <div className="au-stat-card__progress-bar" style={{ width: `${pct}%` }} />
+              </div>
+            </button>
+          );
+        })}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
-        <div className="tabs" style={{ marginBottom: 0, border: "none" }}>
+      <div className="au-toolbar">
+        <div className="au-toolbar__tabs" role="tablist" aria-label="User filters">
           {tabs.map(t => (
-            <button key={t.key} className={`tab${tab === t.key ? " active" : ""}`} onClick={() => setTab(t.key)}>
-              {t.label} <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.7 }}>({counts[t.key]})</span>
+            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={`tab${tab === t.key ? " active" : ""}`} onClick={() => setTab(t.key)}>
+              {t.shortLabel}
+              <span className="au-tab-count">{counts[t.key]}</span>
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="au-toolbar__actions">
           {tab === "verification" && (
             <button className="btn btn-ghost btn-sm" onClick={() => refreshQueue()} disabled={queueLoading} style={{ opacity: queueLoading ? 0.5 : 1 }}>
-              {queueLoading ? "↻ Loading..." : "↻ Refresh"}
+              {queueLoading ? "Refreshing..." : "Refresh Queue"}
             </button>
           )}
-          <input className="form-input" placeholder="Search name, email, society…" value={search}
-            onChange={e => setSearch(e.target.value)} style={{ maxWidth: 280, padding: "8px 12px" }} />
+          <button className="btn btn-secondary btn-sm" onClick={exportUsers}>Export CSV</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAddModal(true)}>Add User</button>
+        </div>
+        <div className="au-toolbar__search">
+          <input className="form-input" placeholder="Search name, email, society, locality..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
-      <div style={{ borderBottom: "1px solid var(--border)", marginBottom: 20 }} />
+      <div className="au-toolbar__divider" />
 
       {tab === "verification" && (
-        <>
-          <div className="card" style={{ marginBottom: 8, padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>
-            Pending queue includes only users with uploaded proof and status set to pending. Approve or reject each request with an audit trail.
-          </div>
-          {queueRefreshTime && (
-            <div style={{ marginBottom: 14, fontSize: 12, color: "var(--muted)" }}>
-              Last refreshed: {queueRefreshTime.toLocaleTimeString("en-IN")}
-            </div>
-          )}
-        </>
+        <div className="au-verify-info">
+          <div>Pending queue includes users with submitted proof and status set to pending. Approve or reject each request with same audit handlers.</div>
+          {queueRefreshTime && <div className="au-verify-time">Last refreshed: {queueRefreshTime.toLocaleTimeString("en-IN")}</div>}
+        </div>
       )}
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: 60 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
+        <div className="au-loading"><div className="loader" /></div>
       ) : filtered.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">👤</div>
           <div className="empty-state-title">{tab === "verification" ? "No pending verification requests" : "No users found"}</div>
         </div>
+      ) : tab === "verification" ? (
+        <div className="au-verify-grid">
+          {filtered.map((u: UserRow) => {
+            const uid = u.uid as string;
+            const proofUrl = getProofUrl(u);
+            const proofIsPdf = isPdfUrl(proofUrl);
+            const busy = actionLoading === uid;
+            return (
+              <article key={uid} className="au-verify-card" style={{ opacity: busy ? 0.55 : 1 }}>
+                <button type="button" className="au-verify-card__header" onClick={() => openUserModal(u)}>
+                  <div className={`avatar avatar-lg${u.disabled ? " avatar--disabled" : ""}`}>
+                    {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" loading="lazy" /> : initials(u)}
+                  </div>
+                  <div className="au-user-cell__info">
+                    <div className="au-user-cell__name">{(u.displayName as string) || "—"}</div>
+                    <div className="au-user-cell__uid">uid: {uid.slice(0, 8)}...</div>
+                  </div>
+                </button>
+                <div className="au-verify-card__location">{(u.society as string) || (u.locality as string) || "No locality provided"}</div>
+                <div className="au-verify-card__location-sub">
+                  {[u.tower ? `Tower ${u.tower}` : "", u.flatNumber ? `Flat ${u.flatNumber}` : ""].filter(Boolean).join(" • ") || "Address detail unavailable"}
+                </div>
+                <div className="au-verify-card__meta">
+                  <span className="badge badge-muted">{((u.verificationMethod as string) || "manual").toUpperCase()}</span>
+                  <span>{formatTs((u.verificationSubmittedAt as unknown) || (u.updatedAt as unknown) || (u.createdAt as unknown))}</span>
+                </div>
+                <div className="au-verify-card__proof">
+                  {proofUrl ? (
+                    <a href={proofUrl} target="_blank" rel="noopener noreferrer" className="au-verify-card__proof-thumb">
+                      {proofIsPdf ? (
+                        <div className="au-verify-card__proof-file">
+                          <strong>PDF</strong>
+                          <span>Open residency document</span>
+                        </div>
+                      ) : (
+                        <>
+                          <img
+                            src={proofUrl}
+                            alt={`Proof for ${(u.displayName as string) || "user"}`}
+                            loading="lazy"
+                            onError={event => {
+                              event.currentTarget.style.display = "none";
+                              const fallback = event.currentTarget.nextElementSibling as HTMLElement | null;
+                              if (fallback) fallback.style.display = "flex";
+                            }}
+                          />
+                          <div className="au-verify-card__proof-fallback">Preview unavailable</div>
+                        </>
+                      )}
+                    </a>
+                  ) : (
+                    <div className="au-verify-card__proof-thumb">
+                      <div className="au-verify-card__proof-file">
+                        <strong>No File</strong>
+                        <span>Document missing</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="au-verify-card__actions">
+                  <button className="btn btn-success btn-sm" onClick={() => handleVerifyResident(u, "verified")} disabled={busy}>Approve</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => handleVerifyResident(u, "none")} disabled={busy}>Reject</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       ) : (
-        <div className="table-wrap">
-          <div style={{ maxHeight: "min(68vh, 720px)", overflowY: "auto", overflowX: "hidden" }}>
-            <table className="table" style={{ tableLayout: "fixed", width: "100%" }}>
-              {columnGroup}
-              <thead>
-                {tab === "verification" ? (
-                  <tr><th style={{ position: "sticky", top: 0, zIndex: 2 }}>User</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Society / Flat</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Submitted</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Method</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Proof Document</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Actions</th></tr>
-                ) : (
-                  <tr><th style={{ position: "sticky", top: 0, zIndex: 2 }}>User</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Email</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Locality</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Role</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Pro</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Resident</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Status</th><th style={{ position: "sticky", top: 0, zIndex: 2 }}>Actions</th></tr>
-                )}
-              </thead>
-              <tbody>
+        <div className="au-table-container">
+          <table className="au-table au-table--striped">
+            <thead>
+              <tr>
+                <th className="au-col-user">User</th>
+                <th className="au-col-email">Email</th>
+                <th className="au-col-locality">Locality</th>
+                <th className="au-col-role">Role</th>
+                <th className="au-col-pro">Pro</th>
+                <th className="au-col-resident">Resident</th>
+                <th className="au-col-status">Status</th>
+                <th className="au-col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
               {filtered.map((u: UserRow) => {
                 const uid = u.uid as string;
                 const busy = actionLoading === uid;
+                const menuIsOpen = openMenuUid === uid;
                 return (
-                  <tr
-                    key={uid}
-                    style={{
-                      opacity: busy ? 0.5 : 1,
-                      verticalAlign: "middle",
-                    }}
-                  >
+                  <tr key={uid} style={{ opacity: busy ? 0.5 : 1 }}>
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => openUserModal(u)}>
-                        <div className="avatar avatar-sm" style={{ background: u.disabled ? "rgba(255,92,92,0.1)" : "var(--accent-dim)", color: u.disabled ? "var(--error)" : "var(--accent)" }}>
+                      <button type="button" className="au-user-cell" onClick={() => openUserModal(u)}>
+                        <div className={`avatar avatar-sm${u.disabled ? " avatar--disabled" : ""}`}>
                           {(u.photoURL as string) ? <img src={u.photoURL as string} alt="" loading="lazy" /> : initials(u)}
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>{(u.displayName as string) || "—"}</div>
-                          <div style={{ fontSize: 12, color: "#6B7280" }}>uid: {uid.slice(0, 8)}…</div>
+                        <div className="au-user-cell__info">
+                          <div className="au-user-cell__name">{(u.displayName as string) || "—"}</div>
+                          <div className="au-user-cell__uid">uid: {uid.slice(0, 8)}...</div>
+                        </div>
+                      </button>
+                    </td>
+                    <td className="text-muted">{(u.email as string) || "—"}</td>
+                    <td>
+                      <div className="au-locality-main">
+                        {(u.society as string) || (u.locality as string) || "—"}
+                        {(u.tower as string) ? `, ${u.tower}` : ""}
+                      </div>
+                      <div className="au-locality-sub">{(u.flatNumber as string) ? `Flat ${u.flatNumber}` : "—"}</div>
+                    </td>
+                    <td><span className={`badge ${u.role === "admin" ? "badge-warning" : "badge-muted"}`}>{u.role === "admin" ? "Admin" : "User"}</span></td>
+                    <td>{u.isServiceProvider ? <span className="badge badge-accent">Pro</span> : <span className="text-muted">—</span>}</td>
+                    <td>
+                      {u.residentVerificationStatus === "verified" ? (
+                        <div className="au-status-pill">
+                          <span className="au-status-dot au-status-dot--active" />
+                          <span className="badge badge-success">Verified</span>
+                        </div>
+                      ) : u.residentVerificationStatus === "pending" ? (
+                        <button className="btn btn-warning btn-sm" onClick={() => setTab("verification")}>Pending</button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="au-status-pill">
+                        <span className={`au-status-dot ${u.disabled ? "au-status-dot--disabled" : "au-status-dot--active"}`} />
+                        <span className={`badge ${u.disabled ? "badge-error" : "badge-success"}`}>{u.disabled ? "Disabled" : "Active"}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="au-actions" data-au-menu={uid}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleLoginAs(u)} disabled={busy}>Login As</button>
+                        <div className={`au-actions__menu${menuIsOpen ? " au-actions__menu--open" : ""}`} data-au-menu={uid}>
+                          <button
+                            type="button"
+                            className="au-actions__trigger"
+                            aria-label={`Open actions for ${(u.displayName as string) || (u.email as string) || "user"}`}
+                            aria-haspopup="menu"
+                            aria-expanded={menuIsOpen}
+                            onClick={event => {
+                              event.stopPropagation();
+                              setOpenMenuUid(menuIsOpen ? null : uid);
+                            }}
+                          >
+                            ⋯
+                          </button>
+                          <div className="au-actions__dropdown" role="menu">
+                            <button type="button" className="au-actions__dropdown-item" role="menuitem" onClick={() => { setOpenMenuUid(null); handleToggleRole(u); }} disabled={busy}>
+                              {u.role === "admin" ? "Demote to User" : "Make Admin"}
+                            </button>
+                            <button type="button" className="au-actions__dropdown-item" role="menuitem" onClick={() => { setOpenMenuUid(null); handleTogglePro(u); }} disabled={busy}>
+                              {u.isServiceProvider ? "Remove Pro" : "Set Pro"}
+                            </button>
+                            {!u.emailVerified && !!u.phoneNumber && (
+                              <button type="button" className="au-actions__dropdown-item" role="menuitem" onClick={() => { setOpenMenuUid(null); handleApproveEmailByMobile(u); }} disabled={busy}>
+                                Approve by Mobile
+                              </button>
+                            )}
+                            <div className="au-actions__dropdown-divider" />
+                            <button type="button" className={`au-actions__dropdown-item${u.disabled ? "" : " au-actions__dropdown-item--danger"}`} role="menuitem" onClick={() => { setOpenMenuUid(null); handleToggleDisable(u); }} disabled={busy}>
+                              {u.disabled ? "Enable User" : "Disable User"}
+                            </button>
+                            <button type="button" className="au-actions__dropdown-item au-actions__dropdown-item--danger" role="menuitem" onClick={() => { setOpenMenuUid(null); setDeleteConfirm(u); }} disabled={busy}>
+                              Delete User
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </td>
-
-                    {tab === "verification" ? (
-                      <>
-                        <td>
-                          <div style={{ fontWeight: 500 }}>{(u.society as string) || (u.locality as string) || "—"}</div>
-                          <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                            {u.tower ? `Tower ${u.tower}` : ""} {u.flatNumber ? `Flat ${u.flatNumber}` : ""}
-                          </div>
-                        </td>
-                        <td>{formatTs((u.verificationSubmittedAt as unknown) || (u.updatedAt as unknown) || (u.createdAt as unknown))}</td>
-                        <td>
-                          <span className="badge badge-muted" style={{ fontSize: 10 }}>
-                            {((u.verificationMethod as string) || "manual").toUpperCase()}
-                          </span>
-                        </td>
-                        <td>
-                          {u.residencyProofUrl ? (
-                            <a 
-                              href={u.residencyProofUrl as string} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="btn btn-ghost btn-sm"
-                              style={{ color: "var(--accent)", textDecoration: "none", fontSize: 12 }}
-                            >
-                              📎 View Proof
-                            </a>
-                          ) : (
-                            <span className="text-muted" style={{ fontSize: 12 }}>No document</span>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", gap: 6 }}>
-                            <button className="btn btn-success btn-sm" onClick={() => handleVerifyResident(u, "verified")} disabled={busy}>Approve</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleVerifyResident(u, "none")} disabled={busy}>Reject</button>
-                          </div>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="text-muted">{u.email as string}</td>
-                        <td>
-                          <div style={{ fontWeight: 500 }}>
-                            {(u.society as string) || (u.locality as string) || <span className="text-muted">—</span>}
-                            {(u.tower as string) ? `, ${u.tower}` : ""}
-                          </div>
-                          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                            {(u.flatNumber as string) ? `Flat ${u.flatNumber}` : "—"}
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`badge ${u.role === "admin" ? "badge-warning" : "badge-muted"}`}>
-                            {u.role === "admin" ? "🛡 Admin" : "User"}
-                          </span>
-                        </td>
-                        <td>{u.isServiceProvider ? <span className="badge badge-accent">✓ Pro</span> : <span className="text-muted" style={{ fontSize: 12 }}>—</span>}</td>
-                        <td>
-                          {u.residentVerificationStatus === "verified" ? (
-                            <span className="badge badge-success">✓ Verified</span>
-                          ) : u.residentVerificationStatus === "pending" ? (
-                            <button className="btn btn-warning btn-sm" style={{ fontSize: 10, padding: "2px 8px" }} onClick={() => setTab("verification")}>Pending</button>
-                          ) : (
-                            <span className="text-muted" style={{ fontSize: 12 }}>—</span>
-                          )}
-                        </td>
-                        <td><span className={`badge ${u.disabled ? "badge-error" : "badge-success"}`}>{u.disabled ? "Disabled" : "Active"}</span></td>
-                        <td>
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            <button className="btn btn-secondary btn-sm" onClick={() => handleLoginAs(u)} disabled={busy}>Login As</button>
-                            <button className={`btn btn-sm ${u.disabled ? "btn-success" : "btn-danger"}`} onClick={() => handleToggleDisable(u)} disabled={busy}>{u.disabled ? "Enable" : "Disable"}</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => handleToggleRole(u)} disabled={busy}>{u.role === "admin" ? "Demote" : "Make Admin"}</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => handleTogglePro(u)} disabled={busy} style={{ color: u.isServiceProvider ? "var(--warning)" : "var(--accent)" }}>{u.isServiceProvider ? "Remove Pro" : "Set Pro"}</button>
-                            {!u.emailVerified && !!u.phoneNumber && (
-                              <button className="btn btn-warning btn-sm" onClick={() => handleApproveEmailByMobile(u)} disabled={busy}>Approve by Mobile</button>
-                            )}
-                            <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirm(u)} disabled={busy} aria-label={`Delete ${(u.displayName as string) || (u.email as string) || "user"}`}>🗑</button>
-                          </div>
-                        </td>
-                      </>
-                    )}
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        </div>
       )}
 
       {selectedUser && (
-        <div className="modal-overlay" onClick={() => setSelectedUser(null)}>
-          <div className="modal" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">User Profile</h3>
-              <button className="modal-close" onClick={() => setSelectedUser(null)} aria-label="Close user profile dialog">✕</button>
+        <div className="au-drawer-overlay" onClick={() => setSelectedUser(null)}>
+          <aside className="au-drawer" onClick={e => e.stopPropagation()}>
+            <div className="au-drawer__header">
+              <div>
+                <div className="au-drawer__eyebrow">User detail</div>
+                <h3>User Profile</h3>
+              </div>
+              <button className="modal-close" onClick={() => setSelectedUser(null)} aria-label="Close user profile drawer">✕</button>
             </div>
+            <div className="au-drawer__body">
+              <div className="tabs">
+                <button className={`tab${!showActivity ? " active" : ""}`} onClick={() => setShowActivity(false)}>Profile</button>
+                <button
+                  className={`tab${showActivity ? " active" : ""}`}
+                  onClick={() => {
+                    setShowActivity(true);
+                    if (activityLogs.length === 0) void loadActivityLogs(selectedUser.uid as string);
+                  }}
+                >
+                  Activity Log
+                </button>
+              </div>
 
-            {/* Tab switcher */}
-            <div className="tabs" style={{ marginBottom: 16, borderBottom: "1px solid var(--border)" }}>
-              <button className={`tab${!showActivity ? " active" : ""}`} onClick={() => setShowActivity(false)}>Profile</button>
-              <button
-                className={`tab${showActivity ? " active" : ""}`}
-                onClick={() => {
-                  setShowActivity(true);
-                  if (activityLogs.length === 0) loadActivityLogs(selectedUser.uid as string);
-                }}
-              >📋 Activity Log</button>
-            </div>
-
-            {!showActivity ? (
-              <>
-                <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                  <div className="avatar avatar-xl">{(selectedUser.photoURL as string) ? <img src={selectedUser.photoURL as string} alt="" loading="lazy" /> : initials(selectedUser)}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-heading)", marginBottom: 4 }}>{(selectedUser.displayName as string) || "—"}</div>
-                    <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>{selectedUser.email as string}</div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-                      <span className={`badge ${selectedUser.role === "admin" ? "badge-warning" : "badge-muted"}`}>{selectedUser.role as string || "user"}</span>
-                      <span className={`badge ${selectedUser.disabled ? "badge-error" : "badge-success"}`}>{selectedUser.disabled ? "Disabled" : "Active"}</span>
-                      {!!selectedUser.isServiceProvider && <span className="badge badge-accent">Service Pro</span>}
+              {!showActivity ? (
+                <>
+                  <div className="au-drawer__profile">
+                    <div className={`avatar avatar-xl${selectedUser.disabled ? " avatar--disabled" : ""}`}>
+                      {(selectedUser.photoURL as string) ? <img src={selectedUser.photoURL as string} alt="" loading="lazy" /> : initials(selectedUser)}
                     </div>
-                    {[
-                      { label: "Locality", val: (selectedUser.locality as string) || (selectedUser.society as string) || "—" },
-                      { label: "Tower/Flat", val: [(selectedUser.tower as string), (selectedUser.flatNumber as string)].filter(Boolean).join(", ") || "—" },
-                      { label: "Verification", val: (selectedUser.residentVerificationStatus as string) || "none" },
-                      { label: "Rating", val: `★ ${(selectedUser.rating as number) || 0} (${(selectedUser.reviewCount as number) || 0} reviews)` },
-                      { label: "Hourly Rate", val: (selectedUser.hourlyRate as number) ? `₹${selectedUser.hourlyRate}` : "Free consultation" },
-                      { label: "Skills", val: ((selectedUser.skills as string[]) || []).join(", ") || "—" },
-                    ].map(r => (
-                      <div key={r.label} style={{ display: "flex", gap: 12, marginBottom: 6, fontSize: 13 }}>
-                        <span style={{ color: "var(--muted)", minWidth: 90 }}>{r.label}</span>
-                        <span style={{ fontWeight: 500 }}>{r.val}</span>
+                    <div className="au-drawer__profile-info">
+                      <div className="au-drawer__profile-name">{(selectedUser.displayName as string) || "—"}</div>
+                      <div className="au-drawer__profile-email">{selectedUser.email as string}</div>
+                      <div className="au-drawer__profile-badges">
+                        <span className={`badge ${selectedUser.role === "admin" ? "badge-warning" : "badge-muted"}`}>{selectedUser.role as string || "user"}</span>
+                        <span className={`badge ${selectedUser.disabled ? "badge-error" : "badge-success"}`}>{selectedUser.disabled ? "Disabled" : "Active"}</span>
+                        {!!selectedUser.isServiceProvider && <span className="badge badge-accent">Service Pro</span>}
                       </div>
-                    ))}
-                    {(selectedUser.bio as string) && <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 10 }}>{selectedUser.bio as string}</div>}
+                    </div>
                   </div>
-                </div>
-                <div className="modal-actions">
-                  <button className="btn btn-primary btn-sm" onClick={() => { handleLoginAs(selectedUser); setSelectedUser(null); }}>
-                    Login As
-                  </button>
-                  <button className={`btn ${selectedUser.disabled ? "btn-success" : "btn-danger"} btn-sm`} onClick={() => { handleToggleDisable(selectedUser); setSelectedUser(null); }}>
-                    {selectedUser.disabled ? "Enable User" : "Disable User"}
-                  </button>
-                  <button className="btn btn-secondary btn-sm" onClick={async () => {
-                    if (!user) return;
-                    const convId = await getOrCreateConversation(user.uid, selectedUser.uid as string, { allowUnlinked: true });
-                    navigate(`/messages?conv=${convId}`);
-                  }}>💬 Message</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(null)}>Close</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ maxHeight: 380, overflowY: "auto" }}>
+
+                  {[
+                    { label: "Locality", val: (selectedUser.locality as string) || (selectedUser.society as string) || "—" },
+                    { label: "Tower/Flat", val: [(selectedUser.tower as string), (selectedUser.flatNumber as string)].filter(Boolean).join(", ") || "—" },
+                    { label: "Verification", val: (selectedUser.residentVerificationStatus as string) || "none" },
+                    { label: "Rating", val: `★ ${(selectedUser.rating as number) || 0} (${(selectedUser.reviewCount as number) || 0} reviews)` },
+                    { label: "Hourly Rate", val: (selectedUser.hourlyRate as number) ? `₹${selectedUser.hourlyRate}` : "Free consultation" },
+                    { label: "Skills", val: ((selectedUser.skills as string[]) || []).join(", ") || "—" },
+                  ].map(r => (
+                    <div key={r.label} className="au-drawer__detail-row">
+                      <span className="au-drawer__detail-label">{r.label}</span>
+                      <span className="au-drawer__detail-value">{r.val}</span>
+                    </div>
+                  ))}
+
+                  {(selectedUser.bio as string) && <div className="au-drawer__bio">{selectedUser.bio as string}</div>}
+                </>
+              ) : (
+                <div className="au-drawer__activity-wrap">
                   {activityLoading ? (
-                    <div style={{ textAlign: "center", padding: 40 }}><div className="loader" style={{ margin: "0 auto" }} /></div>
+                    <div className="au-loading"><div className="loader" /></div>
                   ) : activityLogs.length === 0 ? (
-                    <div className="empty-state" style={{ padding: "30px 20px" }}>
+                    <div className="empty-state">
                       <div className="empty-state-icon">📋</div>
                       <div className="empty-state-title">No activity recorded yet</div>
                     </div>
                   ) : (
-                    <table className="table" style={{ fontSize: 12 }}>
+                    <table className="au-table">
                       <thead>
-                        <tr><th style={{ width: 28 }}></th><th>Event</th><th>Details</th><th>When</th></tr>
+                        <tr><th className="au-col-icon"></th><th>Event</th><th>Details</th><th>When</th></tr>
                       </thead>
                       <tbody>
                         {activityLogs.map(log => (
                           <tr key={log.id}>
-                            <td style={{ fontSize: 16, textAlign: "center" }}>{eventIcon[log.event] ?? "📌"}</td>
-                            <td><span className="badge badge-muted" style={{ fontSize: 10, fontFamily: "monospace" }}>{log.event}</span></td>
-                            <td style={{ color: "var(--muted)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.details}</td>
-                            <td style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{formatTs(log.timestamp)}</td>
+                            <td className="au-event-icon">{eventIcon[log.event] ?? "📌"}</td>
+                            <td><span className="badge badge-muted">{log.event}</span></td>
+                            <td className="text-muted">{log.details}</td>
+                            <td className="text-muted">{formatTs(log.timestamp)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   )}
                 </div>
-                <div className="modal-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => loadActivityLogs(selectedUser.uid as string)} disabled={activityLoading}>↻ Refresh</button>
+              )}
+            </div>
+            <div className="au-drawer__footer">
+              {showActivity ? (
+                <>
+                  <button className="btn btn-ghost btn-sm" onClick={() => void loadActivityLogs(selectedUser.uid as string)} disabled={activityLoading}>Refresh</button>
                   <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(null)}>Close</button>
-                </div>
-              </>
-            )}
-          </div>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-primary btn-sm" onClick={() => { handleLoginAs(selectedUser); setSelectedUser(null); }}>Login As</button>
+                  <button className={`btn ${selectedUser.disabled ? "btn-success" : "btn-danger"} btn-sm`} onClick={() => { handleToggleDisable(selectedUser); setSelectedUser(null); }}>
+                    {selectedUser.disabled ? "Enable User" : "Disable User"}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={async () => {
+                      if (!user) return;
+                      const convId = await getOrCreateConversation(user.uid, selectedUser.uid as string, { allowUnlinked: true });
+                      setSelectedUser(null);
+                      navigate(`/messages?conv=${convId}`);
+                    }}
+                  >
+                    Message
+                  </button>
+                </>
+              )}
+            </div>
+          </aside>
         </div>
       )}
 
       {deleteConfirm && (
         <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
-          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+          <div className="modal au-delete-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title" style={{ color: "var(--error)" }}>⚠ Delete User</h3>
+              <h3 className="modal-title">Delete User</h3>
               <button className="modal-close" onClick={() => setDeleteConfirm(null)} aria-label="Close delete confirmation dialog">✕</button>
             </div>
-            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>
-              Permanently remove <strong style={{ color: "var(--text)" }}>{deleteConfirm.displayName as string || deleteConfirm.email as string}</strong>'s profile?
+            <p>
+              Permanently remove <strong>{deleteConfirm.displayName as string || deleteConfirm.email as string}</strong>'s profile?
               This cannot be undone.
             </p>
             <div className="modal-actions">
@@ -808,7 +874,7 @@ export default function AdminUsers() {
         <AddUserModal
           adminId={adminId} adminName={adminName}
           onClose={() => setShowAddModal(false)}
-          onDone={() => { setShowAddModal(false); load(); showToast("User record created"); }}
+          onDone={() => { setShowAddModal(false); void load(); showToast("User record created"); }}
         />
       )}
     </div>
@@ -861,12 +927,12 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+      <div className="modal au-add-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">Add User Record</h3>
           <button className="modal-close" onClick={onClose} aria-label="Close add user dialog">✕</button>
         </div>
-        <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Creates a fully functional Firebase Auth account and Firestore profile.</p>
+        <p className="text-muted text-xs">Creates a fully functional Firebase Auth account and Firestore profile.</p>
         {error && <div className="error-box">{error}</div>}
         <div className="form-group">
           <label className="form-label">Full Name *</label>
@@ -892,13 +958,13 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
           </select>
           <span className="form-hint">Admin elevation must be done separately via protected role-change flow.</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <input type="checkbox" id="ispro" checked={form.isServiceProvider} onChange={e => set("isServiceProvider", e.target.checked)} style={{ width: 16, height: 16 }} />
-          <label htmlFor="ispro" style={{ fontSize: 14, cursor: "pointer" }}>Mark as Service Professional</label>
-        </div>
+        <label className="au-add-modal__toggle" htmlFor="ispro">
+          <input type="checkbox" id="ispro" checked={form.isServiceProvider} onChange={e => set("isServiceProvider", e.target.checked)} />
+          <span>Mark as Service Professional</span>
+        </label>
         <div className="modal-actions">
           <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={saving}>{saving ? "Creating…" : "Create User"}</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={saving}>{saving ? "Creating..." : "Create User"}</button>
         </div>
       </div>
     </div>

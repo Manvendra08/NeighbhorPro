@@ -1,45 +1,94 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { subscribeToFeed, deleteFeedPost } from "../../services/firestoreService";
-import { greetingByTime } from "../../utils/time";
-import LoyaltyStreakWidget from "../LoyaltyStreakWidget";
-import type { LoyaltyPreview } from "../../services/loyaltyService";
-import FeedPostCard from "./FeedPostCard";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { deleteFeedPost, subscribeToFeed } from "../../services/firestoreService";
+import type { DashboardDataResult } from "../../hooks/useDashboardData";
+import SmartGreeting from "./SmartGreeting";
+import QuickActions from "./QuickActions";
+import DashboardSection from "./DashboardSection";
+import WeekStrip from "./WeekStrip";
+import EnhancedStatsCards, { type DashboardStatCard } from "./EnhancedStatsCards";
+import EarningsHeroCard from "./EarningsHeroCard";
+import BookingPipeline from "./BookingPipeline";
+import PerformanceMetrics from "./PerformanceMetrics";
+import ProfileCompletionNudge from "./ProfileCompletionNudge";
+import CategoryBrowseChips from "./CategoryBrowseChips";
 import FeedComposer from "./FeedComposer";
+import FeedPostCard from "./FeedPostCard";
+import RecommendedPros from "./RecommendedPros";
 
 type DashboardUser = {
   uid: string;
   displayName?: string | null;
 };
 
-export default function MobileDashboard({
-  userProfile, user, upcomingBookings, proBookings,
-  loading, computedRating, reviewDistribution: _reviewDistribution, lastBookedPro, lastCompletedBooking, loyaltyPreview,
-}: {
-  userProfile: Record<string, unknown> | null;
-  user: DashboardUser | null;
-  upcomingBookings: Record<string, unknown>[];
-  proBookings: Record<string, unknown>[];
-  loading: boolean;
-  computedRating: number | null;
-  reviewDistribution: Record<number, number>;
-  lastBookedPro: Record<string, unknown> | null;
-  lastCompletedBooking: Record<string, unknown> | null;
-  loyaltyPreview: LoyaltyPreview | null;
-}) {
-  const navigate = useNavigate();
-  const isPro = (userProfile as { isServiceProvider?: boolean } | null)?.isServiceProvider === true;
-  const firstName = ((userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "there").split(" ")[0];
-  const coins = (userProfile as { coinBalance?: number } | null)?.coinBalance ?? 0;
-  const rating = computedRating ?? (userProfile as { rating?: number } | null)?.rating ?? null;
-  const uid = user!.uid as string;
-  const displayName = (userProfile as { displayName?: string } | null)?.displayName || (user as { displayName?: string } | null)?.displayName || "User";
-  const locality = (userProfile as { locality?: string } | null)?.locality;
-  const tower = (userProfile as { tower?: string } | null)?.tower;
-  const society = (userProfile as { society?: string } | null)?.society;
-  const authorPhotoURL = (userProfile as { photoURL?: string } | null)?.photoURL;
+type MobileDashboardProps = DashboardDataResult & {
+  user: DashboardUser;
+};
 
-  const [posts, setPosts] = useState<Record<string, unknown>[]>([]);
+type FeedPost = Record<string, unknown>;
+type BookingRow = Record<string, unknown>;
+
+function parseDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "object" && value !== null && "toDate" in (value as Record<string, unknown>)) {
+    const date = (value as { toDate?: () => Date }).toDate?.();
+    return date ?? null;
+  }
+  const parsed = new Date(value as string | number);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function bookingDate(booking: BookingRow): Date | null {
+  const rawDate = typeof booking.date === "string" ? booking.date.trim() : "";
+  const [timeRaw] = String(booking.timeSlot || "").split("-");
+  if (rawDate) {
+    const combined = new Date(timeRaw ? `${rawDate} ${timeRaw.trim()}` : rawDate);
+    if (!Number.isNaN(combined.getTime())) return combined;
+  }
+  return parseDate(booking.createdAt);
+}
+
+function isUpcoming(booking: BookingRow): boolean {
+  const status = String(booking.status || "");
+  if (!["pending", "confirmed"].includes(status)) return false;
+  const date = bookingDate(booking);
+  return date ? date.getTime() >= Date.now() - (60 * 60 * 1000) : true;
+}
+
+function findNextBooking(bookings: BookingRow[]): BookingRow | null {
+  return [...bookings]
+    .filter(isUpcoming)
+    .sort((left, right) => (bookingDate(left)?.getTime() || 0) - (bookingDate(right)?.getTime() || 0))[0] ?? null;
+}
+
+export default function MobileDashboard({
+  userProfile,
+  user,
+  userBookings,
+  upcomingBookings,
+  proBookings,
+  loading,
+  computedRating,
+  reviewDistribution,
+  lastBookedPro,
+  lastCompletedBooking,
+  profileCompletion,
+  earningsSummary,
+  isPro,
+}: MobileDashboardProps) {
+  const [posts, setPosts] = useState<FeedPost[]>([]);
+  const firstName = ((userProfile?.displayName as string) || user.displayName || "there").split(" ")[0];
+  const uid = user.uid;
+  const displayName = (userProfile?.displayName as string) || user.displayName || "User";
+  const locality = (userProfile?.locality as string) || undefined;
+  const tower = (userProfile?.tower as string) || undefined;
+  const society = (userProfile?.society as string) || undefined;
+  const authorPhotoURL = (userProfile?.photoURL as string) || undefined;
+  const coins = Number(userProfile?.coinBalance) || 0;
+  const rating = computedRating ?? ((userProfile?.rating as number) || null);
+  const proPending = proBookings.filter(booking => booking.status === "pending").length;
+  const nextBooking = isPro ? findNextBooking(proBookings) : findNextBooking(upcomingBookings);
 
   useEffect(() => {
     const unsub = subscribeToFeed(locality, setPosts);
@@ -51,165 +100,115 @@ export default function MobileDashboard({
     await deleteFeedPost(postId);
   };
 
+  const visiblePosts = useMemo(
+    () => posts.filter(post => post.hidden !== true || (post.authorId as string) === uid),
+    [posts, uid],
+  );
+
+  const statsCards: DashboardStatCard[] = isPro
+    ? [
+        { label: "Balance", value: `${coins.toLocaleString("en-IN")} NC`, helper: "Wallet", icon: "🪙", tone: "warning", to: "/wallet", sparkline: earningsSummary.balanceSeries },
+        { label: "Upcoming", value: String(proBookings.filter(isUpcoming).length), helper: "Service sessions", icon: "📅", tone: "accent", to: "/bookings", sparkline: earningsSummary.dailySeries },
+        { label: "Requests", value: String(proPending), helper: "Need reply", icon: "🗂", tone: "danger", to: "/bookings", sparkline: earningsSummary.dailySeries },
+        { label: "Earned", value: `${earningsSummary.thisMonth.toLocaleString("en-IN")} NC`, helper: "This month", icon: "📈", tone: "success", to: "/wallet", sparkline: earningsSummary.dailySeries },
+      ]
+    : [
+        { label: "Balance", value: `${coins.toLocaleString("en-IN")} NC`, helper: "Wallet", icon: "🪙", tone: "warning", to: "/wallet", sparkline: earningsSummary.balanceSeries },
+        { label: "Upcoming", value: String(upcomingBookings.length), helper: "Next sessions", icon: "📅", tone: "accent", to: "/bookings", sparkline: earningsSummary.balanceSeries },
+        { label: "Rating", value: rating ? `${rating.toFixed(1)}★` : "—", helper: "Trust score", icon: "⭐", tone: "success", to: "/profile", sparkline: [1, 2, 3, 4, 5].map(star => Number(reviewDistribution[star]) || 0) },
+        { label: "Bookings", value: String(userBookings.length), helper: "Total", icon: "📦", tone: "accent", to: "/bookings", sparkline: earningsSummary.balanceSeries },
+      ];
+
+  if (loading && !userProfile) {
+    return <div className="db-loading"><div className="loader" /></div>;
+  }
+
   return (
-    <div style={{ padding: "0 4px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 12px 12px" }}>
-        <div>
-          <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>{greetingByTime()} 👋</p>
-          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>{firstName}</h2>
-        </div>
-        <Link to="/wallet" style={{
-          display: "flex", alignItems: "center", gap: 6, background: "var(--surface)",
-          border: "1px solid var(--border)", borderRadius: 20, padding: "6px 14px",
-          textDecoration: "none", fontWeight: 700, fontSize: 13, color: "var(--text)",
-        }}>
-          <span>🪙</span> {coins.toLocaleString("en-IN")} NC
-        </Link>
-      </div>
+    <div className="db-page db-page--mobile">
+      <SmartGreeting
+        firstName={firstName}
+        isPro={isPro}
+        proBookings={proBookings}
+        nextBooking={nextBooking}
+        profileIncomplete={!profileCompletion.complete}
+        missingFields={profileCompletion.missingTop}
+      />
 
-      {/* Compact Stats */}
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "4px 12px 16px", WebkitOverflowScrolling: "touch" }}>
-        {[
-          { label: "Upcoming", value: loading ? "…" : String(upcomingBookings.length), icon: "📅" },
-          ...(isPro ? [{ label: "Requests", value: loading ? "…" : String(proBookings.length), icon: "🔔" }] : []),
-          { label: "Rating", value: rating !== null && rating !== undefined ? `${rating}★` : "—", icon: "⭐" },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
-            padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
-          }}>
-            <span style={{ fontSize: 16 }}>{s.icon}</span>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 16, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600 }}>{s.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <QuickActions isPro={isPro} />
 
-      {/* Re-book Banner */}
-      {lastBookedPro && lastCompletedBooking && !loading && (
-        <div style={{
-          margin: "0 12px 16px", padding: "14px 16px", borderRadius: 12, background: "var(--surface)",
-          border: "1px solid var(--border)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: loyaltyPreview ? 10 : 0 }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>↻ Re-book {(lastBookedPro.displayName as string) || "Pro"}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>Keep your loyalty streak</div>
-                {(lastBookedPro.tower as string) && (
-                  <span style={{ fontSize: 9, background: "var(--surface-2)", padding: "0px 6px", borderRadius: 4, fontWeight: 700 }}>🏢 {lastBookedPro.tower as string}</span>
-                )}
-              </div>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={() => navigate(`/book/${lastBookedPro.uid as string}?rebook=true`)} style={{ borderRadius: 8 }}>Book</button>
+      {isPro ? (
+        <>
+          <EarningsHeroCard
+            thisMonth={earningsSummary.thisMonth}
+            lastMonth={earningsSummary.lastMonth}
+            changePct={earningsSummary.changePct}
+            pendingPayoutNC={earningsSummary.pendingPayoutNC}
+            dailySeries={earningsSummary.dailySeries}
+            isPositive={earningsSummary.isPositive}
+          />
+          <DashboardSection title="Pipeline" subtitle="Mobile kanban for requests." actionLabel="Bookings" actionTo="/bookings">
+            <BookingPipeline bookings={proBookings} />
+          </DashboardSection>
+          <DashboardSection title="Performance" subtitle="Ratings and completion." actionLabel="Profile" actionTo="/profile">
+            <PerformanceMetrics rating={rating} reviewDistribution={reviewDistribution} bookings={proBookings} />
+          </DashboardSection>
+        </>
+      ) : (
+        <>
+          <DashboardSection title="This Week" subtitle="Bookings over next 7 days.">
+            <WeekStrip bookings={upcomingBookings} />
+          </DashboardSection>
+          <DashboardSection title="Browse Categories" subtitle="One-tap shortcuts into discovery." actionLabel="Browse" actionTo="/browse">
+            <CategoryBrowseChips />
+          </DashboardSection>
+          <DashboardSection title="Recommended Pros" subtitle="Same tower and top-rated signals." actionLabel="Browse" actionTo="/browse">
+            <RecommendedPros uid={uid} userTower={tower} compact />
+          </DashboardSection>
+        </>
+      )}
+
+      <DashboardSection title="Snapshot" subtitle="Fast mobile summary cards.">
+        <EnhancedStatsCards cards={statsCards} />
+      </DashboardSection>
+
+      {!isPro && lastBookedPro && lastCompletedBooking && (
+        <div className="db-rebook-banner db-rebook-banner--mobile">
+          <div className="db-rebook-banner__copy">
+            <span className="db-rebook-banner__eyebrow">Rebook</span>
+            <strong>{(lastBookedPro.displayName as string) || "Your last pro"}</strong>
+            <span>{(lastCompletedBooking.serviceName as string) || "Previous session"}</span>
           </div>
-          {loyaltyPreview && (
-            <LoyaltyStreakWidget
-              streakCount={loyaltyPreview.streakCount} tier={loyaltyPreview.tier}
-              cashbackPct={loyaltyPreview.cashbackPct} cashbackCoins={loyaltyPreview.cashbackCoins}
-              nextTier={loyaltyPreview.nextTier} bookingsToNextTier={loyaltyPreview.bookingsToNextTier}
-              compact projected
-            />
-          )}
+          <Link className="btn btn-primary btn-sm" to={`/book/${lastBookedPro.uid as string}?rebook=true`}>Book again</Link>
         </div>
       )}
 
-      {lastCompletedBooking && !lastBookedPro && !loading && (
-        <div style={{
-          margin: "0 12px 16px",
-          padding: "10px 12px",
-          borderRadius: 10,
-          background: "rgba(245,158,11,0.08)",
-          border: "1px solid rgba(245,158,11,0.25)",
-          color: "#9a6700",
-          fontSize: 12,
-          fontWeight: 500,
-        }}>
-          Last booked professional details are temporarily unavailable. Use Bookings to rebook.
-        </div>
-      )}
+      <ProfileCompletionNudge completion={profileCompletion} />
 
-      <div style={{ padding: "0 12px 16px" }}>
-        <FeedComposer
-          uid={uid}
-          displayName={displayName}
-          locality={locality}
-          tower={tower}
-          society={society}
-          authorPhotoURL={authorPhotoURL}
-        />
-      </div>
+      <DashboardSection title="Neighborhood Feed" subtitle={locality ? `Posts from ${locality}` : "Community updates."} collapsible>
+        <div className="db-feed-shell">
+          <FeedComposer
+            uid={uid}
+            displayName={displayName}
+            locality={locality}
+            tower={tower}
+            society={society}
+            authorPhotoURL={authorPhotoURL}
+          />
 
-      {/* Action cards (Upcoming + Pro Requests) */}
-      {!loading && (upcomingBookings.length > 0 || proBookings.length > 0) && (
-        <div style={{ padding: "0 12px 16px" }}>
-          {upcomingBookings.slice(0, 2).map(b => (
-            <div key={b.id as string} onClick={() => navigate("/bookings")} style={{
-              display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-              background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
-              marginBottom: 8, cursor: "pointer",
-            }}>
-              <span style={{ fontSize: 20 }}>📅</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{(b.serviceName as string) || "Session"}</div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>{(b.date as string)} · {(b.timeSlot as string) || ""}</div>
+          <div className="db-feed-shell__list">
+            {visiblePosts.length === 0 ? (
+              <div className="db-feed-empty">
+                <strong>No posts yet</strong>
+                <span>Start conversation with your community.</span>
               </div>
-              <span className={`badge ${b.status === "confirmed" ? "badge-success" : "badge-warning"}`} style={{ fontSize: 10 }}>{b.status as string}</span>
-            </div>
-          ))}
-          {proBookings.slice(0, 1).map(b => (
-            <div key={b.id as string} onClick={() => navigate("/bookings")} style={{
-              display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-              background: "var(--surface)", border: "2px solid var(--accent2)", borderRadius: 12,
-              marginBottom: 8, cursor: "pointer",
-            }}>
-              <span style={{ fontSize: 20 }}>🔔</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>New request: {(b.clientName as string) || "Client"}</div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>{(b.serviceName as string) || "Consultation"}</div>
-              </div>
-            </div>
-          ))}
+            ) : (
+              visiblePosts.map(post => (
+                <FeedPostCard key={post.id as string} post={post} uid={uid} onDelete={handleDelete} />
+              ))
+            )}
+          </div>
         </div>
-      )}
-
-      {/* Feed Header */}
-      <div style={{ padding: "0 12px", marginBottom: 12 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>📣 Feed{locality ? ` — ${locality}` : ""}</h3>
-      </div>
-
-      {/* Feed */}
-      <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: 10, minHeight: 200 }}>
-        {posts.filter(p => p.hidden !== true || (p.authorId as string) === uid).length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 16px", color: "var(--muted)" }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🏘️</div>
-            <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>No posts yet</p>
-            <p style={{ fontSize: 12 }}>Share something with your neighbors!</p>
-          </div>
-        ) : (
-          posts.map(p => (
-            <FeedPostCard key={p.id as string} post={p} uid={uid} onDelete={handleDelete} />
-          ))
-        )}
-      </div>
-
-      {/* Browse CTA */}
-      <div style={{ padding: "0 12px 24px" }}>
-        <Link to="/browse" style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          background: "linear-gradient(135deg, var(--accent), var(--accent2))", color: "#fff",
-          borderRadius: 14, padding: "16px 20px", textDecoration: "none",
-        }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>Find experts near you</div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>CAs, Doctors, Tutors & more</div>
-          </div>
-          <span style={{ fontSize: 22, fontWeight: 700 }}>→</span>
-        </Link>
-      </div>
+      </DashboardSection>
     </div>
   );
 }

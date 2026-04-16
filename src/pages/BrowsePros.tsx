@@ -5,7 +5,6 @@ import { useAuth } from "../contexts/AuthContext";
 import { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
 import type { UserSummary } from "../types";
-import { sortProfessionalsByLoyalty } from "../services/loyaltyService";
 import EmptyState from "../components/common/EmptyState";
 import ProCard from "../components/common/ProCard";
 import SkeletonLoader from "../components/common/SkeletonLoader";
@@ -31,6 +30,7 @@ export default function BrowsePros() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("q") ?? "";
+  const categoryParam = searchParams.get("category") ?? "All";
   const [localityFilter, setLocalityFilter] = useState("");
   const [towerFilter, setTowerFilter] = useState("");
   const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
@@ -95,6 +95,10 @@ export default function BrowsePros() {
   }, []);
 
   useEffect(() => {
+    setCategory(categoryParam);
+  }, [categoryParam]);
+
+  useEffect(() => {
     let result = allPros;
     if (category !== "All") {
       result = result.filter(p =>
@@ -120,11 +124,35 @@ export default function BrowsePros() {
         (Array.isArray(p.skills) && p.skills.some(s => typeof s === "string" && s.toLowerCase().includes(q)))
       );
     }
-    setFiltered(sortProfessionalsByLoyalty(result) as unknown as BrowsePro[]);
+    setFiltered(
+      [...result].sort((left, right) => {
+        const ratingDelta = (Number(right.rating) || 0) - (Number(left.rating) || 0);
+        if (ratingDelta !== 0) return ratingDelta;
+        const reviewDelta = (Number(right.reviewCount) || 0) - (Number(left.reviewCount) || 0);
+        if (reviewDelta !== 0) return reviewDelta;
+        return String(left.displayName || "").localeCompare(String(right.displayName || ""));
+      })
+    );
   }, [category, search, allPros, localityFilter, towerFilter]);
 
+  const syncSearchParams = (nextSearch: string, nextCategory: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextSearch) nextParams.set("q", nextSearch);
+    else nextParams.delete("q");
+
+    if (nextCategory !== "All") nextParams.set("category", nextCategory);
+    else nextParams.delete("category");
+
+    setSearchParams(nextParams);
+  };
+
   const handleSearch = (val: string) => {
-    val ? setSearchParams({ q: val }) : setSearchParams({});
+    syncSearchParams(val, category);
+  };
+
+  const handleCategoryChange = (nextCategory: string) => {
+    setCategory(nextCategory);
+    syncSearchParams(search, nextCategory);
   };
 
   // ── Mobile layout ──────────────────────────────────────────────────────
@@ -149,7 +177,7 @@ export default function BrowsePros() {
         {/* Category scroll */}
         <div className="m-category-scroll">
           {categories.map(c => (
-            <button key={c} className={`m-category-pill${category === c ? " active" : ""}`} onClick={() => setCategory(c)}>
+            <button key={c} className={`m-category-pill${category === c ? " active" : ""}`} onClick={() => handleCategoryChange(c)}>
               <span>{c === "All" ? "🌐" : (SERVICE_CATEGORY_ICONS[c] || "✨")}</span>
               <span>{c}</span>
             </button>
@@ -160,7 +188,7 @@ export default function BrowsePros() {
         {!loading && (
           <div className="m-results-meta">
             {filtered.length} {filtered.length === 1 ? "professional" : "professionals"}
-            {(search || category !== "All") && <button className="m-clear-filters" onClick={() => { setCategory("All"); handleSearch(""); }}>Clear filters</button>}
+            {(search || category !== "All") && <button className="m-clear-filters" onClick={() => { setCategory("All"); syncSearchParams("", "All"); }}>Clear filters</button>}
           </div>
         )}
 
@@ -242,7 +270,7 @@ export default function BrowsePros() {
 
         <div className="filter-chips" style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 20, paddingBottom: 4, scrollbarWidth: "none" }}>
           {categories.map(c => (
-            <button key={c} className={`chip${category === c ? " active" : ""}`} onClick={() => setCategory(c)}
+            <button key={c} className={`chip${category === c ? " active" : ""}`} onClick={() => handleCategoryChange(c)}
               style={{ padding: "8px 18px", borderRadius: 12, fontSize: 14, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
               <span>{c === "All" ? "🌐" : (SERVICE_CATEGORY_ICONS[c] || "✨")}</span> {c}
             </button>

@@ -1,55 +1,87 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getRecommendedPros } from "../../services/firestoreService";
 
-export default function RecommendedPros({ uid }: { uid: string }) {
+type RecommendedProsProps = {
+  uid: string;
+  userTower?: string;
+  compact?: boolean;
+};
+
+export default function RecommendedPros({
+  uid,
+  userTower,
+  compact = false,
+}: RecommendedProsProps) {
   const navigate = useNavigate();
   const [pros, setPros] = useState<Record<string, unknown>[]>([]);
 
-  useEffect(() => { getRecommendedPros(uid, 4).then(setPros).catch(() => {}); }, [uid]);
+  useEffect(() => {
+    getRecommendedPros(uid, compact ? 3 : 4).then(setPros).catch(() => {});
+  }, [compact, uid]);
 
   if (!pros.length) return null;
 
   return (
-    <div style={{
-      background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden",
-    }}>
-      <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700, fontSize: 14 }}>⭐ Top Pros</span>
-        <Link to="/browse" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600, textDecoration: "none" }}>View all</Link>
-      </div>
-      <div style={{ padding: 10 }}>
-        {pros.map(p => {
-          const initials = ((p.displayName as string) || "?").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+    <div className="db-recommended">
+      {!compact && (
+        <div className="db-recommended__head">
+          <span>⭐ Top Pros</span>
+          <Link to="/browse">View all</Link>
+        </div>
+      )}
+
+      <div className="db-recommended__list">
+        {pros.map((pro) => {
+          const displayName = (pro.displayName as string) || "Pro";
+          const initials = displayName
+            .split(" ")
+            .map((word: string) => word[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase();
+          const why = userTower && (pro.tower as string) === userTower ? "Same tower" : "Top rated";
+
           return (
-            <div key={p.uid as string} onClick={() => navigate(`/pro/${p.uid}`)}
-              style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 8px",
-                borderRadius: 10, cursor: "pointer", transition: "background 0.15s",
+            <div
+              key={pro.uid as string}
+              className="db-recommended__item"
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(`/pro/${pro.uid}`)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  navigate(`/pro/${pro.uid}`);
+                }
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-2)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
             >
-              <div style={{
-                width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                background: "linear-gradient(135deg, var(--accent-dim), var(--surface-2))",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "var(--accent)", fontWeight: 700, fontSize: 12,
-                overflow: "hidden",
-              }}>
-                {(p.photoURL as string) ? <img src={p.photoURL as string} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
+              <div className="db-recommended__avatar">
+                {(pro.photoURL as string)
+                  ? <img src={pro.photoURL as string} alt="" loading="lazy" />
+                  : initials}
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{(p.displayName as string) || "Pro"}</div>
-                <div style={{ fontSize: 11, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>★ {(p.rating as number) ? (p.rating as number).toFixed(1) : "New"}</span>
-                  {(p.tower as string) && (
-                    <span style={{ fontSize: 10, background: "var(--surface-2)", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>🏙️ {p.tower as string}</span>
-                  )}
+
+              <div className="db-recommended__content">
+                <div className="db-recommended__name-row">
+                  <strong>{displayName}</strong>
+                  <span className="db-recommended__why">{why}</span>
+                </div>
+                <div className="db-recommended__meta">
+                  <span>★ {(pro.rating as number) ? (pro.rating as number).toFixed(1) : "New"}</span>
+                  {(pro.tower as string) && <span>{pro.tower as string}</span>}
                 </div>
               </div>
-              <button className="btn btn-primary btn-xs" style={{ fontSize: 11, padding: "3px 12px", borderRadius: 8, flexShrink: 0 }}
-                onClick={e => { e.stopPropagation(); navigate(`/book/${p.uid}`); }}>Book</button>
+
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  navigate(`/book/${pro.uid}`);
+                }}
+              >
+                Book
+              </button>
             </div>
           );
         })}

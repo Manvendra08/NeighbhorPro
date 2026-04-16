@@ -176,10 +176,22 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   }, [targetUid]);
 
   const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files?.[0] || !targetUid || isAdminViewAs) return;
+    const file = event.target.files?.[0];
+    if (!file || !targetUid || isAdminViewAs) return;
+    
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image is too large. Max size is 5MB.");
+      return;
+    }
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Invalid file type. Only JPG, PNG, and WebP are allowed.");
+      return;
+    }
+    
     setUploadingPhoto(true);
     try {
-      await uploadProfilePhoto(targetUid, event.target.files[0]);
+      await uploadProfilePhoto(targetUid, file);
     } finally {
       setUploadingPhoto(false);
     }
@@ -468,11 +480,24 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                 style={{ display: "none" }}
                 disabled={uploadingProof || isAdminViewAs}
                 onChange={async (event) => {
-                  if (!event.target.files?.[0] || !targetUid || isAdminViewAs) return;
+                        const file = event.target.files?.[0];
+                  if (!file || !targetUid || isAdminViewAs) return;
+                  
+                  if (file.size > 10 * 1024 * 1024) {
+                    alert("Proof document is too large. Max size is 10MB.");
+                    return;
+                  }
+                  
+                  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+                  if (!allowedTypes.includes(file.type)) {
+                    alert("Invalid file type. Only JPG, PNG, and WebP are allowed.");
+                    return;
+                  }
+
                   setUploadingProof(true);
                   try {
-                    await uploadResidencyProof(targetUid, event.target.files[0]);
-                    void logActivity(targetUid, "verification.submitted", `Residency proof uploaded: ${event.target.files[0].name}`, { fileName: event.target.files[0].name, fileSize: event.target.files[0].size });
+                    await uploadResidencyProof(targetUid, file);
+                    void logActivity(targetUid, "verification.submitted", `Residency proof uploaded: ${file.name}`, { fileName: file.name, fileSize: file.size });
                   } catch (error) {
                     alert(error instanceof Error ? error.message : "Upload failed. Please try again.");
                   } finally {

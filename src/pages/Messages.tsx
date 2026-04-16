@@ -210,7 +210,24 @@ export default function Messages() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeConv || !user) return;
-    if (file.size > 10 * 1024 * 1024) { alert("File must be less than 10MB"); return; }
+    
+    if (file.size > 10 * 1024 * 1024) { 
+      alert("File must be less than 10MB"); 
+      return; 
+    }
+    
+    const allowedTypes = [
+      "image/jpeg", "image/png", "image/webp", "image/gif",
+      "application/pdf", 
+      "application/msword", 
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain"
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Invalid file type. Only images, PDF, Word, and text files are allowed.");
+      return;
+    }
+
     try {
       setAttachmentLoading(true);
       const result = await uploadAttachment(activeConv, file);

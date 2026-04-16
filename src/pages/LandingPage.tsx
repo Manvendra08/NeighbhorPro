@@ -33,6 +33,8 @@ export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [societyModalOpen, setSocietyModalOpen] = useState(false);
   const [societyForm, setSocietyForm] = useState({
+    fullName: "",
+    email: "",
     societyName: "",
     area: "",
     city: "",
@@ -185,8 +187,12 @@ export default function LandingPage() {
     const subject = encodeURIComponent(`Society launch request: ${societyForm.societyName || "New society"}`);
     const body = encodeURIComponent(
       [
-        "A new society registration request was submitted from the landing page.",
+        `Dear ${societyForm.fullName}`,
+        "Thank you for your interest. Please send this email to submit your society registration request. You will be among the first to be notified when we decide to launch our services in your society.",
         "",
+        "Captured details:",
+        `Full name: ${societyForm.fullName}`,
+        `Email: ${societyForm.email}`,
         `Society name: ${societyForm.societyName}`,
         `Area: ${societyForm.area}`,
         `City: ${societyForm.city}`,
@@ -652,6 +658,29 @@ export default function LandingPage() {
             </div>
 
             <form onSubmit={submitSocietyRequest} style={{ display: "grid", gap: 12 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0C1B2E" }}>Full name</span>
+                <input
+                  value={societyForm.fullName}
+                  onChange={(event) => setSocietyForm((current) => ({ ...current, fullName: event.target.value }))}
+                  required
+                  placeholder="Riya Sharma"
+                  style={{ width: "100%", border: "1px solid rgba(12,27,46,0.14)", borderRadius: 12, padding: "12px 14px", font: "inherit" }}
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0C1B2E" }}>Email</span>
+                <input
+                  type="email"
+                  value={societyForm.email}
+                  onChange={(event) => setSocietyForm((current) => ({ ...current, email: event.target.value }))}
+                  required
+                  placeholder="riya@example.com"
+                  style={{ width: "100%", border: "1px solid rgba(12,27,46,0.14)", borderRadius: 12, padding: "12px 14px", font: "inherit" }}
+                />
+              </label>
+
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#0C1B2E" }}>Society name</span>
                 <input

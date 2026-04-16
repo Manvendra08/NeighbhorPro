@@ -1,5 +1,3 @@
-import type { LoyaltyTier } from "../../types";
-import { getLoyaltyTierLabel, getLoyaltyTierWeight } from "../../services/loyaltyService";
 import Avatar from "./Avatar";
 
 interface ProCardData {
@@ -16,7 +14,6 @@ interface ProCardData {
   hourlyRate?: number;
   rating?: number;
   reviewCount?: number;
-  highestLoyaltyTier?: LoyaltyTier;
 }
 
 interface ProCardProps {
@@ -35,7 +32,6 @@ export default function ProCard({
   onViewProfile,
 }: ProCardProps) {
   const uid = pro.uid;
-  const loyaltyTier = ((pro.highestLoyaltyTier ?? "none") as LoyaltyTier);
   const name = pro.displayName || "Anonymous";
   const location = `${pro.locality || pro.society || "Community Member"}${pro.tower ? `, ${pro.tower}` : ""}`;
   const skills = pro.skills || [];
@@ -74,24 +70,6 @@ export default function ProCard({
               </span>
             )}
           </div>
-          {getLoyaltyTierWeight(loyaltyTier) >= getLoyaltyTierWeight("silver") && (
-            <div
-              style={{
-                marginTop: 6,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "3px 8px",
-                borderRadius: 999,
-                background: "rgba(13,107,107,0.08)",
-                color: "#0d6b6b",
-                fontSize: 10,
-                fontWeight: 700,
-              }}
-            >
-              ✨ {getLoyaltyTierLabel(loyaltyTier)} Featured
-            </div>
-          )}
         </div>
         <div className="m-pro-right">
           <div className="m-pro-rate">
@@ -180,25 +158,6 @@ export default function ProCard({
                   </span>
                 )}
               </div>
-              {getLoyaltyTierWeight(loyaltyTier) >= getLoyaltyTierWeight("silver") && (
-                <div style={{ marginTop: 6 }}>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "4px 10px",
-                      borderRadius: 999,
-                      background: "rgba(13,107,107,0.08)",
-                      color: "#0d6b6b",
-                      fontSize: 11,
-                      fontWeight: 700,
-                    }}
-                  >
-                    ✨ {getLoyaltyTierLabel(loyaltyTier)} Featured Pro
-                  </span>
-                </div>
-              )}
             </div>
           </div>
           <div className="pro-card-footer">

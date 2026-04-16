@@ -12,8 +12,6 @@ type PrivacySettings = {
   flatVisible: boolean;
 };
 
-const ADMIN_VIEW_AS_KEY = "adminViewAsUid";
-
 function profileCompleteness(profile: Record<string, unknown> | null): { pct: number; missing: string[] } {
   if (!profile) return { pct: 0, missing: [] };
 
@@ -103,14 +101,13 @@ export default function MyAccount() {
   useEffect(() => {
     const isAdmin = userProfile?.role === "admin";
     if (!isAdmin) {
-      sessionStorage.removeItem(ADMIN_VIEW_AS_KEY);
       setViewAsUid(null);
       setViewAsProfile(null);
       setViewAsLoading(false);
       return;
     }
 
-    const storedUid = sessionStorage.getItem(ADMIN_VIEW_AS_KEY);
+    const storedUid = searchParams.get("viewAsUid");
     if (!storedUid || storedUid === user?.uid) {
       setViewAsUid(null);
       setViewAsProfile(null);
@@ -124,7 +121,6 @@ export default function MyAccount() {
     getUserProfile(storedUid)
       .then(profile => {
         if (!profile) {
-          sessionStorage.removeItem(ADMIN_VIEW_AS_KEY);
           setViewAsUid(null);
           setViewAsProfile(null);
           setViewAsError("Could not load the selected user.");
@@ -133,13 +129,12 @@ export default function MyAccount() {
         setViewAsProfile(profile);
       })
       .catch(() => {
-        sessionStorage.removeItem(ADMIN_VIEW_AS_KEY);
         setViewAsUid(null);
         setViewAsProfile(null);
         setViewAsError("Could not load the selected user.");
       })
       .finally(() => setViewAsLoading(false));
-  }, [user?.uid, userProfile?.role]);
+  }, [user?.uid, userProfile?.role, searchParams]);
 
   const isAdminViewAs = userProfile?.role === "admin" && Boolean(viewAsUid && viewAsProfile);
   const accountProfile = (isAdminViewAs ? viewAsProfile : userProfile) as Record<string, unknown> | null;
@@ -181,11 +176,14 @@ export default function MyAccount() {
   };
 
   const exitViewAs = () => {
-    sessionStorage.removeItem(ADMIN_VIEW_AS_KEY);
     setViewAsUid(null);
     setViewAsProfile(null);
     setViewAsError("");
     setTab("profile");
+    // Remove query param from URL so refresh doesn't jump back
+    const np = new URLSearchParams(searchParams);
+    np.delete("viewAsUid");
+    window.history.replaceState({}, "", "/account" + (np.toString() ? "?" + np.toString() : ""));
   };
 
   const tabs: { key: Tab; label: string }[] = [
