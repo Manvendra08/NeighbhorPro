@@ -2,27 +2,40 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../firebase", () => ({ db: {}, auth: {}, storage: {}, functionsClient: {} }));
 vi.mock("firebase/firestore", () => ({
+  Timestamp: class MockTimestamp {
+    toDate() {
+      return new Date();
+    }
+  },
   doc: vi.fn(),
   getDoc: vi.fn(),
   setDoc: vi.fn(),
   updateDoc: vi.fn(),
   serverTimestamp: vi.fn(),
+  onSnapshot: vi.fn(),
+  runTransaction: vi.fn(),
+  getCountFromServer: vi.fn(),
+  deleteField: vi.fn(),
   collection: vi.fn(),
   query: vi.fn(),
   where: vi.fn(),
   getDocs: vi.fn(),
   orderBy: vi.fn(),
   limit: vi.fn(),
+  startAfter: vi.fn(),
+  addDoc: vi.fn(),
   arrayUnion: vi.fn(),
   deleteDoc: vi.fn(),
 }));
 
 import {
   getConversationId,
+  getConversationBookingId,
   normalizeAvailabilityData,
   normalizeProfileData,
   normalizeStringArray,
 } from "./firestoreService";
+import { computeAggregateRating } from "../utils/rating";
 
 describe("firestoreService normalization helpers", () => {
   it("normalizes string arrays from comma-separated input", () => {
@@ -51,8 +64,16 @@ describe("firestoreService normalization helpers", () => {
   it("creates deterministic conversation IDs regardless of user order", () => {
     const a = getConversationId("u2", "u1");
     const b = getConversationId("u1", "u2");
+    const bookingScoped = getConversationId("u2", "u1", "booking_123");
 
     expect(a).toBe("u1_u2");
     expect(a).toBe(b);
+    expect(bookingScoped).toBe("u1_u2__booking__booking_123");
+    expect(getConversationBookingId(bookingScoped)).toBe("booking_123");
+  });
+
+  it("keeps aggregate rating aligned with reviews when stored rating is stale", () => {
+    const aggregate = computeAggregateRating(0, 2, [{ rating: 5 }, { rating: 4 }]);
+    expect(aggregate).toEqual({ rating: 4.5, reviewCount: 2 });
   });
 });

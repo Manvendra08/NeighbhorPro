@@ -133,7 +133,15 @@ vi.mock("firebase/firestore", () => {
 
 vi.mock("../firebase", () => ({ db: {} }));
 
-import { holdEscrow, releaseEscrow, requestPayout, topUpCoins } from "./coinService";
+import {
+  applyReferralCodeAtSignup,
+  generateReferralCode,
+  holdEscrow,
+  isValidReferralCode,
+  releaseEscrow,
+  requestPayout,
+  topUpCoins,
+} from "./coinService";
 
 describe("coinService", () => {
   beforeEach(() => {
@@ -229,5 +237,35 @@ describe("coinService", () => {
 
     expect(result).toEqual({ success: true });
     expect(firestoreState.read("users/user-1")?.coinBalance).toBe(700);
+  });
+
+  it("generates referral code matching required format", () => {
+    const code = generateReferralCode({ uid: "alphaUser123456" });
+    expect(isValidReferralCode(code)).toBe(true);
+  });
+
+  it("credits signup referral coins to new user when valid code used", async () => {
+    firestoreState.seed("referralCodes/PNABC123", { uid: "referrer-1", code: "PNABC123" });
+    firestoreState.seed("users/new-user-1", { coinBalance: 25 });
+
+    const result = await applyReferralCodeAtSignup("new-user-1", "PNABC123");
+
+    expect(result).toEqual({ success: true });
+    expect(firestoreState.read("users/new-user-1")?.coinBalance).toBe(125);
+    expect(firestoreState.read("referrals/new-user-1")).toMatchObject({
+      newUserUid: "new-user-1",
+      referrerUid: "referrer-1",
+      code: "PNABC123",
+      status: "rewarded_signup",
+      rewardMode: "signup_new_user_only",
+      rewardCoins: 100,
+    });
+    expect(firestoreState.read("coinLedger/new-user-1/entries/new-user-1_signup_referral")).toMatchObject({
+      uid: "new-user-1",
+      type: "earn_referral",
+      amount: 100,
+      balanceAfter: 125,
+      refId: "referrer-1",
+    });
   });
 });

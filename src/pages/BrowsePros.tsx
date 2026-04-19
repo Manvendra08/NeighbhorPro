@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { listProfessionals, BROWSE_PAGE_SIZE, getPlatformSettings } from "../services/firestoreService";
+import { listProfessionals, BROWSE_PAGE_SIZE, getPlatformSettings, getAllSocieties } from "../services/firestoreService";
 import { useAuth } from "../contexts/AuthContext";
 import { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
@@ -9,7 +9,8 @@ import EmptyState from "../components/common/EmptyState";
 import ProCard from "../components/common/ProCard";
 import SkeletonLoader from "../components/common/SkeletonLoader";
 import FormField from "../components/common/FormField";
-import { DEFAULT_SERVICE_CATEGORIES, SERVICE_CATEGORY_ICONS, normalizeServiceCategories } from "../constants/serviceCatalog";
+import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../constants/serviceCatalog";
+import { getBrowseEmptyDescription, getBrowseFallbackNotice } from "../utils/browse";
 
 type BrowsePro = UserSummary & Record<string, unknown> & {
   category?: string;
@@ -35,6 +36,8 @@ export default function BrowsePros() {
   const [towerFilter, setTowerFilter] = useState("");
   const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
   const categories = ["All", ...serviceCategories];
+  const [societies, setSocieties] = useState<{id: string, name: string}[]>([]);
+  const [fallbackNotice, setFallbackNotice] = useState("");
 
   const getMissingBookingProfileItems = () => {
     const missing: string[] = [];
@@ -70,11 +73,25 @@ export default function BrowsePros() {
     if (reset) { setLoading(true); cursorRef.current = null; }
     else setLoadingMore(true);
     try {
-      const { data, nextCursor } = await listProfessionals(reset ? null : cursorRef.current, buildServerFilters());
+      const filters = buildServerFilters();
+      const { data, nextCursor } = await listProfessionals(reset ? null : cursorRef.current, filters);
       cursorRef.current = nextCursor;
       setHasMore(nextCursor !== null);
       // Server-side pro filter applied - only exclude self
-      const visiblePros = data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
+      let visiblePros = data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
+
+      if (reset && visiblePros.length === 0 && (filters.locality || filters.tower)) {
+        const fallback = await listProfessionals(null, {});
+        visiblePros = fallback.data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
+        cursorRef.current = fallback.nextCursor;
+        setHasMore(fallback.nextCursor !== null);
+
+        const societyName = String(userProfile?.society || filters.locality || "your society");
+        setFallbackNotice(getBrowseFallbackNotice(societyName));
+      } else if (reset) {
+        setFallbackNotice("");
+      }
+
       setAllPros(prev => reset ? visiblePros : [...prev, ...visiblePros]);
     } catch (err) { console.error("Browse load error:", err); }
     setLoading(false);
@@ -92,6 +109,14 @@ export default function BrowsePros() {
       .catch(() => {
         setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
       });
+      
+    getAllSocieties(100).then((res) => {
+      const list = res.data.map(s => ({
+        id: s.id as string,
+        name: s.name as string
+      })).sort((a, b) => a.name.localeCompare(b.name));
+      setSocieties(list);
+    }).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -105,14 +130,6 @@ export default function BrowsePros() {
         (Array.isArray(p.skills) && p.skills.some(s => typeof s === "string" && s.toLowerCase().includes(category.toLowerCase())))
         || ((p.category || "").toLowerCase().includes(category.toLowerCase()))
       );
-    }
-    if (localityFilter.trim()) {
-      const lf = localityFilter.toLowerCase();
-      result = result.filter(p => ((p.locality as string) || "").toLowerCase().includes(lf));
-    }
-    if (towerFilter.trim()) {
-      const tf = towerFilter.toLowerCase();
-      result = result.filter(p => ((p.tower as string) || "").toLowerCase().includes(tf));
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -174,19 +191,37 @@ export default function BrowsePros() {
           {search && <button className="m-search-clear" onClick={() => handleSearch("")}>✕</button>}
         </div>
 
-        {/* Category scroll */}
-        <div className="m-category-scroll">
-          {categories.map(c => (
-            <button key={c} className={`m-category-pill${category === c ? " active" : ""}`} onClick={() => handleCategoryChange(c)}>
-              <span>{c === "All" ? "🌐" : (SERVICE_CATEGORY_ICONS[c] || "✨")}</span>
-              <span>{c}</span>
-            </button>
-          ))}
+        {/* Category & Locality Selects */}
+        <div style={{ padding: "0 16px", marginTop: "12px", display: "flex", gap: "12px" }}>
+          <select 
+            className="form-input" 
+            value={category} 
+            onChange={(e) => handleCategoryChange(e.target.value)}
+            style={{ flex: 1, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
+          >
+            {categories.map(c => (
+              <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>
+            ))}
+          </select>
+          <select
+            className="form-input"
+            value={localityFilter}
+            onChange={(e) => setLocalityFilter(e.target.value)}
+            style={{ flex: 1, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
+          >
+            <option value="">All Localities</option>
+            {societies.map(s => (
+              <option key={s.id} value={s.name}>{s.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* Results count */}
         {!loading && (
           <div className="m-results-meta">
+            {fallbackNotice && (
+              <div style={{ width: "100%", color: "var(--muted)", marginBottom: 6 }}>{fallbackNotice}</div>
+            )}
             {filtered.length} {filtered.length === 1 ? "professional" : "professionals"}
             {(search || category !== "All") && <button className="m-clear-filters" onClick={() => { setCategory("All"); syncSearchParams("", "All"); }}>Clear filters</button>}
           </div>
@@ -197,7 +232,11 @@ export default function BrowsePros() {
           {loading ? <SkeletonLoader mobile count={4} /> : filtered.length === 0 ? (
             <EmptyState
               title="No professionals found"
-              description={search || category !== "All" ? "Try different filters" : "Be the first! Update your profile."}
+              description={getBrowseEmptyDescription({
+                hasSearchOrCategory: Boolean(search || category !== "All"),
+                hasLocalityOrTower: Boolean(localityFilter || towerFilter),
+                isServiceProvider: Boolean(userProfile?.isServiceProvider),
+              })}
             />
           ) : (
             <>
@@ -247,15 +286,33 @@ export default function BrowsePros() {
             onBlur={e => e.currentTarget.style.borderColor = "transparent"}
           />
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <FormField
-              icon={<span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6 }}>📍</span>}
-              className="form-input"
-              type="text"
-              placeholder="Locality..."
-              value={localityFilter}
-              onChange={e => setLocalityFilter(e.target.value)}
-              style={{ width: 160, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34 }}
-            />
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6, zIndex: 1 }}>📂</span>
+              <select
+                className="form-input"
+                value={category}
+                onChange={e => handleCategoryChange(e.target.value)}
+                style={{ width: 180, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34, appearance: "none", background: "var(--surface)" }}
+              >
+                {categories.map(c => (
+                  <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6, zIndex: 1 }}>📍</span>
+              <select
+                className="form-input"
+                value={localityFilter}
+                onChange={e => setLocalityFilter(e.target.value)}
+                style={{ width: 160, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34, appearance: "none", background: "var(--surface)" }}
+              >
+                <option value="">All Localities</option>
+                {societies.map(s => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            </div>
             <FormField
               icon={<span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6 }}>🏢</span>}
               className="form-input"
@@ -266,15 +323,6 @@ export default function BrowsePros() {
               style={{ width: 110, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34 }}
             />
           </div>
-        </div>
-
-        <div className="filter-chips" style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 20, paddingBottom: 4, scrollbarWidth: "none" }}>
-          {categories.map(c => (
-            <button key={c} className={`chip${category === c ? " active" : ""}`} onClick={() => handleCategoryChange(c)}
-              style={{ padding: "8px 18px", borderRadius: 12, fontSize: 14, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-              <span>{c === "All" ? "🌐" : (SERVICE_CATEGORY_ICONS[c] || "✨")}</span> {c}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -300,10 +348,17 @@ export default function BrowsePros() {
       ) : filtered.length === 0 ? (
         <EmptyState
           title="No professionals found"
-          description={search || category !== "All" ? "Try adjusting your search or filters" : "Be the first! Update your profile to list your skills."}
+          description={getBrowseEmptyDescription({
+            hasSearchOrCategory: Boolean(search || category !== "All"),
+            hasLocalityOrTower: Boolean(localityFilter || towerFilter),
+            isServiceProvider: Boolean(userProfile?.isServiceProvider),
+          })}
         />
       ) : (
         <>
+          {fallbackNotice && (
+            <p className="text-muted" style={{ marginTop: 0, marginBottom: 12 }}>{fallbackNotice}</p>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
              <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: "var(--muted)" }}>
                Showing {filtered.length} experts {category !== "All" ? `in ${category}` : ""}

@@ -29,7 +29,7 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
     const { user, userProfile } = useAuth();
     const navigate = useNavigate();
     const { permission, requestPermission } = usePushNotifications(user?.uid);
-    const { notifications, loading, unreadCount, isRead, markRead, markAllRead } = useNotifications(
+    const { notifications, loading, unreadCount, isRead, markRead, markAllRead, clearAll } = useNotifications(
         user?.uid,
         userProfile
     );
@@ -137,6 +137,9 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
                             <button className="btn btn-ghost btn-sm" onClick={markAllRead} disabled={unreadCount === 0} ref={node => { actionRefs.current[permission !== "granted" ? 1 : 0] = node; }}>
                                 Mark all read
                             </button>
+                            <button className="btn btn-ghost btn-sm" onClick={clearAll} disabled={notifications.length === 0} ref={node => { actionRefs.current[permission !== "granted" ? 2 : 1] = node; }}>
+                                Clear all
+                            </button>
                         </div>
                     </div>
 
@@ -160,7 +163,7 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
                                         className={`notification-item ${item.kind} ${unread ? " unread" : ""}`}
                                         onClick={() => handleNavigate(item)}
                                         role="menuitem"
-                                        ref={node => { actionRefs.current[(permission !== "granted" ? 2 : 1) + notifications.findIndex(notification => notification.id === item.id)] = node; }}
+                                        ref={node => { actionRefs.current[(permission !== "granted" ? 3 : 2) + notifications.findIndex(notification => notification.id === item.id)] = node; }}
                                     >
                                         <span className="notification-item-icon">{iconForKind[item.kind]}</span>
                                         <div className="notification-item-body">

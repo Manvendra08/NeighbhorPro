@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 type BookingRow = Record<string, unknown>;
 
 type WeekStripProps = {
@@ -31,6 +33,18 @@ export default function WeekStrip({ bookings }: WeekStripProps) {
     date.setDate(today.getDate() + index);
     return date;
   });
+
+  const bookingCount = bookings.filter(booking => ["pending", "confirmed"].includes(String(booking.status || ""))).length;
+
+  if (bookingCount === 0) {
+    return (
+      <div className="empty-state" style={{ marginTop: 6 }}>
+        <div className="empty-state-title">
+          Nothing booked this week. <Link to="/browse" style={{ color: "var(--accent)", textDecoration: "underline" }}>Browse Professionals →</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="db-week-strip">

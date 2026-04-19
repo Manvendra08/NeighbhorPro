@@ -24,12 +24,10 @@ export default function RecommendedPros({
 
   return (
     <div className="db-recommended">
-      {!compact && (
-        <div className="db-recommended__head">
-          <span>⭐ Top Pros</span>
-          <Link to="/browse">View all</Link>
-        </div>
-      )}
+      <div className="db-recommended__head">
+        <span>⭐ Top Pros</span>
+        <Link to="/browse">Browse all</Link>
+      </div>
 
       <div className="db-recommended__list">
         {pros.map((pro) => {

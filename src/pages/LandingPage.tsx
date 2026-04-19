@@ -329,7 +329,7 @@ export default function LandingPage() {
       {/* ── PROOF STRIP ── */}
       <div className="lp-proof-strip" style={{ padding: `16px ${px}` }}>
         <div className="lp-proof-container">
-          {[["🏘️", "Exclusive to Park Street, Wakad"], ["⭐", "Trusted by early adopters"], ["💼", "CA, Doctor, Yoga + 17 more"], ["🔐", "Verified residents only"], ["🪙", "NeighbourCoins Rewards"]].map(([icon, text]) => (
+          {[["🏘️", "Pilot launch exclusive to Park Street, Wakad"], ["⭐", "Trusted by early adopters"], ["💼", "CA, Tuition, Yoga + 17 more"], ["🔐", "Verified residents only"], ["🪙", "NeighbourCoins Rewards"]].map(([icon, text]) => (
             <div key={text as string} className="lp-proof-item">
               <span>{icon}</span><span>{text}</span>
             </div>
@@ -376,7 +376,7 @@ export default function LandingPage() {
           <h2 className="lp-section-h2" style={{ color: "#fff", fontSize: "clamp(1.5rem,5vw,2.4rem)" }}>The professional network for <span className="lp-logo-accent">Park Street residents.</span></h2>
           <div className="lp-pro-benefits-row">
             {[
-              ["🚫 Zero Commission", "6 months, then 10% flat - no surprises"],
+              ["🚫 Zero Commission", "3 months, then 15% flat - no surprises"],
               ["📅 Own Your Schedule", "Set availability, rates, and accept/decline freely"],
               ["⭐ Build Reputation", "Verified badges, reviews boost your discovery rank"],
             ].map(([title, desc]) => (
@@ -559,7 +559,7 @@ export default function LandingPage() {
               ["🤝", null, "Neighbour Endorsements", "Endorsed by 4 neighbours in Tower B. Far more trusted."],
               ["🔐", null, "Verified Pro Badges", "🎓 Degree · 🪪 ID · ✅ Background checks."],
               ["🏠", null, "Society-Only Booking", "Only residents of your registered society can book."],
-              ["🪙", null, "NeighbourCoins Wallet", "Earn credits on every booking. Redeem them for future services."],
+              ["🪙", null, "NeighbourCoins Wallet", "Earn NC credits on every booking. Redeem them for future services."],
             ].map(([icon, phase, title, desc]) => (
               <div key={title as string} className={`lp-feature-card-dark${phase ? " lp-phase2" : ""}`} style={{ opacity: 1, transform: "none", textAlign: "left" }}>
                 <div style={{ fontSize: isMobile ? "1.5rem" : "1.8rem", marginBottom: 12 }}>{icon}</div>
@@ -587,8 +587,8 @@ export default function LandingPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
               {[
                 ["🏆", "Founder Badge", "Permanent social trust signal on every profile."],
-                ["💰", "Zero Platform Fee — 6 Months", "Pros keep 100%. Residents get 3 free credits."],
-                ["🪙", "Early Wallet Credit", "₹200 in NeighbourCoins on your first booking"],
+                ["💰", "Zero Platform Fee — 3 Months", "Pros keep 100%."],
+                ["🪙", "Early Wallet Credit", "₹200 in NeighbourCoins (NC) on your first booking"],
                 ["🚀", "Priority Onboarding", "Your society goes live before public launch."],
               ].map(([icon, title, desc]) => (
                 <div key={title as string} className="lp-benefit-item">
@@ -602,7 +602,7 @@ export default function LandingPage() {
               <div className="lp-early-cta-row">
                 <div className="lp-early-referral-box" style={{ background: "linear-gradient(135deg, #FFF8F5, #E8F4FD)", border: "2px solid #F5692C", borderRadius: "20px", padding: "14px", textAlign: "center" }}>
                   <div style={{ fontSize: "clamp(0.9rem,3vw,1rem)", fontWeight: 600, color: "#F5692C" }}>
-                    🎁 Refer a neighbour · Earn ₹200 in NeighbourCoins · No cap on referrals
+                    🎁 Refer a neighbour · Earn ₹200 in NeighbourCoins (NC) · No cap on referrals
                   </div>
                 </div>
                 <button onClick={() => navigate("/register")} className="lp-btn-secondary lp-early-cta-btn" style={{ padding: "14px 32px", fontSize: "clamp(0.88rem,3vw,1rem)", boxShadow: "0 6px 20px rgba(245,105,44,0.35)", width: "auto" }}>

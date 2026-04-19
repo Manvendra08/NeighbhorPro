@@ -1,4 +1,6 @@
 import Avatar from "./Avatar";
+import InfoTooltip from "./InfoTooltip";
+import { computeAggregateRating } from "../../utils/rating";
 
 interface ProCardData {
   uid: string;
@@ -35,6 +37,11 @@ export default function ProCard({
   const name = pro.displayName || "Anonymous";
   const location = `${pro.locality || pro.society || "Community Member"}${pro.tower ? `, ${pro.tower}` : ""}`;
   const skills = pro.skills || [];
+  const { rating, reviewCount } = computeAggregateRating(pro.rating, pro.reviewCount, undefined);
+  const ratingLabel = reviewCount > 0
+    ? `★ ${rating === null ? "—" : rating.toFixed(1)} (${reviewCount})`
+    : "No reviews yet";
+  const verificationTooltip = "This professional has uploaded a valid society residency proof verified by ProNeighbor.";
 
   if (mobile) {
     return (
@@ -52,8 +59,9 @@ export default function ProCard({
           <div className="m-pro-name">
             {name}
             {pro.residentVerificationStatus === "verified" && (
-              <span style={{ marginLeft: 6, fontSize: 10, color: "var(--success)", fontWeight: 600 }}>
-                ✓ Verified
+              <span style={{ marginLeft: 6, fontSize: 10, color: "var(--success)", fontWeight: 600, display: "inline-flex", alignItems: "center" }}>
+                ✓ Verified Resident
+                <InfoTooltip text={verificationTooltip} label="Verified resident proof" />
               </span>
             )}
           </div>
@@ -75,7 +83,7 @@ export default function ProCard({
           <div className="m-pro-rate">
             {pro.priceAfterQuote ? "Quote" : (pro.hourlyRate || 0) === 0 ? "Free" : `₹${pro.hourlyRate}/hr`}
           </div>
-          <div className="m-pro-rating">★ {pro.rating || 0}</div>
+          <div className="m-pro-rating">{ratingLabel}</div>
           <button
             className="btn btn-primary btn-sm"
             style={{ marginTop: 6, padding: "6px 14px", fontSize: 12 }}
@@ -125,6 +133,7 @@ export default function ProCard({
                   }}
                 >
                   ✓ Verified Resident
+                  <InfoTooltip text={verificationTooltip} label="Verified resident proof" />
                 </span>
               )}
             </div>
@@ -167,8 +176,14 @@ export default function ProCard({
               <span className="pro-card-rate">{(pro.hourlyRate || 0) === 0 ? "Free" : `₹${pro.hourlyRate}/hr`}</span>
             )}
             <div className="pro-card-rating">
-              ★ {pro.rating || 0}
-              <span className="text-muted text-xs"> ({pro.reviewCount || 0})</span>
+              {reviewCount > 0 ? (
+                <>
+                  ★ {rating === null ? "—" : rating.toFixed(1)}
+                  <span className="text-muted text-xs"> ({reviewCount})</span>
+                </>
+              ) : (
+                <span className="text-muted text-xs">No reviews yet</span>
+              )}
             </div>
           </div>
         </div>

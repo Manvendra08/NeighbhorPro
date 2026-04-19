@@ -66,6 +66,7 @@ export default function App() {
 
             <Route path="/admin"                element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/users"          element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/verifications"  element={<Navigate to="/admin/users?tab=verification" replace />} />
             <Route path="/admin/societies"      element={<ProtectedRoute adminOnly><AdminSocieties /></ProtectedRoute>} />
             <Route path="/admin/services"       element={<ProtectedRoute adminOnly><AdminServices /></ProtectedRoute>} />
             <Route path="/admin/reviews"        element={<ProtectedRoute adminOnly><AdminReviews /></ProtectedRoute>} />
@@ -86,4 +87,3 @@ export default function App() {
     </ErrorBoundary>
   );
 }
-

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
@@ -75,9 +75,23 @@ function EmailVerificationBanner() {
 
 // Mobile header — compact, contextual
 function MobileHeader() {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const avatarRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleDocClick(e: MouseEvent) {
+      if (!avatarRef.current) return;
+      const target = e.target as Node;
+      if (!avatarRef.current.contains(target)) {
+        setAvatarMenuOpen(false);
+      }
+    }
+    document.addEventListener("click", handleDocClick);
+    return () => document.removeEventListener("click", handleDocClick);
+  }, []);
 
   const routeTitles: Record<string, string> = {
     "/dashboard": "ProNeighbor",
@@ -122,9 +136,19 @@ function MobileHeader() {
           </button>
         )}
         <NotificationCenter mobile />
-        <div className="topbar-avatar" onClick={() => navigate("/account")} style={{ width: 32, height: 32, fontSize: 12 }}>
+        <div className="topbar-avatar" ref={avatarRef} onClick={() => setAvatarMenuOpen(v => !v)} style={{ width: 32, height: 32, fontSize: 12 }} aria-haspopup="true" aria-expanded={avatarMenuOpen ? "true" : "false"}>
           {user?.photoURL ? <img src={user.photoURL} alt="avatar" loading="lazy" /> : initials}
         </div>
+        {avatarMenuOpen && (
+          <div className="mobile-avatar-menu" role="menu">
+            <button className="mobile-avatar-menu__item" type="button" onClick={() => { setAvatarMenuOpen(false); navigate("/account"); }}>
+              My account
+            </button>
+            <button className="mobile-avatar-menu__item" type="button" onClick={async () => { setAvatarMenuOpen(false); try { await logout(); navigate("/login"); } catch (e) { console.error(e); } }}>
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

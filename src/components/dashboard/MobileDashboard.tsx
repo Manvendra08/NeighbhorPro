@@ -3,11 +3,9 @@ import { Link } from "react-router-dom";
 import { deleteFeedPost, subscribeToFeed } from "../../services/firestoreService";
 import type { DashboardDataResult } from "../../hooks/useDashboardData";
 import SmartGreeting from "./SmartGreeting";
-import QuickActions from "./QuickActions";
 import DashboardSection from "./DashboardSection";
 import WeekStrip from "./WeekStrip";
 import EnhancedStatsCards, { type DashboardStatCard } from "./EnhancedStatsCards";
-import EarningsHeroCard from "./EarningsHeroCard";
 import BookingPipeline from "./BookingPipeline";
 import PerformanceMetrics from "./PerformanceMetrics";
 import ProfileCompletionNudge from "./ProfileCompletionNudge";
@@ -125,27 +123,25 @@ export default function MobileDashboard({
 
   return (
     <div className="db-page db-page--mobile">
-      <SmartGreeting
-        firstName={firstName}
-        isPro={isPro}
-        proBookings={proBookings}
-        nextBooking={nextBooking}
-        profileIncomplete={!profileCompletion.complete}
-        missingFields={profileCompletion.missingTop}
-      />
+      {isPro ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+          <h1 className="db-greeting__title" style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>Welcome back, {firstName} 👋</h1>
+          <ProfileCompletionNudge completion={profileCompletion} />
+        </div>
+      ) : (
+        <SmartGreeting
+          firstName={firstName}
+          isPro={isPro}
+          proBookings={proBookings}
+          nextBooking={nextBooking}
+          profileIncomplete={!profileCompletion.complete}
+          missingFields={profileCompletion.missingTop}
+        />
+      )}
 
-      <QuickActions isPro={isPro} />
 
       {isPro ? (
         <>
-          <EarningsHeroCard
-            thisMonth={earningsSummary.thisMonth}
-            lastMonth={earningsSummary.lastMonth}
-            changePct={earningsSummary.changePct}
-            pendingPayoutNC={earningsSummary.pendingPayoutNC}
-            dailySeries={earningsSummary.dailySeries}
-            isPositive={earningsSummary.isPositive}
-          />
           <DashboardSection title="Pipeline" subtitle="Mobile kanban for requests." actionLabel="Bookings" actionTo="/bookings">
             <BookingPipeline bookings={proBookings} />
           </DashboardSection>
@@ -182,7 +178,7 @@ export default function MobileDashboard({
         </div>
       )}
 
-      <ProfileCompletionNudge completion={profileCompletion} />
+      {!isPro && <ProfileCompletionNudge completion={profileCompletion} />}
 
       <DashboardSection title="Neighborhood Feed" subtitle={locality ? `Posts from ${locality}` : "Community updates."} collapsible>
         <div className="db-feed-shell">

@@ -435,7 +435,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                 onChange={(event) => {
                   setSociety(event.target.value);
                   const selected = societies.find(item => item.name === event.target.value);
-                  if (selected) setLocality((selected.locality as string) || "");
+                  if (selected) setLocality(((selected.locality as string) || (selected.city as string) || "").trim());
                 }}
                 id="profile-society-select"
               >
@@ -455,6 +455,19 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
               <label className="form-label">Flat Number <span style={{ color: "var(--error)" }}>*</span></label>
               <input className="form-input" value={flatNumber} onChange={(event) => setFlatNumber(event.target.value)} placeholder="e.g., 402" id="profile-flat-input" />
               {errors.flatNumber && <div className="text-sm" style={{ color: "var(--error)", marginTop: 4 }}>{errors.flatNumber}</div>}
+            </div>
+            <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+              <label className="form-label">Locality</label>
+              <input
+                className="form-input"
+                value={locality}
+                onChange={(event) => setLocality(event.target.value)}
+                placeholder="Auto-filled from society, editable if needed"
+                id="profile-locality-input"
+              />
+              <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: 4 }}>
+                Locality is auto-filled when available. Update it manually if your society mapping is missing.
+              </p>
             </div>
           </div>
 

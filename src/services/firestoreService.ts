@@ -188,6 +188,18 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   const current = await getDoc(userRef);
   const currentData = current.data() ?? {};
 
+  const nextRole = typeof data.role === "string" ? data.role : currentData.role;
+  const nextDisabled = typeof data.disabled === "boolean" ? data.disabled : currentData.disabled;
+  const mutatesAdminControls = currentData.role === "admin" && (typeof data.role === "string" || typeof data.disabled === "boolean");
+
+  if (mutatesAdminControls && (nextRole !== "admin" || nextDisabled === true)) {
+    const rows = await getAllUserRows(500);
+    const activeAdmins = rows.filter(user => user.role === "admin" && !user.disabled).length;
+    if (activeAdmins <= 1) {
+      throw new Error("At least one active admin must remain");
+    }
+  }
+
   const nextData: Record<string, unknown> = { ...data };
   const nextDisplayName = (typeof data.displayName === "string" ? data.displayName : (currentData.displayName as string | undefined)) ?? "";
   const nextPhone = (typeof data.phoneNumber === "string" ? data.phoneNumber : (currentData.phoneNumber as string | undefined)) ?? "";
@@ -441,6 +453,37 @@ function mergeAndSortProfessionals(
   return Array.from(merged.values()).sort((a, b) => toEpochMillis(b.createdAt) - toEpochMillis(a.createdAt));
 }
 
+function shouldBackfillRatingAggregate(profile: Record<string, unknown>): boolean {
+  const rating = Number(profile.rating) || 0;
+  const reviewCount = Math.max(0, Number(profile.reviewCount) || 0);
+  if (rating > 0 && reviewCount > 0) return false;
+  if ((rating > 0 && reviewCount === 0) || (rating <= 0 && reviewCount > 0)) return true;
+
+  // For very new profiles, empty aggregates are expected; avoid expensive recalc on every browse.
+  const createdAtMs = toEpochMillis(profile.createdAt);
+  if (createdAtMs === 0) return true;
+  const twoWeeksMs = 14 * 24 * 60 * 60 * 1000;
+  return Date.now() - createdAtMs >= twoWeeksMs;
+}
+
+async function healProfessionalAggregates(profiles: Record<string, unknown>[]): Promise<Record<string, unknown>[]> {
+  return Promise.all(
+    profiles.map(async (profile) => {
+      if (!shouldBackfillRatingAggregate(profile)) return profile;
+
+      const uid = String(profile.uid || profile.id || "").trim();
+      if (!uid) return profile;
+
+      try {
+        const aggregate = await recalculateProRating(uid);
+        return { ...profile, ...aggregate };
+      } catch {
+        return profile;
+      }
+    })
+  );
+}
+
 /**
  * Paginated professional listing ordered by createdAt desc.
  * Server-side locality/tower filtering uses Firestore where() clauses
@@ -461,10 +504,11 @@ export async function listProfessionals(
   if (cursor) primaryConstraints.push(startAfter(cursor));
   const primaryDocs = await safeGetDocs(query(collection(db, "publicProfiles"), ...primaryConstraints));
   const primaryData = mergeAndSortProfessionals(primaryDocs);
+  const healedPrimaryData = await healProfessionalAggregates(primaryData);
   // Keep fast indexed pagination whenever mirror query succeeds.
-  if (primaryData.length > 0 || cursor) {
+  if (healedPrimaryData.length > 0 || cursor) {
     const nextCursor = primaryDocs.length === BROWSE_PAGE_SIZE ? primaryDocs[primaryDocs.length - 1] : null;
-    return { data: primaryData.slice(0, BROWSE_PAGE_SIZE), nextCursor };
+    return { data: healedPrimaryData.slice(0, BROWSE_PAGE_SIZE), nextCursor };
   }
   // Legacy resilience:
   // 1) role=professional|both docs from older schema
@@ -486,7 +530,7 @@ export async function listProfessionals(
     safeGetDocs(query(collection(db, "users"), ...broadUserConstraints)),
   ]);
   const data = mergeAndSortProfessionals([...broadPublicDocs, ...broadUserDocs]).slice(0, BROWSE_PAGE_SIZE);
-  return { data, nextCursor: null };
+  return { data: await healProfessionalAggregates(data), nextCursor: null };
 }
 export async function getAllUsers(
   limit_ = 50,
@@ -552,17 +596,97 @@ export async function createBooking(data: Record<string, unknown>) {
   const bookingPayload = { ...data };
   const clientId = (bookingPayload.clientId as string) || (bookingPayload.clientUid as string) || "";
   const proId = (bookingPayload.proId as string) || (bookingPayload.proUid as string) || "";
+  const amount = Math.max(0, Math.trunc(Number(bookingPayload.amount ?? 0) || 0));
+  const notesValue = typeof bookingPayload.notes === "string" ? bookingPayload.notes : "";
+  if (notesValue.length > 500) {
+    throw new Error("NOTES_TOO_LONG");
+  }
+  const explicitEscrowCoins = Math.max(0, Math.trunc(Number(bookingPayload.escrowCoins ?? 0) || 0));
+  const escrowCoins = explicitEscrowCoins > 0 ? explicitEscrowCoins : amount;
+
+  if (!clientId || !proId) {
+    throw new Error("BOOKING_PARTICIPANTS_REQUIRED");
+  }
+  if (clientId === proId) {
+    throw new Error("SELF_BOOKING_NOT_ALLOWED");
+  }
 
   bookingPayload.clientId = clientId;
   bookingPayload.clientUid = clientId;
   bookingPayload.proId = proId;
   bookingPayload.proUid = proId;
 
-  const ref = await addDoc(collection(db, "bookings"), { ...bookingPayload, status: "pending", createdAt: serverTimestamp() });
-  return ref.id;
+  const bookingRef = doc(collection(db, "bookings"));
+  const now = serverTimestamp();
+  const isPaid = escrowCoins > 0;
+  const bookingDoc = {
+    ...bookingPayload,
+    amount,
+    isPaid,
+    coinsPaid: isPaid,
+    escrowCoins,
+    escrowStatus: isPaid ? "held" : "none",
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await runTransaction(db, async tx => {
+    if (escrowCoins > 0) {
+      const userRef = doc(db, "users", clientId);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists()) throw new Error("USER_NOT_FOUND");
+
+      const balance = Math.max(0, Math.trunc(Number(userSnap.data()?.coinBalance ?? 0) || 0));
+      if (balance < escrowCoins) throw new Error("INSUFFICIENT_BALANCE");
+
+      const newBal = balance - escrowCoins;
+      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
+      tx.set(bookingRef, bookingDoc);
+      tx.set(doc(collection(db, "coinLedger", clientId, "entries"), `${bookingRef.id}_hold_${clientId}`), {
+        uid: clientId,
+        type: "booking_escrow",
+        amount: -escrowCoins,
+        balanceAfter: newBal,
+        description: `Payment held: ${(bookingPayload.serviceName as string) || "Booking"}`,
+        refId: bookingRef.id,
+        createdAt: serverTimestamp(),
+      });
+      return;
+    }
+
+    tx.set(bookingRef, bookingDoc);
+  });
+
+  return bookingRef.id;
 }
 export async function updateBookingStatus(bookingId: string, status: string) {
-  await updateDoc(doc(db, "bookings", bookingId), { status, updatedAt: serverTimestamp() });
+  if (!/^(confirmed|reviewed)$/.test(status)) {
+    throw new Error("INVALID_BOOKING_STATUS");
+  }
+
+  await runTransaction(db, async tx => {
+    const ref = doc(db, "bookings", bookingId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("BOOKING_NOT_FOUND");
+
+    const currentStatus = String(snap.data()?.status ?? "");
+    const update: Record<string, unknown> = { status, updatedAt: serverTimestamp() };
+
+    if (status === "confirmed") {
+      if (currentStatus !== "pending") throw new Error("INVALID_BOOKING_TRANSITION");
+      update.confirmedAt = serverTimestamp();
+      update.confirmedBy = auth.currentUser?.uid ?? null;
+    }
+
+    if (status === "reviewed") {
+      if (currentStatus !== "completed") throw new Error("INVALID_BOOKING_TRANSITION");
+      update.reviewedAt = serverTimestamp();
+      update.reviewedBy = auth.currentUser?.uid ?? null;
+    }
+
+    tx.update(ref, update);
+  });
 }
 export async function getBookingsForUser(uid: string) {
   const primaryQuery = query(collection(db, "bookings"), where("clientUid", "==", uid), orderBy("createdAt", "desc"));
@@ -748,28 +872,53 @@ export async function getReviewDistribution(proId: string): Promise<Record<numbe
   }
   return distribution;
 }
-export async function recalculateProRating(proId: string) {
+
+export async function recalculateProRating(proId: string): Promise<{ rating: number; reviewCount: number }> {
   const allReviews = await getReviewsForUser(proId);
-  const avg = allReviews.length > 0 ? allReviews.reduce((s, r) => s + ((r.rating as number) || 0), 0) / allReviews.length : 0;
+  const validRatings = allReviews
+    .map(review => Number(review.rating))
+    .filter(rating => Number.isFinite(rating) && rating >= 1 && rating <= 5) as number[];
+  const avg = validRatings.length > 0
+    ? validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length
+    : 0;
   const update = { rating: Math.round(avg * 10) / 10, reviewCount: allReviews.length };
   await updateDoc(doc(db, "users", proId), update);
   await mirrorPublicProfile(proId, update);
+  return update;
 }
 export async function checkSpamReviews(proId: string) {
   // Deprecated: automated spam checks run in Cloud Functions.
   // Kept as a no-op for backward compatibility with older imports.
   void proId;
 }
-export async function reportProfessional(proId: string, reason: string, comment: string) {
+export async function hasUserReportedProfessional(proId: string, reporterId: string): Promise<boolean> {
+  const pairId = `${proId}_${reporterId}`;
+  const reportDoc = await getDoc(doc(db, "reports", pairId));
+  return reportDoc.exists();
+}
+
+export async function reportProfessional(proId: string, reason: string, comment: string): Promise<{ success: boolean; alreadyReported?: boolean }> {
   if (!auth.currentUser) throw new Error("Must be logged in to report");
-  await addDoc(collection(db, "reports"), {
+  const reporterId = auth.currentUser.uid;
+  const pairId = `${proId}_${reporterId}`;
+  const reportRef = doc(db, "reports", pairId);
+  const existing = await getDoc(reportRef);
+  if (existing.exists()) {
+    return { success: false, alreadyReported: true };
+  }
+
+  await setDoc(reportRef, {
+    id: pairId,
     proId,
-    reporterId: auth.currentUser.uid,
+    reporterId,
     reason,
     comment,
     status: "pending",
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
+
+  return { success: true };
 }
 
 /* ═══════════════════════════════════════════
@@ -824,8 +973,17 @@ export async function getTransactionsForPro(proId: string) {
  * Returns a deterministic conversation ID for a pair of users (sorted UIDs joined by '_').
  * This is idempotent and eliminates duplicate conversation documents.
  */
-export function getConversationId(uid1: string, uid2: string): string {
-  return [uid1, uid2].sort().join("_");
+export function getConversationId(uid1: string, uid2: string, bookingId?: string): string {
+  const baseId = [uid1, uid2].sort().join("_");
+  return bookingId ? `${baseId}__booking__${bookingId}` : baseId;
+}
+
+export function getConversationBookingId(conversationId: string): string | null {
+  const marker = "__booking__";
+  const markerIndex = conversationId.indexOf(marker);
+  if (markerIndex < 0) return null;
+  const bookingId = conversationId.slice(markerIndex + marker.length).trim();
+  return bookingId || null;
 }
 
 type ConversationOptions = {
@@ -844,9 +1002,9 @@ function bookingHasUsers(booking: Record<string, unknown>, uid1: string, uid2: s
 }
 
 export async function getOrCreateConversation(uid1: string, uid2: string, options?: ConversationOptions) {
-  const convId = getConversationId(uid1, uid2);
-  const convRef = doc(db, "messages", convId);
   const bookingId = options?.bookingId;
+  const convId = getConversationId(uid1, uid2, bookingId);
+  const convRef = doc(db, "messages", convId);
   const allowUnlinked = options?.allowUnlinked === true;
 
   if (!allowUnlinked) {
@@ -1084,10 +1242,11 @@ export async function getRecommendedPros(
     limit(limit_ * 5)
   );
   const snap = await getDocs(q);
-  return snap.docs
+  const ranked = snap.docs
     .map(d => ({ uid: d.id, ...d.data() }))
     .filter(p => (p.uid as string) !== uid)
     .slice(0, limit_);
+  return healProfessionalAggregates(ranked);
 }
 
 export async function getLastBookedPro(uid: string): Promise<string | null> {

@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createBooking, getPublicProfile, getServicesByUser, getOrCreateConversation,
   getProAvailability, getBookingsForProOnDate, uploadBookingAttachment
 } from "../services/firestoreService";
-import { holdEscrow } from "../services/coinService";
 import { logActivity } from "../services/activityService";
+import { BOOKING_BRIEF_MAX_CHARS, isBookingBriefValid } from "../utils/booking";
+import { getInitialServiceCategory, getServiceCategories, shouldShowCategoryFilter } from "../utils/serviceSelection";
 
 export default function BookingFlow() {
   const { id: proId } = useParams<{ id: string }>();
@@ -31,7 +32,7 @@ export default function BookingFlow() {
   const [availableSlots, setAvailSlots] = useState<string[]>([]);
   const [checkingAvail, setCA] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
-  const [selectedCat, setCat] = useState<string>("All");
+  const [selectedCat, setCat] = useState<string>("");
 
   const preselectedServiceId = searchParams.get("serviceId");
   const rebookDate = searchParams.get("date") ?? "";
@@ -56,6 +57,7 @@ export default function BookingFlow() {
           duration: "60 minutes",
         });
         setSvc(defaultSvc as Record<string, unknown>);
+        setCat(getInitialServiceCategory(s, preselectedServiceId));
         if (rebookDate) setDate(rebookDate);
       })
       .catch(() => setPNF(true));
@@ -97,6 +99,28 @@ export default function BookingFlow() {
   const balance = userProfile?.coinBalance ?? 0;
   const hasEnough = isFree || balance >= feeCoins;
 
+  const categories = useMemo(() => getServiceCategories(services), [services]);
+
+  const filteredServices = useMemo(
+    () => services.filter(service => !selectedCat || service.category === selectedCat),
+    [services, selectedCat],
+  );
+
+  useEffect(() => {
+    if (!services.length) return;
+    if (!selectedCat || !categories.includes(selectedCat)) {
+      setCat(categories[0] || "Other");
+    }
+  }, [categories, selectedCat, services.length]);
+
+  useEffect(() => {
+    if (!selectedSvc) return;
+    if (selectedCat && selectedSvc.category !== selectedCat) {
+      const nextSelected = filteredServices[0] || null;
+      setSvc(nextSelected);
+    }
+  }, [filteredServices, selectedCat, selectedSvc]);
+
   const missingProfileItems: string[] = [];
   if (!String(userProfile?.displayName || "").trim()) missingProfileItems.push("Full name");
   if (!String(userProfile?.society || "").trim()) missingProfileItems.push("Society");
@@ -108,6 +132,10 @@ export default function BookingFlow() {
 
   const handleSubmit = async () => {
     if (!date || !timeSlot || !selectedSvc) { setError("Please select a service, date, and time slot."); return; }
+    if (!isBookingBriefValid(notes.trim())) {
+      setError(`Brief of service cannot exceed ${BOOKING_BRIEF_MAX_CHARS} characters.`);
+      return;
+    }
     if (bookingBlockedByProfile) {
       setError("Please update your profile to start booking pros.");
       return;
@@ -134,22 +162,11 @@ export default function BookingFlow() {
         serviceCategory: selectedSvc.category || "Other",
         date, timeSlot, notes,
         isPaid: !isFree, amount: feeCoins,
-        coinsPaid: false, escrowCoins: 0, escrowStatus: "none",
+        coinsPaid: !isFree, escrowCoins: feeCoins, escrowStatus: !isFree ? "held" : "none",
         ...(attachData && { attachmentUrl: attachData.url, attachmentName: attachData.name, attachmentType: attachData.type })
       });
 
-      // 2. Debit client and hold in escrow (pro is NOT credited here)
-      if (!isFree && feeCoins > 0) {
-        const result = await holdEscrow(user!.uid, bookingId, feeCoins, serviceName);
-        if (!result.success) {
-          setError(result.reason === "INSUFFICIENT_BALANCE"
-            ? "Insufficient NC balance. Please top up your wallet."
-            : "Payment failed. Please try again.");
-          setLoading(false); return;
-        }
-      }
-
-      // 4. Auto-create conversation so client and pro can chat immediately.
+      // 2. Auto-create conversation so client and pro can chat immediately.
       // Booking should remain successful even if chat bootstrap fails.
       try {
         const cid = await getOrCreateConversation(user!.uid, proId!, { bookingId });
@@ -159,15 +176,24 @@ export default function BookingFlow() {
         setPostBookingWarning("Booking confirmed, but chat could not be prepared yet. Open the booking details page and tap Message to retry.");
       }
 
-      // 5. Log activity
+      // 3. Log activity
       logActivity(user!.uid, "booking.created", `Booked ${selectedSvc?.title as string} with ${(pro?.displayName as string) || proId} on ${date} at ${timeSlot}`, { bookingId, proId, serviceId: selectedSvc?.id, amount: feeCoins, isFree });
       if (!isFree && feeCoins > 0) {
         logActivity(user!.uid, "payment.initiated", `Escrow held: ${feeCoins} NC for booking ${bookingId}`, { bookingId, amount: feeCoins });
       }
 
       setStep(3);
-    } catch {
-      setError("Failed to create booking. Please try again.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
+      if (message === "INSUFFICIENT_BALANCE") {
+        setError("Insufficient NC balance. Please top up your wallet.");
+      } else if (message === "SELF_BOOKING_NOT_ALLOWED") {
+        setError("You cannot book your own service.");
+      } else if (message === "NOTES_TOO_LONG") {
+        setError(`Brief of service cannot exceed ${BOOKING_BRIEF_MAX_CHARS} characters.`);
+      } else {
+        setError("Failed to create booking. Please try again.");
+      }
     }
     setLoading(false);
   };
@@ -244,7 +270,7 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {services.length > 0 && (
+          {services.length > 0 && shouldShowCategoryFilter(categories) && (
             <div className="form-group">
               <label className="form-label" htmlFor="service-category">Service Category</label>
               <select
@@ -253,13 +279,11 @@ export default function BookingFlow() {
                 value={selectedCat}
                 onChange={(e) => {
                   setCat(e.target.value);
-                  // Auto-select first service of this category
-                  const filtered = e.target.value === "All" ? services : services.filter(s => s.category === e.target.value);
+                  const filtered = services.filter(s => ((s.category as string) || "Other") === e.target.value);
                   if (filtered.length > 0) setSvc(filtered[0]);
                 }}
               >
-                <option value="All">All Categories</option>
-                {[...new Set(services.map(s => (s.category as string) || "Other"))].map(cat => (
+                {categories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
@@ -271,7 +295,7 @@ export default function BookingFlow() {
               <label className="form-label">Select Service</label>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {services
-                  .filter(svc => selectedCat === "All" || svc.category === selectedCat)
+                  .filter(svc => !selectedCat || svc.category === selectedCat)
                   .map(svc => (
                     <div key={svc.id as string} onClick={() => setSvc(svc)} style={{ padding: "12px 16px", border: `2px solid ${selectedSvc?.id === svc.id ? "var(--accent)" : "var(--border)"}`, background: selectedSvc?.id === svc.id ? "rgba(13,107,107,0.04)" : "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
@@ -318,7 +342,21 @@ export default function BookingFlow() {
 
           <div className="form-group">
             <label className="form-label" htmlFor="booking-notes">Brief of service</label>
-            <textarea id="booking-notes" className="form-input" placeholder="Describe what you need help with…" value={notes} onChange={e => setNotes(e.target.value)} />
+            <textarea
+              id="booking-notes"
+              className="form-input"
+              placeholder="Describe what you need help with…"
+              value={notes}
+              maxLength={BOOKING_BRIEF_MAX_CHARS}
+              onChange={e => {
+                if (isBookingBriefValid(e.target.value)) {
+                  setNotes(e.target.value);
+                }
+              }}
+            />
+            <p className="text-muted text-sm" style={{ marginTop: 4, textAlign: "right" }}>
+              {notes.length}/{BOOKING_BRIEF_MAX_CHARS}
+            </p>
           </div>
 
           <div className="form-group">

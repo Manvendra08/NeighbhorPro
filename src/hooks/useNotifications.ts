@@ -32,8 +32,10 @@ export interface AppNotification {
 }
 
 const READ_LIMIT = 500;
+const MAX_NOTIFICATIONS = 15;
 
 const readKey = (uid: string) => `pn_notification_reads_${uid}`;
+const clearedKey = (uid: string) => `pn_notification_cleared_at_${uid}`;
 
 const toMillis = (value: unknown): number => {
     if (value instanceof Timestamp) return value.toMillis();
@@ -52,16 +54,19 @@ const asString = (value: unknown, fallback = ""): string =>
     typeof value === "string" ? value : fallback;
 
 const relevantAnnouncement = (data: Record<string, unknown>, profile: UserProfile | null) => {
-    const target = asString(data.target, "All Users");
-    if (target === "All Users") return true;
-    if (target === "Admins Only") return profile?.role === "admin";
-    if (target === "Service Professionals") return !!profile?.isServiceProvider;
-    if (target === "Society-Specific") {
+  const target = asString(data.target, "All Users");
+  if (target === "All Users") return true;
+  if (target === "Admins Only") return profile?.role === "admin";
+  if (target === "Service Professionals") return !!profile?.isServiceProvider;
+  if (target === "Society-Specific") {
         const targetSociety = asString(data.targetSociety);
         if (!targetSociety) return false;
-        return profile?.society === targetSociety || profile?.locality === targetSociety;
-    }
-    return true;
+        const profileSociety = asString(profile?.society);
+        const profileLocality = asString(profile?.locality);
+        const targetSocietyName = asString(data.targetSocietyName, targetSociety);
+        return [profileSociety, profileLocality].some(value => value && [targetSociety, targetSocietyName].some(targetValue => value.toLowerCase() === targetValue.toLowerCase()));
+  }
+  return true;
 };
 
 const bookingAlertFromStatus = (
@@ -91,6 +96,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [loading, setLoading] = useState(true);
     const [readIds, setReadIds] = useState<Set<string>>(new Set());
+    const [clearedAt, setClearedAt] = useState(0);
     const [isPageHidden, setIsPageHidden] = useState(() => (typeof document !== "undefined" ? document.hidden : false));
 
     useEffect(() => {
@@ -110,6 +116,17 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         } catch {
             setReadIds(new Set());
         }
+    }, [uid]);
+
+    useEffect(() => {
+        if (!uid) {
+            setClearedAt(0);
+            return;
+        }
+
+        const raw = localStorage.getItem(clearedKey(uid));
+        const parsed = Number(raw);
+        setClearedAt(Number.isFinite(parsed) && parsed > 0 ? parsed : 0);
     }, [uid]);
 
     // Keep listeners in sync with actual page visibility.
@@ -145,6 +162,23 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         });
     };
 
+    const clearAll = () => {
+        const now = Date.now();
+        setClearedAt(now);
+        if (uid) {
+            localStorage.setItem(clearedKey(uid), String(now));
+        }
+
+        setReadIds(prev => {
+            const next = new Set(prev);
+            for (const item of notifications) next.add(item.id);
+            persistReadIds(next);
+            return next;
+        });
+
+        setNotifications([]);
+    };
+
     useEffect(() => {
         if (!uid) {
             setNotifications([]);
@@ -164,7 +198,10 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         const emit = () => {
             if (!active) return;
             const merged = Object.values(buckets).flat();
-            const sorted = merged.sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+            const sorted = merged
+                .filter(item => item.createdAt > clearedAt)
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .slice(0, MAX_NOTIFICATIONS);
             setNotifications(sorted);
             setLoading(false);
         };
@@ -446,7 +483,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
                             title: "Verification Pending",
                             body: `${name} uploaded residency proof`,
                             createdAt: updatedAt,
-                            actionUrl: "/admin/verifications",
+                            actionUrl: "/admin/users?tab=verification",
                             priority: "high" as const,
                         };
                     });
@@ -526,7 +563,7 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
             unsubs.forEach(unsub => unsub());
             clearInterval(walletPollInterval);
         };
-    }, [uid, userProfile, isPageHidden]);
+    }, [uid, userProfile, isPageHidden, clearedAt]);
 
     const unreadCount = useMemo(
         () => notifications.filter(item => !readIds.has(item.id)).length,
@@ -540,5 +577,6 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         isRead: (id: string) => readIds.has(id),
         markRead,
         markAllRead,
+        clearAll,
     };
 }

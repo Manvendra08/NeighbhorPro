@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview } from "../services/firestoreService";
+import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview, updateBookingFields } from "../services/firestoreService";
 import { releaseEscrow, earnCoins, rewardReferral, cancelBookingAndRefund } from "../services/coinService";
 import { logActivity } from "../services/activityService";
+import { formatBookingDateTime } from "../utils/time";
+import { getPaymentStatusLabel } from "../utils/booking";
 
 function buildRecurringRebookQuery(booking: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -33,6 +35,8 @@ export default function BookingDetail() {
   const [reviewRating, setRR] = useState(5);
   const [reviewComment, setRC] = useState("");
   const [reviewSub, setRS] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelComment, setCancelComment] = useState("");
 
   const load = async () => {
     if (!id || !user) return;
@@ -65,15 +69,28 @@ export default function BookingDetail() {
   const platformFee = (booking.platformFee as number) || 0;
   const proEarning = (booking.proEarning as number) || 0;
 
-  const handleCancel = async () => {
+  const handleCancel = () => {
+    setCancelComment("");
+    setShowCancelConfirm(true);
+  };
+
+  const submitCancellation = async () => {
     setAL("cancel");
     try {
       const role = isClient ? "client" : "pro";
       const result = await cancelBookingAndRefund(user!.uid, id!, role);
       if (!result.success) { setError(result.reason || "Failed to cancel."); setAL(null); return; }
 
+      await updateBookingFields(id!, {
+        cancellationComment: cancelComment.trim(),
+        cancellationCommentBy: user!.uid,
+        cancellationCommentRole: role,
+      }).catch(() => {});
+
       const counterparty = isClient ? (booking.proName as string) || booking.proId : (booking.clientName as string) || booking.clientId;
-      logActivity(user!.uid, "booking.cancelled", `${isClient ? "Cancelled" : "Declined"} booking: ${(booking.serviceName as string) || id} ${isClient ? "with" : "from"} ${counterparty}`, { bookingId: id, role, escrowRefunded: escrowCoins });
+      logActivity(user!.uid, "booking.cancelled", `${isClient ? "Cancelled" : "Declined"} booking: ${(booking.serviceName as string) || id} ${isClient ? "with" : "from"} ${counterparty}`, { bookingId: id, role, escrowRefunded: escrowCoins, comment: cancelComment.trim() });
+      setShowCancelConfirm(false);
+      setCancelComment("");
       await load();
     } catch { setError("Failed to cancel."); }
     setAL(null);
@@ -149,10 +166,10 @@ export default function BookingDetail() {
             <div className="text-muted text-sm" style={{ marginBottom: 4 }}>{isClient ? "Professional" : "Client"}</div>
             <div style={{ fontWeight: 600 }}>{isClient ? (booking.proName as string) : (booking.clientName as string)}</div>
           </div>
-          <div>
-            <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Date & Time</div>
-            <div style={{ fontWeight: 600 }}>{(booking.date as string) || formatTimestamp(booking.createdAt)} • {(booking.timeSlot as string) || "TBD"}</div>
-          </div>
+            <div>
+              <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Date & Time</div>
+              <div style={{ fontWeight: 600 }}>{formatBookingDateTime(booking.date, booking.timeSlot, booking.createdAt) || formatTimestamp(booking.createdAt) || "TBD"}</div>
+            </div>
           <div>
             <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Price</div>
             <div style={{ fontWeight: 600 }}>
@@ -162,11 +179,7 @@ export default function BookingDetail() {
           <div>
             <div className="text-muted text-sm" style={{ marginBottom: 4 }}>Payment Status</div>
             <div style={{ fontWeight: 600 }}>
-              {escrowCoins > 0
-                ? (status === "completed" || status === "reviewed"
-                  ? `Released (${escrowCoins} NC)`
-                  : `Held in Escrow (${escrowCoins} NC)`)
-                : (billedCoins > 0 ? "Paid" : "Unpaid")}
+              {getPaymentStatusLabel(escrowCoins, billedCoins, status)}
             </div>
             {(status === "completed" || status === "reviewed") && platformFee > 0 && (
               <div className="text-muted text-sm" style={{ marginTop: 6 }}>
@@ -195,7 +208,9 @@ export default function BookingDetail() {
         )}
 
         <div style={{ display: "flex", gap: 12, borderTop: "1px solid var(--border)", paddingTop: 24, flexWrap: "wrap" }}>
-          <button className="btn btn-primary" onClick={openChat}>💬 Message {isClient ? "Professional" : "Client"}</button>
+          {status !== "cancelled" && status !== "closed" && (
+            <button className="btn btn-primary" onClick={openChat}>💬 Message {isClient ? "Professional" : "Client"}</button>
+          )}
 
           {isPro && status === "pending" && (
             <>
@@ -254,6 +269,36 @@ export default function BookingDetail() {
               <button className="btn btn-secondary" disabled={reviewSub} onClick={() => setShowReview(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleReviewSubmit} disabled={reviewSub || !reviewComment.trim()}>
                 {reviewSub ? "Submitting…" : "Submit Review"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelConfirm && (
+        <div className="modal-overlay" onClick={() => setShowCancelConfirm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Confirm {isClient ? "Cancellation" : "Decline"}</h3>
+              <button className="modal-close" onClick={() => setShowCancelConfirm(false)}>✕</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Comment</label>
+              <textarea
+                className="form-input"
+                placeholder="Add reason for cancellation..."
+                value={cancelComment}
+                onChange={e => setCancelComment(e.target.value)}
+              />
+            </div>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCancelConfirm(false)}>Keep Booking</button>
+              <button
+                className="btn btn-danger"
+                onClick={submitCancellation}
+                disabled={Boolean(actionLoading) || !cancelComment.trim()}
+              >
+                {actionLoading === "cancel" ? "Cancelling..." : (isClient ? "Cancel Booking" : "Decline Booking")}
               </button>
             </div>
           </div>

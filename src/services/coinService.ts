@@ -331,9 +331,13 @@ export async function getCoinBalance(uid: string): Promise<number> {
 }
 
 export async function getLedger(uid: string, pageLimit = 50): Promise<LedgerEntry[]> {
-  const q = query(collection(db, "coinLedger", uid, "entries"), orderBy("createdAt", "desc"), limit(pageLimit));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as LedgerEntry));
+  try {
+    const q = query(collection(db, "coinLedger", uid, "entries"), orderBy("createdAt", "desc"), limit(pageLimit));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as LedgerEntry));
+  } catch {
+    return [];
+  }
 }
 
 export async function topUpCoins(uid: string, priceRs: number, coins: number, packLabel: string, paymentId: string): Promise<void> {
@@ -426,12 +430,17 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       const data = bookingSnap.data()!;
       
       // Additional idempotency guard via booking status
-      if (data.escrowStatus === "released") return;
+      if (data.escrowStatus === "released" || data.status === "reviewed") return;
       
       const escrowCoins = (data.escrowCoins as number) ?? 0;
       if (escrowCoins === 0) {
         // No escrow but still ensure marked completed atomically
-        tx.update(bookingRef, { status: "completed", updatedAt: serverTimestamp() });
+        tx.update(bookingRef, {
+          status: "completed",
+          completedAt: serverTimestamp(),
+          completedBy: proUid,
+          updatedAt: serverTimestamp(),
+        });
         return;
       }
       const platformFee = Math.round(escrowCoins * platformFeePct);
@@ -444,7 +453,12 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       tx.update(bookingRef, {
         status: "completed",
         escrowStatus: "released",
-        platformFee, proEarning, paidInCoins: escrowCoins,
+        platformFee,
+        proEarning,
+        paidInCoins: escrowCoins,
+        coinsPaid: true,
+        completedAt: serverTimestamp(),
+        completedBy: proUid,
         updatedAt: serverTimestamp(),
       });
       tx.set(ledgerEntryRef, {
@@ -487,7 +501,13 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
     if (escrowStatus === "refunded") return;
 
     if (escrowCoins === 0) {
-      tx.update(bookingRef, { escrowStatus: "refunded", updatedAt: serverTimestamp() });
+      tx.update(bookingRef, {
+        status: "cancelled",
+        escrowStatus: "refunded",
+        cancelledAt: serverTimestamp(),
+        cancelledBy: clientUid,
+        updatedAt: serverTimestamp(),
+      });
       return;
     }
 
@@ -496,7 +516,14 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
     const newBal = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
     
     tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
-    tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false, updatedAt: serverTimestamp() });
+    tx.update(bookingRef, {
+      status: "cancelled",
+      escrowStatus: "refunded",
+      coinsPaid: false,
+      cancelledAt: serverTimestamp(),
+      cancelledBy: clientUid,
+      updatedAt: serverTimestamp(),
+    });
     tx.set(ledgerEntryRef, {
       uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal,
       description: `Refund: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp()
@@ -527,11 +554,13 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
       const serviceName = (data.serviceName as string) || "Booking";
 
       // 1. Mark booking as cancelled
-      tx.update(bookingRef, { 
-        status: "cancelled", 
+      tx.update(bookingRef, {
+        status: "cancelled",
         updatedAt: serverTimestamp(),
         cancelledBy: uid,
-        cancelledAt: serverTimestamp()
+        cancelledAt: serverTimestamp(),
+        declinedBy: _role === "pro" ? uid : null,
+        declinedAt: _role === "pro" ? serverTimestamp() : null,
       });
 
       // 2. Handle escrow refund if held
@@ -626,7 +655,9 @@ export async function getPendingPayoutForUser(uid: string): Promise<CoinPayout |
     )
   ).catch(async () => {
     return getDocs(query(collection(db, "coinPayouts"), where("uid", "==", uid), where("status", "==", "pending"), limit(1)));
-  });
+  }).catch(() => null);
+
+  if (!primary) return null;
 
   if (primary.empty) return null;
   const payout = { id: primary.docs[0].id, ...primary.docs[0].data() } as CoinPayout;

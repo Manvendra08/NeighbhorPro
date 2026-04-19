@@ -120,14 +120,14 @@ export function useDashboardData(uid?: string | null): DashboardDataResult {
 
         const isProUser = profile.isServiceProvider === true;
         const [
-          bookings,
-          proRows,
-          completedBooking,
-          reviewData,
-          availabilityData,
-          ledgerRows,
-          payoutRow,
-        ] = await Promise.all([
+          bookingsResult,
+          proRowsResult,
+          completedBookingResult,
+          reviewDataResult,
+          availabilityDataResult,
+          ledgerRowsResult,
+          payoutRowResult,
+        ] = await Promise.allSettled([
           queryClient.fetchQuery({
             queryKey: queryKeys.dashboardUserBookings(uid),
             queryFn: () => getBookingsForUser(uid),
@@ -144,6 +144,28 @@ export function useDashboardData(uid?: string | null): DashboardDataResult {
           }),
           getPendingPayoutForUser(uid),
         ]);
+
+        const bookings = bookingsResult.status === "fulfilled" && Array.isArray(bookingsResult.value)
+          ? bookingsResult.value
+          : [];
+        const proRows = proRowsResult.status === "fulfilled" && Array.isArray(proRowsResult.value)
+          ? proRowsResult.value
+          : [];
+        const completedBooking = completedBookingResult.status === "fulfilled"
+          ? (completedBookingResult.value as BookingRow | null)
+          : null;
+        const reviewData = reviewDataResult.status === "fulfilled"
+          ? reviewDataResult.value
+          : EMPTY_REVIEW_DISTRIBUTION;
+        const availabilityData = availabilityDataResult.status === "fulfilled"
+          ? availabilityDataResult.value
+          : null;
+        const ledgerRows = ledgerRowsResult.status === "fulfilled"
+          ? ledgerRowsResult.value
+          : [];
+        const payoutRow = payoutRowResult.status === "fulfilled"
+          ? payoutRowResult.value
+          : null;
 
         if (!alive) return;
 

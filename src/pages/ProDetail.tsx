@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   getPublicProfile, getServicesByUser, getReviewsForUser, trackProView, formatTimestamp,
+  hasUserReportedProfessional,
 } from "../services/firestoreService";
 import { useAuth } from "../contexts/AuthContext";
+import InfoTooltip from "../components/common/InfoTooltip";
+import { computeAggregateRating } from "../utils/rating";
 
 function Skel({ w = "100%", h = 16, radius = 6, mb = 0 }: { w?: string | number; h?: number; radius?: number; mb?: number }) {
   return <div className="skeleton" style={{ width: w, height: h, borderRadius: radius, marginBottom: mb, flexShrink: 0 }} />;
@@ -76,6 +79,14 @@ export default function ProDetail() {
   const [reportReason, setReportReason] = useState("Spam / Fake Profile");
   const [reportComment, setReportComment] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportState, setReportState] = useState<"idle" | "reported">("idle");
+  const [reportMessage, setReportMessage] = useState("");
+
+  useEffect(() => {
+    if (!reportMessage) return;
+    const timer = window.setTimeout(() => setReportMessage(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [reportMessage]);
 
   useEffect(() => {
     if (!id) return;
@@ -100,6 +111,9 @@ export default function ProDetail() {
 
         if (user?.uid && user.uid !== id) {
           trackProView(user.uid, id).catch(() => {});
+          hasUserReportedProfessional(id, user.uid)
+            .then((reported) => setReportState(reported ? "reported" : "idle"))
+            .catch(() => setReportState("idle"));
         }
       } catch {
         setError("load_failed");
@@ -135,14 +149,23 @@ export default function ProDetail() {
 
   const handleReportSubmit = async () => {
     setReportSubmitting(true);
+    setReportMessage("");
     try {
       const { reportProfessional } = await import("../services/firestoreService");
-      await reportProfessional(id!, reportReason, reportComment);
+      const result = await reportProfessional(id!, reportReason, reportComment.trim());
+      if (result.alreadyReported) {
+        setReportState("reported");
+        setReportMessage("Already reported");
+        setShowReport(false);
+        setReportSubmitting(false);
+        return;
+      }
+      setReportState("reported");
+      setReportMessage("Report submitted successfully.");
       setShowReport(false);
       setReportComment("");
-      alert("Report submitted and is pending review.");
     } catch {
-      alert("Failed to submit report.");
+      setReportMessage("Failed to submit report.");
     }
     setReportSubmitting(false);
   };
@@ -175,6 +198,8 @@ export default function ProDetail() {
   const publicFlatNumber = typeof pro.flatNumber === "string" ? pro.flatNumber.trim() : "";
   const memberSince = formatMemberSince(pro.createdAt);
   const hasPublicContact = Boolean(publicEmail || publicPhone);
+  const { rating, reviewCount } = computeAggregateRating(pro.rating, pro.reviewCount, reviews);
+  const verificationTooltip = "This professional has uploaded a valid society residency proof verified by ProNeighbor.";
 
   const getMissingBookingProfileItems = () => {
     const missing: string[] = [];
@@ -243,12 +268,20 @@ export default function ProDetail() {
               {publicFlatNumber ? ` | Flat ${publicFlatNumber}` : ""}
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12, alignItems: "center" }}>
-              <span style={{ color: "var(--warning)", fontWeight: 600 }}>Star {(pro.rating as number) || 0} <span className="text-muted text-sm">({(pro.reviewCount as number) || 0})</span></span>
+              <span style={{ color: "var(--warning)", fontWeight: 600 }}>
+                {reviewCount > 0 ? `★ ${rating === null ? "—" : rating.toFixed(1)} (${reviewCount})` : "No reviews yet"}
+              </span>
               {(pro.priceAfterQuote as boolean)
                 ? <span className="badge badge-accent">Quote-based</span>
                 : <span style={{ fontWeight: 700, color: "var(--accent2)" }}>{(pro.hourlyRate as number) === 0 ? "Free Consultation" : `Rs ${(pro.hourlyRate as number)}/hr`}</span>}
               <ResponseTimeBadge avgResponseHours={avgResponseHrs} />
               {memberSince && <span className="badge badge-muted">Member since {memberSince}</span>}
+              {pro.residentVerificationStatus === "verified" && (
+                <span className="badge badge-success">
+                  Verified Resident
+                  <InfoTooltip text={verificationTooltip} label="Verified resident proof" />
+                </span>
+              )}
             </div>
             <p style={{ color: "var(--text-2)", lineHeight: 1.6 }}>{(pro.bio as string) || "No bio available."}</p>
           </div>
@@ -344,7 +377,34 @@ export default function ProDetail() {
 
       {user && !isOwnProfile && (
         <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowReport(true)} style={{ color: "var(--error)", opacity: 0.7 }}>Report Profile</button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => reportState !== "reported" && setShowReport(true)}
+            style={{ color: "var(--error)", opacity: reportState === "reported" ? 0.5 : 0.7 }}
+            disabled={reportState === "reported"}
+          >
+            {reportState === "reported" ? "Already reported" : "Report Profile"}
+          </button>
+        </div>
+      )}
+
+      {reportMessage && (
+        <div
+          style={{
+            position: "fixed",
+            top: 20,
+            right: 24,
+            zIndex: 9999,
+            background: reportMessage.startsWith("Failed") ? "var(--error)" : "var(--success)",
+            color: "#fff",
+            padding: "10px 20px",
+            borderRadius: "var(--radius-sm)",
+            fontWeight: 600,
+            fontSize: 13,
+            boxShadow: "var(--shadow-lg)",
+          }}
+        >
+          {reportMessage}
         </div>
       )}
 

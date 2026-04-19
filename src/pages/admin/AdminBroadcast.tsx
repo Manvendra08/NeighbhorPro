@@ -137,6 +137,9 @@ export default function AdminBroadcast() {
     try {
       const safeHtml = sanitizeAnnouncementHtml(form.bodyHtml || "");
       const plainBody = stripHtml(safeHtml);
+      const selectedSociety = form.target === "Society-Specific"
+        ? societies.find(s => s.id === form.targetSociety)
+        : null;
       const ref = await addDoc(collection(db, "announcements"), {
         title: form.title.trim(),
         body: plainBody,
@@ -146,6 +149,7 @@ export default function AdminBroadcast() {
         type: form.type,
         target: form.target,
         targetSociety: form.targetSociety || null,
+        targetSocietyName: (selectedSociety?.name as string) || null,
         priority: form.priority,
         sentAt: serverTimestamp(),
         createdAt: serverTimestamp(),

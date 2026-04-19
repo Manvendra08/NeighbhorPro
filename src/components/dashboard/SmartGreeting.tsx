@@ -44,11 +44,11 @@ export default function SmartGreeting({
     ? nextBookingDate.getTime() - Date.now() <= 24 * 60 * 60 * 1000 && nextBookingDate.getTime() >= Date.now() - (60 * 60 * 1000)
     : false;
 
-  let title = `Welcome back, ${firstName}`;
+  let title = `Welcome back, ${firstName} 👋`;
   let subtitle = isPro
     ? "Track requests, earnings, and completion in one place."
     : "Book trusted experts faster and keep your week organized.";
-  let badge = isPro ? "Pro Control Center" : "Neighborhood Hub";
+  let badge = isPro ? "Pro Control Center" : "";
 
   if (isPro && pendingRequests > 0) {
     title = `Morning, ${firstName} — ${pendingRequests} pending request${pendingRequests > 1 ? "s" : ""} need response`;
@@ -66,11 +66,11 @@ export default function SmartGreeting({
 
   return (
     <div className="db-greeting">
-      <div className="db-greeting__copy">
-        <span className="db-greeting__badge">{badge}</span>
-        <h1 className="db-greeting__title">{title}</h1>
-        <p className="db-greeting__subtitle">{subtitle}</p>
-      </div>
+        <div className="db-greeting__copy">
+          {badge ? <span className="db-greeting__badge">{badge}</span> : null}
+          <h1 className="db-greeting__title">{title}</h1>
+          <p className="db-greeting__subtitle">{subtitle}</p>
+        </div>
       <div className="db-greeting__pulse" aria-hidden="true">
         <div className="db-greeting__pulse-ring" />
         <div className="db-greeting__pulse-dot" />

@@ -96,6 +96,13 @@ export default function AdminUsers() {
   }, []);
 
   useEffect(() => {
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (tabParam === "verification") {
+      setTab("verification");
+    }
+  }, []);
+
+  useEffect(() => {
     if (!openMenuUid) return;
 
     const handleClickOutside = (event: MouseEvent) => {
@@ -156,6 +163,10 @@ export default function AdminUsers() {
   const handleToggleDisable = (u: UserRow) => {
     if (isSelfUser(u)) {
       showToast("You cannot disable your own admin account", "error");
+      return;
+    }
+    if (u.role === "admin" && !u.disabled && getActiveAdminCount() <= 1) {
+      showToast("At least one active admin must remain", "error");
       return;
     }
     const disabled = !u.disabled;
@@ -430,6 +441,13 @@ export default function AdminUsers() {
 
   const totalUsers = users.length || 1;
 
+  const handleVerificationTab = () => {
+    setTab("verification");
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", "verification");
+    window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+  };
+
   return (
     <div className="au-page">
       {toast && (
@@ -676,7 +694,7 @@ export default function AdminUsers() {
                           <span className="badge badge-success">Verified</span>
                         </div>
                       ) : u.residentVerificationStatus === "pending" ? (
-                        <button className="btn btn-warning btn-sm" onClick={() => setTab("verification")}>Pending</button>
+                        <button className="btn btn-warning btn-sm" onClick={handleVerificationTab}>Pending</button>
                       ) : (
                         <span className="text-muted">—</span>
                       )}
@@ -970,4 +988,3 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
     </div>
   );
 }
-

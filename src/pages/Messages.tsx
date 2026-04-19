@@ -10,6 +10,8 @@ import {
   sendMessage,
   uploadAttachment,
   getLatestBookingBetweenUsers,
+  getBookingById,
+  getConversationBookingId,
   markConversationRead,
 } from "../services/firestoreService";
 import { Timestamp } from "firebase/firestore";
@@ -37,11 +39,29 @@ export default function Messages() {
   const loggedConvsRef = useRef<Set<string>>(new Set());
 
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null);
+  const [linkedBookingStatus, setLinkedBookingStatus] = useState<string | null>(null);
   const [reportingConversation, setReportingConversation] = useState(false);
+
+  // Find the nearest scrollable ancestor for the virtualizer. On mobile the
+  // outer `.mobile-content` may be the actual scroll container, so we walk up
+  // the DOM to find an element with overflow auto/scroll. This ensures the
+  // virtualizer attaches to the right scroll element and the chat scrolls
+  // correctly on small screens.
+  const findScrollParent = useCallback((el: HTMLElement | null) => {
+    if (!el || typeof window === "undefined") return el;
+    let cur: HTMLElement | null = el;
+    while (cur && cur !== document.documentElement) {
+      const style = window.getComputedStyle(cur);
+      const overflowY = style.overflowY || style.overflow;
+      if (overflowY && (overflowY === "auto" || overflowY === "scroll")) return cur;
+      cur = cur.parentElement;
+    }
+    return document.scrollingElement as HTMLElement | null || document.documentElement;
+  }, []);
 
   const messageVirtualizer = useVirtualizer({
     count: messages.length,
-    getScrollElement: () => messageListRef.current,
+    getScrollElement: () => findScrollParent(messageListRef.current),
     estimateSize: () => 92,
     overscan: 8,
   });
@@ -56,6 +76,10 @@ export default function Messages() {
     const suffix = uid.slice(-4).toUpperCase();
     return `Member ${suffix}`;
   }, []);
+
+  const openConversation = useCallback((conversationId: string) => {
+    navigate(`/messages?conv=${encodeURIComponent(conversationId)}`);
+  }, [navigate]);
 
   // Subscribe to conversations
   useEffect(() => {
@@ -108,7 +132,7 @@ export default function Messages() {
   // Set active conversation from URL param
   useEffect(() => {
     const convParam = searchParams.get("conv");
-    if (convParam) setActiveConv(convParam);
+    setActiveConv(convParam || null);
   }, [searchParams]);
 
   // Subscribe to messages of active conversation, mark as read
@@ -137,21 +161,44 @@ export default function Messages() {
   useEffect(() => {
     if (!activeConv || !user) {
       setLinkedBookingId(null);
+      setLinkedBookingStatus(null);
       return;
     }
     const conv = conversations.find(c => (c.id as string) === activeConv);
-    if (!conv) {
-      setLinkedBookingId(null);
+    const bookingId = (conv?.bookingId as string | undefined) || getConversationBookingId(activeConv);
+    if (bookingId) {
+      setLinkedBookingId(bookingId);
+      getBookingById(bookingId)
+        .then(booking => {
+          setLinkedBookingStatus((booking?.status as string) || null);
+        })
+        .catch(() => {
+          setLinkedBookingStatus(null);
+        });
       return;
     }
+
+    if (!conv) {
+      setLinkedBookingId(null);
+      setLinkedBookingStatus(null);
+      return;
+    }
+
     const otherId = getOtherUserId(conv);
     if (!otherId) {
       setLinkedBookingId(null);
+      setLinkedBookingStatus(null);
       return;
     }
     getLatestBookingBetweenUsers(user.uid, otherId)
-      .then(booking => setLinkedBookingId((booking?.id as string) || null))
-      .catch(() => setLinkedBookingId(null));
+      .then(booking => {
+        setLinkedBookingId((booking?.id as string) || null);
+        setLinkedBookingStatus((booking?.status as string) || null);
+      })
+      .catch(() => {
+        setLinkedBookingId(null);
+        setLinkedBookingStatus(null);
+      });
   }, [activeConv, conversations, user, getOtherUserId]);
 
   const handleReportConversation = async () => {
@@ -304,11 +351,11 @@ export default function Messages() {
                 <div
                   key={conv.id as string}
                   className={`chat-list-item${isActive ? " active" : ""}`}
-                  onClick={() => setActiveConv(conv.id as string)}
+                  onClick={() => openConversation(conv.id as string)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      setActiveConv(conv.id as string);
+                      openConversation(conv.id as string);
                     }
                   }}
                   role="button"
@@ -364,6 +411,13 @@ export default function Messages() {
                     }}>
                       {(conv.lastMessage as string) || "No messages yet"}
                     </div>
+                    {(conv.bookingId as string | undefined) && (
+                      <div style={{ marginTop: 4 }}>
+                        <span className="badge badge-muted" style={{ fontSize: 10 }}>
+                          Booking #{String(conv.bookingId).slice(0, 8)}…
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -400,11 +454,7 @@ export default function Messages() {
                     <button 
                       className="btn btn-ghost btn-icon mobile-back-btn" 
                       onClick={() => {
-                         setActiveConv(null);
-                         // Remove conv from URL natively
-                         const url = new URL(window.location.href);
-                         url.searchParams.delete("conv");
-                         window.history.pushState({}, "", url.toString());
+                         navigate("/messages");
                       }} 
                       style={{ padding: 4, display: "none", marginRight: -4, marginLeft: -12 }}
                       title="Back to conversations"
@@ -444,6 +494,18 @@ export default function Messages() {
                       <div style={{ fontWeight: 600 }}>{displayName}</div>
                       {(other?.isServiceProvider as boolean) && (
                         <div style={{ fontSize: 10, color: "#15803d", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3 }}>Pro</div>
+                      )}
+                      {linkedBookingId && (
+                        <div style={{ marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          <span className="badge badge-muted" style={{ fontSize: 10 }}>
+                            Booking #{linkedBookingId.slice(0, 8)}…
+                          </span>
+                          {linkedBookingStatus && (
+                            <span className={`badge ${linkedBookingStatus === "cancelled" ? "badge-error" : linkedBookingStatus === "closed" ? "badge-muted" : "badge-accent"}`} style={{ fontSize: 10 }}>
+                              {linkedBookingStatus}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                     <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
@@ -531,56 +593,62 @@ export default function Messages() {
                 )}
               </div>
 
-              <div className="chat-input-bar" style={{ position: "relative", gap: 8 }}>
-                {showEmojiPicker && (
-                  <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, zIndex: 10 }}>
-                    <EmojiPicker onEmojiClick={onEmojiClick} />
-                  </div>
-                )}
+              {linkedBookingStatus === "closed" || linkedBookingStatus === "cancelled" ? (
+                <div style={{ padding: "16px 20px", textAlign: "center", borderTop: "1px solid var(--border)", color: "var(--muted)", fontSize: 14 }}>
+                  This booking is closed/cancelled. New messages cannot be sent.
+                </div>
+              ) : (
+                <div className="chat-input-bar" style={{ position: "relative", gap: 8 }}>
+                  {showEmojiPicker && (
+                    <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, zIndex: 10 }}>
+                      <EmojiPicker onEmojiClick={onEmojiClick} />
+                    </div>
+                  )}
 
-                <input
-                  type="file"
-                  style={{ display: "none" }}
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*,.pdf,.doc,.docx,.txt"
-                  aria-label="Attach file"
-                />
+                  <input
+                    type="file"
+                    style={{ display: "none" }}
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*,.pdf,.doc,.docx,.txt"
+                    aria-label="Attach file"
+                  />
 
-                <button
-                  className="btn btn-outline btn-icon"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Attach file (max 10MB)"
-                  aria-label="Attach file"
-                  disabled={attachmentLoading}
-                  style={{ padding: "0 12px" }}
-                >
-                  {attachmentLoading ? "⏳" : "📎"}
-                </button>
+                  <button
+                    className="btn btn-outline btn-icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach file (max 10MB)"
+                    aria-label="Attach file"
+                    disabled={attachmentLoading}
+                    style={{ padding: "0 12px" }}
+                  >
+                    {attachmentLoading ? "⏳" : "📎"}
+                  </button>
 
-                <button
-                  className="btn btn-outline btn-icon"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  title="Add emoji"
-                  aria-label="Add emoji"
-                  style={{ padding: "0 12px" }}
-                >
-                  😀
-                </button>
+                  <button
+                    className="btn btn-outline btn-icon"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    title="Add emoji"
+                    aria-label="Add emoji"
+                    style={{ padding: "0 12px" }}
+                  >
+                    😀
+                  </button>
 
-                <input
-                  type="text"
-                  placeholder="Type a message…"
-                  value={newMsg}
-                  onChange={(e) => setNewMsg(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-                  id="chat-message-input"
-                  style={{ flex: 1 }}
-                />
-                <button className="btn btn-primary" onClick={handleSend} disabled={!newMsg.trim() && !attachmentLoading}>
-                  Send
-                </button>
-              </div>
+                  <input
+                    type="text"
+                    placeholder="Type a message…"
+                    value={newMsg}
+                    onChange={(e) => setNewMsg(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+                    id="chat-message-input"
+                    style={{ flex: 1 }}
+                  />
+                  <button className="btn btn-primary" onClick={handleSend} disabled={!newMsg.trim() && !attachmentLoading}>
+                    Send
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

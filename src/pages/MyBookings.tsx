@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  getBookingsForUser, getBookingsForPro, updateBookingStatus,
-  getOrCreateConversation, formatTimestamp,
+  getBookingsForUser, getBookingsForPro, updateBookingStatus, updateBookingFields,
+  getOrCreateConversation,
 } from "../services/firestoreService";
-import { releaseEscrow, refundEscrow, earnCoins, rewardReferral } from "../services/coinService";
+import { releaseEscrow, cancelBookingAndRefund, earnCoins, rewardReferral } from "../services/coinService";
 import { logActivity } from "../services/activityService";
+import { formatBookingDateTime } from "../utils/time";
 
 function buildRecurringRebookQuery(booking: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -35,6 +36,8 @@ export default function MyBookings() {
   const [reviewRating, setRR] = useState(5);
   const [reviewComment, setRC] = useState("");
   const [reviewSub, setRS] = useState(false);
+  const [cancelRequest, setCancelRequest] = useState<{ booking: Record<string, unknown>; role: "client" | "pro" } | null>(null);
+  const [cancelComment, setCancelComment] = useState("");
 
   const [subTab, setSubTab] = useState<"upcoming" | "past">("upcoming");
   const [searchQ, setSearchQ] = useState("");
@@ -61,16 +64,53 @@ export default function MyBookings() {
     }
   };
 
-  // Client cancels → full refund from escrow
-  const handleCancel = async (b: Record<string, unknown>) => {
+  const openCancellationDialog = (booking: Record<string, unknown>, role: "client" | "pro") => {
+    setCancelRequest({ booking, role });
+    setCancelComment("");
+    setError("");
+  };
+
+  const submitCancellation = async () => {
+    if (!cancelRequest || !user) return;
+
+    const b = cancelRequest.booking;
+    const role = cancelRequest.role;
     const id = b.id as string;
+
     setAL(id);
     try {
-      await updateBookingStatus(id, "cancelled");
-      await refundEscrow(user!.uid, id, (b.serviceName as string) || "Booking");
-      logActivity(user!.uid, "booking.cancelled", `Cancelled booking: ${(b.serviceName as string) || id} with ${(b.proName as string) || b.proId}`, { bookingId: id, role: "client", escrowRefunded: (b.escrowCoins as number) || 0 });
-    } catch { setError("Failed to cancel. Please try again."); }
-    setAL(null); load();
+      const result = await cancelBookingAndRefund(user.uid, id, role);
+      if (!result.success) throw new Error(result.reason || "CANCEL_FAILED");
+
+      await updateBookingFields(id, {
+        cancellationComment: cancelComment.trim(),
+        cancellationCommentBy: user.uid,
+        cancellationCommentRole: role,
+      }).catch(() => {});
+
+      if (role === "client") {
+        logActivity(user.uid, "booking.cancelled", `Cancelled booking: ${(b.serviceName as string) || id} with ${(b.proName as string) || b.proId}`, {
+          bookingId: id,
+          role: "client",
+          escrowRefunded: (b.escrowCoins as number) || 0,
+          comment: cancelComment.trim(),
+        });
+      } else {
+        logActivity(user.uid, "booking.cancelled", `Declined booking: ${(b.serviceName as string) || id} from ${(b.clientName as string) || b.clientId}`, {
+          bookingId: id,
+          role: "pro",
+          escrowRefunded: (b.escrowCoins as number) || 0,
+          comment: cancelComment.trim(),
+        });
+      }
+
+      setCancelRequest(null);
+      setCancelComment("");
+    } catch {
+      setError(role === "client" ? "Failed to cancel. Please try again." : "Failed to decline booking.");
+    }
+    setAL(null);
+    load();
   };
 
   // Pro confirms booking
@@ -78,18 +118,6 @@ export default function MyBookings() {
     setAL(id);
     try { await updateBookingStatus(id, "confirmed"); }
     catch { setError("Failed to confirm booking."); }
-    setAL(null); load();
-  };
-
-  // Pro declines → refund escrow to client
-  const handleDecline = async (b: Record<string, unknown>) => {
-    const id = b.id as string;
-    setAL(id);
-    try {
-      await updateBookingStatus(id, "cancelled");
-      await refundEscrow(b.clientId as string, id, (b.serviceName as string) || "Booking");
-      logActivity(user!.uid, "booking.cancelled", `Declined booking: ${(b.serviceName as string) || id} from ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowRefunded: (b.escrowCoins as number) || 0 });
-    } catch { setError("Failed to decline booking."); }
     setAL(null); load();
   };
 
@@ -238,7 +266,7 @@ export default function MyBookings() {
                           {tab === "client" ? `with ${(b.proName as string) || "Professional"}` : `from ${(b.clientName as string) || "Client"}`}
                         </p>
                         <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-                          <span className="text-sm">📅 {(b.date as string) || formatTimestamp(b.createdAt)}</span>
+                          <span className="text-sm">📅 {formatBookingDateTime(b.date, b.timeSlot, b.createdAt) || "TBD"}</span>
                           <span className="text-sm">🕐 {(b.timeSlot as string) || "TBD"}</span>
                           {billedCoins > 0 ? (
                             <span className="text-sm">
@@ -256,8 +284,8 @@ export default function MyBookings() {
                         </span>
 
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                          {/* ── Message button — always available unless cancelled ── */}
-                          {status !== "cancelled" && (
+                          {/* ── Message button — always available unless cancelled or closed ── */}
+                          {status !== "cancelled" && status !== "closed" && (
                             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => openChat(otherUid, id)}>
                               💬 Message
                             </button>
@@ -267,7 +295,7 @@ export default function MyBookings() {
                           {tab === "pro" && status === "pending" && (
                             <>
                               <button className="btn btn-success btn-sm" disabled={busy} onClick={() => handleConfirm(id)}>✓ Confirm</button>
-                              <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => handleDecline(b)}>✕ Decline</button>
+                              <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => openCancellationDialog(b, "pro")}>✕ Decline</button>
                             </>
                           )}
                           {tab === "pro" && status === "confirmed" && (
@@ -278,7 +306,7 @@ export default function MyBookings() {
 
                           {/* ── Client actions ── */}
                           {tab === "client" && status === "pending" && (
-                            <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => handleCancel(b)}>
+                            <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => openCancellationDialog(b, "client")}>
                               {busy ? "Cancelling…" : `Cancel${escrowCoins > 0 ? " & Refund" : ""}`}
                             </button>
                           )}
@@ -336,6 +364,36 @@ export default function MyBookings() {
               <button className="btn btn-secondary" onClick={() => setReviewBid(null)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleReviewSubmit} disabled={reviewSub || !reviewComment.trim()}>
                 {reviewSub ? "Submitting…" : "Submit Review"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelRequest && (
+        <div className="modal-overlay" onClick={() => setCancelRequest(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Confirm {cancelRequest.role === "client" ? "Cancellation" : "Decline"}</h3>
+              <button className="modal-close" onClick={() => setCancelRequest(null)}>✕</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Comment</label>
+              <textarea
+                className="form-input"
+                placeholder="Add reason for cancellation..."
+                value={cancelComment}
+                onChange={e => setCancelComment(e.target.value)}
+              />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setCancelRequest(null)}>Keep Booking</button>
+              <button
+                className="btn btn-danger"
+                onClick={submitCancellation}
+                disabled={Boolean(actionLoading) || !cancelComment.trim()}
+              >
+                {actionLoading ? "Submitting..." : (cancelRequest.role === "client" ? "Cancel Booking" : "Decline Booking")}
               </button>
             </div>
           </div>
