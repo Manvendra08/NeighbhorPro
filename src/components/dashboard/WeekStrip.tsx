@@ -25,9 +25,22 @@ function parseBookingDate(booking: BookingRow): Date | null {
 
 export default function WeekStrip({ bookings }: WeekStripProps) {
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(today);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+
+  const openThisWeek = bookings.filter((booking) => {
+    const status = String(booking.status || "");
+    if (!["pending", "confirmed"].includes(status)) return false;
+    const parsed = parseBookingDate(booking);
+    if (!parsed) return false;
+    const date = new Date(parsed);
+    date.setHours(0, 0, 0, 0);
+    return date.getTime() >= today.getTime() && date.getTime() < weekEnd.getTime();
+  });
+
   const dayKeys = new Set(
-    bookings
-      .filter(booking => ["pending", "confirmed", "completed", "reviewed"].includes(String(booking.status || "")))
+    openThisWeek
       .map(parseBookingDate)
       .filter((value): value is Date => Boolean(value))
       .map(getDateKey),
@@ -35,12 +48,11 @@ export default function WeekStrip({ bookings }: WeekStripProps) {
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(today);
-    date.setHours(0, 0, 0, 0);
     date.setDate(today.getDate() + index);
     return date;
   });
 
-  const bookingCount = bookings.filter(booking => ["pending", "confirmed"].includes(String(booking.status || ""))).length;
+  const bookingCount = openThisWeek.length;
 
   if (bookingCount === 0) {
     return (

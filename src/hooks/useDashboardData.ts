@@ -51,11 +51,38 @@ function parseBookingDate(booking: BookingRow): Date | null {
   const date = typeof booking.date === "string" ? booking.date.trim() : "";
   if (!date) return toDate(booking.createdAt);
 
+  const dateMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const year = dateMatch ? Number(dateMatch[1]) : NaN;
+  const monthIndex = dateMatch ? Number(dateMatch[2]) - 1 : NaN;
+  const day = dateMatch ? Number(dateMatch[3]) : NaN;
+
   const [startTimeRaw] = String(booking.timeSlot || "").split("-");
   const startTime = startTimeRaw?.trim() || "";
-  const candidate = startTime ? new Date(`${date} ${startTime}`) : new Date(date);
+  const meridiemMatch = startTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  const h24Match = startTime.match(/^(\d{1,2}):(\d{2})$/);
 
-  if (!Number.isNaN(candidate.getTime())) return candidate;
+  if (dateMatch && meridiemMatch) {
+    let hour = Number(meridiemMatch[1]);
+    const minute = Number(meridiemMatch[2]);
+    const meridiem = meridiemMatch[3].toUpperCase();
+    if (meridiem === "PM" && hour < 12) hour += 12;
+    if (meridiem === "AM" && hour === 12) hour = 0;
+    const parsed = new Date(year, monthIndex, day, hour, minute, 0, 0);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  if (dateMatch && h24Match) {
+    const hour = Number(h24Match[1]);
+    const minute = Number(h24Match[2]);
+    const parsed = new Date(year, monthIndex, day, hour, minute, 0, 0);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  if (dateMatch) {
+    // If slot parse fails, treat booking as open through end-of-day to avoid false "no upcoming" states.
+    const endOfDay = new Date(year, monthIndex, day, 23, 59, 59, 999);
+    if (!Number.isNaN(endOfDay.getTime())) return endOfDay;
+  }
 
   const fallback = new Date(date);
   return Number.isNaN(fallback.getTime()) ? toDate(booking.createdAt) : fallback;

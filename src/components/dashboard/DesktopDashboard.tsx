@@ -263,7 +263,7 @@ export default function DesktopDashboard({
             actionLabel="Bookings"
             actionTo="/bookings"
           >
-            <WeekStrip bookings={upcomingBookings} />
+            <WeekStrip bookings={userBookings} />
           </DashboardSection>
 
           <DashboardSection
