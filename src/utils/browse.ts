@@ -3,9 +3,8 @@ export function getBrowseEmptyDescription(params: {
   hasLocalityOrTower: boolean;
   isServiceProvider: boolean;
 }): string {
-  const { hasSearchOrCategory, hasLocalityOrTower, isServiceProvider } = params;
+  const { hasSearchOrCategory, hasLocalityOrTower } = params;
   if (hasSearchOrCategory || hasLocalityOrTower) return "Try adjusting your search or filters";
-  if (isServiceProvider) return "Update your profile to list your skills.";
   return "Try browsing nearby professionals in all localities.";
 }
 

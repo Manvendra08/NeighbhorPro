@@ -332,6 +332,8 @@ export default function Messages() {
   };
 
   const filteredConvos = conversations.filter(conv => {
+    const hasMessage = Boolean(String(conv.lastMessage || "").trim());
+    if (!hasMessage) return false;
     if (!search) return true;
     const otherId = getOtherUserId(conv);
     const other = otherUsers[otherId];
@@ -585,7 +587,9 @@ export default function Messages() {
               <div className="chat-messages-body" ref={messageListRef}>
                 {messages.length === 0 ? (
                   <div style={{ textAlign: "center", padding: 40, color: "var(--muted)", fontSize: 13 }}>
-                    No messages yet. Say hello! 👋
+                    {linkedBookingStatus === "pending" || linkedBookingStatus === "confirmed"
+                      ? "No messages yet. Say hello! 👋"
+                      : "No chat history for this booking."}
                   </div>
                 ) : (
                   <div style={{ height: messageVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>

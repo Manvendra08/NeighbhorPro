@@ -19,9 +19,11 @@ function DeleteAccountPanel() {
   const { deleteAccount, user } = useAuth();
   const [confirm, setConfirm] = useState(false);
   const [password, setPassword] = useState("");
+  const [deleteText, setDeleteText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const isEmailProvider = user?.providerData.some(provider => provider.providerId === "password");
+  const typedDeleteConfirmed = deleteText.trim() === "DELETE";
 
   const handleDelete = async () => {
     setError("");
@@ -47,6 +49,16 @@ function DeleteAccountPanel() {
   return (
     <div style={{ background: "rgba(220,38,38,0.05)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 12, padding: 20 }}>
       <p style={{ fontWeight: 700, color: "#dc2626", marginBottom: 12 }}>This cannot be undone.</p>
+      <div className="form-group">
+        <label className="form-label">Type DELETE to confirm</label>
+        <input
+          className="form-input"
+          type="text"
+          placeholder="DELETE"
+          value={deleteText}
+          onChange={event => setDeleteText(event.target.value)}
+        />
+      </div>
       {isEmailProvider && (
         <div className="form-group">
           <label className="form-label">Confirm your password</label>
@@ -55,10 +67,10 @@ function DeleteAccountPanel() {
       )}
       {error && <div className="error-box" style={{ marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
-        <button className="btn btn-danger" onClick={handleDelete} disabled={loading || (Boolean(isEmailProvider) && !password)}>
+        <button className="btn btn-danger" onClick={handleDelete} disabled={loading || !typedDeleteConfirmed || (Boolean(isEmailProvider) && !password)}>
           {loading ? "Deleting..." : "Yes, delete my account"}
         </button>
-        <button className="btn btn-secondary" onClick={() => { setConfirm(false); setError(""); }}>Cancel</button>
+        <button className="btn btn-secondary" onClick={() => { setConfirm(false); setError(""); setDeleteText(""); }}>Cancel</button>
       </div>
     </div>
   );

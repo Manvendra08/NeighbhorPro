@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getBookingsForUser, getBookingsForPro, updateBookingStatus, updateBookingFields,
-  getOrCreateConversation,
+  getOrCreateConversation, addResidentReview, hasResidentReview,
 } from "../services/firestoreService";
 import { releaseEscrow, cancelBookingAndRefund, earnCoins, rewardReferral } from "../services/coinService";
 import { logActivity } from "../services/activityService";
@@ -36,6 +36,11 @@ export default function MyBookings() {
   const [reviewRating, setRR] = useState(5);
   const [reviewComment, setRC] = useState("");
   const [reviewSub, setRS] = useState(false);
+  const [residentReviewBid, setResidentReviewBid] = useState<string | null>(null);
+  const [residentReviewRating, setResidentReviewRating] = useState(5);
+  const [residentReviewComment, setResidentReviewComment] = useState("");
+  const [residentReviewSub, setResidentReviewSub] = useState(false);
+  const [residentReviewedMap, setResidentReviewedMap] = useState<Record<string, boolean>>({});
   const [cancelRequest, setCancelRequest] = useState<{ booking: Record<string, unknown>; role: "client" | "pro" } | null>(null);
   const [cancelComment, setCancelComment] = useState("");
   const [completeRequest, setCompleteRequest] = useState<Record<string, unknown> | null>(null);
@@ -49,6 +54,20 @@ export default function MyBookings() {
     try {
       const [c, p] = await Promise.all([getBookingsForUser(user.uid), getBookingsForPro(user.uid)]);
       setClientB(c); setProB(p);
+
+      const completedForPro = p.filter((b) => ["completed", "reviewed"].includes(String(b.status || "")) && Boolean(b.id));
+      if (completedForPro.length) {
+        const entries = await Promise.all(
+          completedForPro.map(async (b) => {
+            const bid = String(b.id);
+            const rated = await hasResidentReview(bid, user.uid).catch(() => false);
+            return [bid, rated] as const;
+          })
+        );
+        setResidentReviewedMap(Object.fromEntries(entries));
+      } else {
+        setResidentReviewedMap({});
+      }
     } catch { setError("Failed to load bookings. Please refresh."); }
     setLoading(false);
   };
@@ -132,12 +151,12 @@ export default function MyBookings() {
       const escrowCoins = (b.escrowCoins as number) || 0;
       if (escrowCoins === 0) {
         // Free session completed -> PRO earns free consult reward
-        await earnCoins(user!.uid, "earn_free_consult", id);
+        await earnCoins(user!.uid, "earn_free_consult", id).catch(() => {});
       }
       // Release escrow FIRST, then update status
       const result = await releaseEscrow(user!.uid, id, (b.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
-      await rewardReferral(b.clientId as string, id);
+      await rewardReferral(b.clientId as string, id).catch(() => {});
       logActivity(user!.uid, "booking.completed", `Completed booking: ${(b.serviceName as string) || id} for ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowReleased: (b.escrowCoins as number) || 0 });
       setCompleteRequest(null);
     } catch { setError("Failed to complete booking."); }
@@ -153,11 +172,30 @@ export default function MyBookings() {
         const { addReview } = await import("../services/firestoreService");
         await addReview(reviewBid, booking.proId as string, reviewRating, reviewComment);
         await updateBookingStatus(reviewBid, "reviewed");
-        await earnCoins(user!.uid, "earn_review", reviewBid);
+        await earnCoins(user!.uid, "earn_review", reviewBid).catch(() => {});
       }
       setReviewBid(null); setRR(5); setRC(""); load();
     } catch { setError("Failed to submit review."); }
     setRS(false);
+  };
+
+  const handleResidentReviewSubmit = async () => {
+    if (!residentReviewBid || !user) return;
+    setResidentReviewSub(true);
+    setError("");
+    try {
+      const booking = proBookings.find((b) => String(b.id) === residentReviewBid);
+      if (!booking) throw new Error("Booking not found");
+      await addResidentReview(residentReviewBid, booking.clientId as string, residentReviewRating, residentReviewComment);
+      setResidentReviewedMap((prev) => ({ ...prev, [residentReviewBid]: true }));
+      setResidentReviewBid(null);
+      setResidentReviewRating(5);
+      setResidentReviewComment("");
+      await load();
+    } catch {
+      setError("Failed to submit resident rating.");
+    }
+    setResidentReviewSub(false);
   };
 
   const bookings = tab === "client" ? clientBookings : proBookings;
@@ -308,6 +346,9 @@ export default function MyBookings() {
                               {busy ? "Processing…" : "✓ Mark Complete"}
                             </button>
                           )}
+                          {tab === "pro" && (status === "completed" || status === "reviewed") && !residentReviewedMap[id] && (
+                            <button className="btn btn-primary btn-sm" onClick={() => setResidentReviewBid(id)}>⭐ Rate Resident</button>
+                          )}
 
                           {/* ── Client actions ── */}
                           {tab === "client" && status === "pending" && (
@@ -369,6 +410,35 @@ export default function MyBookings() {
               <button className="btn btn-secondary" onClick={() => setReviewBid(null)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleReviewSubmit} disabled={reviewSub || !reviewComment.trim()}>
                 {reviewSub ? "Submitting…" : "Submit Review"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {residentReviewBid && (
+        <div className="modal-overlay" onClick={() => setResidentReviewBid(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Rate Resident</h3>
+              <button className="modal-close" onClick={() => setResidentReviewBid(null)}>✕</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Rating</label>
+              <div className="stars">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} className={`star ${n <= residentReviewRating ? "filled" : "empty"}`} onClick={() => setResidentReviewRating(n)}>★</button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Comment</label>
+              <textarea className="form-input" placeholder="How was resident experience?" value={residentReviewComment} onChange={e => setResidentReviewComment(e.target.value)} />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setResidentReviewBid(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleResidentReviewSubmit} disabled={residentReviewSub || !residentReviewComment.trim()}>
+                {residentReviewSub ? "Submitting…" : "Submit Rating"}
               </button>
             </div>
           </div>

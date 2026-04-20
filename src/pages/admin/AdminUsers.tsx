@@ -8,7 +8,7 @@ import {
   getOrCreateConversation,
   mirrorPublicProfile
 } from "../../services/firestoreService";
-import { deleteDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, updateProfile, signOut } from "firebase/auth";
 import { db, app } from "../../firebase";
@@ -331,14 +331,43 @@ export default function AdminUsers() {
 
     setActionLoading(u.uid as string);
     try {
-      await deleteDoc(doc(db, "users", u.uid as string));
-      await deleteDoc(doc(db, "publicProfiles", u.uid as string));
+      await updateUserProfile(u.uid as string, {
+        disabled: true,
+        deleted: true,
+        deletedAt: serverTimestamp(),
+        emailVisible: false,
+        phoneVisible: false,
+        flatVisible: false,
+        displayName: "Deleted User",
+        bio: "",
+        photoURL: "",
+        skills: [],
+        society: "",
+        locality: "",
+        tower: "",
+        flatNumber: "",
+      });
+      await mirrorPublicProfile(u.uid as string, {
+        uid: u.uid,
+        disabled: true,
+        deleted: true,
+        displayName: "Deleted User",
+        bio: "",
+        photoURL: "",
+        society: "",
+        locality: "",
+        tower: "",
+        flatNumber: "",
+        emailVisible: false,
+        phoneVisible: false,
+        flatVisible: false,
+      });
       await logAudit(
         "user.delete", adminId, adminName,
-        `Deleted profile of: ${(u.displayName as string) || u.email as string}`,
+        `Soft-deleted profile of: ${(u.displayName as string) || u.email as string}`,
         u.uid as string
       );
-      showToast("User profile removed");
+      showToast("User profile soft-deleted");
       setDeleteConfirm(null);
       await load();
     } catch { showToast("Delete failed", "error"); }

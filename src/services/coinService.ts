@@ -250,7 +250,7 @@ export async function applyReferralCodeAtSignup(
     const currentBalance = ((userSnap.data()?.coinBalance as number) ?? 0);
     const newBalance = currentBalance + rule.coins;
 
-    tx.update(userRef, { coinBalance: newBalance, updatedAt: serverTimestamp() });
+    tx.update(userRef, { coinBalance: newBalance, updatedAt: serverTimestamp(), lastLedgerEntryId: `${newUserUid}_signup_referral` });
     tx.set(ledgerRef, {
       uid: newUserUid,
       type: "earn_referral",
@@ -301,8 +301,9 @@ export async function rewardReferral(newUserUid: string, bookingId: string): Pro
     const rRef = doc(db, "users", referrerUid);
     const rSnap = await tx.get(rRef);
     const rBal = ((rSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    tx.update(rRef, { coinBalance: rBal, updatedAt: serverTimestamp() });
-    tx.set(doc(collection(db, "coinLedger", referrerUid, "entries")), {
+    const referrerLedgerId = `${bookingId}_referral_referrer_${referrerUid}`;
+    tx.update(rRef, { coinBalance: rBal, updatedAt: serverTimestamp(), lastLedgerEntryId: referrerLedgerId });
+    tx.set(doc(db, "coinLedger", referrerUid, "entries", referrerLedgerId), {
       uid: referrerUid, type: "earn_referral", amount: rule.coins, balanceAfter: rBal,
       description: `Referral reward (for inviting ${newUserUid.slice(0, 5)}...)`,
       refId: newUserUid, createdAt: serverTimestamp()
@@ -312,8 +313,9 @@ export async function rewardReferral(newUserUid: string, bookingId: string): Pro
     const nRef = doc(db, "users", newUserUid);
     const nSnap = await tx.get(nRef);
     const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp() });
-    tx.set(doc(collection(db, "coinLedger", newUserUid, "entries")), {
+    const newUserLedgerId = `${bookingId}_referral_new_${newUserUid}`;
+    tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp(), lastLedgerEntryId: newUserLedgerId });
+    tx.set(doc(db, "coinLedger", newUserUid, "entries", newUserLedgerId), {
       uid: newUserUid, type: "earn_referral", amount: rule.coins, balanceAfter: nBal,
       description: `Referral reward (invited by ${referrerUid.slice(0, 5)}...)`,
       refId: referrerUid, createdAt: serverTimestamp()
@@ -356,7 +358,7 @@ export async function topUpCoins(uid: string, priceRs: number, coins: number, pa
     const userSnap = await tx.get(userRef);
     const newBal = ((userSnap.data()?.coinBalance as number) ?? 0) + coins;
 
-    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
+    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: `${purchaseId}_topup` });
     tx.set(purchaseRef, {
       uid,
       amountPaid: priceRs,
@@ -399,7 +401,7 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
       const clientBal = (clientSnap.data()?.coinBalance as number) ?? 0;
       if (clientBal < coins) throw new Error("INSUFFICIENT_BALANCE");
       const newBal = clientBal - coins;
-      tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
+      tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.update(doc(db, "bookings", bookingId), { escrowCoins: coins, coinsPaid: true, escrowStatus: "held", updatedAt: serverTimestamp() });
       tx.set(ledgerEntryRef, { uid: clientUid, type: "booking_escrow", amount: -coins, balanceAfter: newBal, description: `Payment held: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
     });
@@ -461,7 +463,7 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       const proSnap = await tx.get(proRef);
       const newProBal = ((proSnap.data()?.coinBalance as number) ?? 0) + proEarning;
       // All writes in one atomic batch — status update included
-      tx.update(proRef, { coinBalance: newProBal, updatedAt: serverTimestamp() });
+      tx.update(proRef, { coinBalance: newProBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.update(bookingRef, {
         status: "completed",
         escrowStatus: "released",
@@ -527,7 +529,7 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
     const snap = await tx.get(userRef);
     const newBal = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
     
-    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
+    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
     tx.update(bookingRef, {
       status: "cancelled",
       escrowStatus: "refunded",
@@ -581,9 +583,10 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
         const clientSnap = await tx.get(clientRef);
         const newBal = ((clientSnap.data()?.coinBalance as number) ?? 0) + escrowCoins;
 
-        tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
+        const ledgerEntryId = `${bookingId}_refund_${clientUid}`;
+        tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
         tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false });
-        tx.set(doc(collection(db, "coinLedger", clientUid, "entries")), {
+        tx.set(doc(db, "coinLedger", clientUid, "entries", ledgerEntryId), {
           uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal,
           description: `Refund (Cancellation): ${serviceName}`, refId: bookingId, createdAt: serverTimestamp()
         } as LedgerEntry);
@@ -616,7 +619,7 @@ export async function earnCoins(uid: string, type: LedgerType, refId?: string): 
     const userRef = doc(db, "users", uid);
     const snap = await tx.get(userRef);
     const newBal = ((snap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
+    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: dedupDocId });
     tx.set(dedupRef, {
       uid, type, amount: rule.coins, balanceAfter: newBal,
       description: rule.label, refId: refId ?? null, createdAt: serverTimestamp(),
@@ -644,10 +647,11 @@ export async function requestPayout(uid: string, displayName: string, coins: num
       const balance = (snap.data()?.coinBalance as number) ?? 0;
       if (balance < coins) throw new Error("INSUFFICIENT_BALANCE");
       const newBal = balance - coins;
-      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
       const payoutRef = doc(collection(db, "coinPayouts"));
+      const ledgerEntryId = `${payoutRef.id}_payout_${uid}`;
+      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.set(payoutRef, { uid, displayName, coinsRedeemed: coins, amountRs: coins, upiId, upiMasked: maskedUpi, status: "pending", createdAt: serverTimestamp() } as CoinPayout);
-      tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type: "payout", amount: -coins, balanceAfter: newBal, description: `Payout ₹${coins} -> ${maskedUpi}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
+      tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), { uid, type: "payout", amount: -coins, balanceAfter: newBal, description: `Payout ₹${coins} -> ${maskedUpi}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
@@ -692,9 +696,10 @@ export async function cancelPayoutRequest(uid: string, payoutId: string): Promis
       const currentBalance = (userSnap.data()?.coinBalance as number) ?? 0;
       const refundedBalance = currentBalance + (payout.coinsRedeemed || 0);
 
-      tx.update(userRef, { coinBalance: refundedBalance, updatedAt: serverTimestamp() });
+      const ledgerEntryId = `${payoutId}_payout_cancel_${uid}`;
+      tx.update(userRef, { coinBalance: refundedBalance, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.update(payoutRef, { status: "cancelled_by_user", cancelledAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      tx.set(doc(collection(db, "coinLedger", uid, "entries")), {
+      tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), {
         uid,
         type: "payout_cancelled",
         amount: payout.coinsRedeemed,
@@ -760,8 +765,9 @@ export async function adminAdjustCoins(uid: string, amount: number, reason: stri
       if (!snap.exists()) throw new Error("USER_NOT_FOUND");
       const newBal = ((snap.data()?.coinBalance as number) ?? 0) + amount;
       if (newBal < 0) throw new Error("WOULD_GO_NEGATIVE");
-      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
-      tx.set(doc(collection(db, "coinLedger", uid, "entries")), { uid, type: amount > 0 ? "admin_credit" : "admin_debit", amount, balanceAfter: newBal, description: `Admin ${amount > 0 ? "credit" : "debit"}: ${reason}`, refId: adminUid, createdAt: serverTimestamp() } as LedgerEntry);
+      const ledgerEntryId = `admin_${Date.now()}_${uid}_${Math.abs(amount)}`;
+      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+      tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), { uid, type: amount > 0 ? "admin_credit" : "admin_debit", amount, balanceAfter: newBal, description: `Admin ${amount > 0 ? "credit" : "debit"}: ${reason}`, refId: adminUid, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {

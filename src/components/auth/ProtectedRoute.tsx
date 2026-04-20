@@ -29,6 +29,10 @@ export function ProtectedRoute({ children, adminOnly, userOnly, requireVerified 
     return <Navigate to="/login" replace />;
   }
 
+  if (userProfile?.disabled || userProfile?.deleted) {
+    return <Navigate to="/login" replace />;
+  }
+
   if (adminOnly && userProfile?.role !== "admin") {
     return <Navigate to="/dashboard" replace />;
   }

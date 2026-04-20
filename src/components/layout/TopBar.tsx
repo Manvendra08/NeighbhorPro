@@ -21,6 +21,7 @@ type BroadcastDoc = {
   target: string;
   priority: string;
   targetSociety?: string | null;
+  targetSocietyName?: string | null;
 };
 
 // DOMPurify config — strict allowlist, no events, no JS URLs
@@ -40,9 +41,13 @@ function isRelevantBroadcast(doc: BroadcastDoc, userProfile: ReturnType<typeof u
   if (doc.target === "Admins Only") return userProfile?.role === "admin";
   if (doc.target === "Service Professionals") return !!userProfile?.isServiceProvider;
   if (doc.target === "Society-Specific") {
-    return !!doc.targetSociety && (
-      userProfile?.society === doc.targetSociety ||
-      userProfile?.locality === doc.targetSociety
+    const targetSociety = (doc.targetSociety || "").trim().toLowerCase();
+    const targetSocietyName = (doc.targetSocietyName || doc.targetSociety || "").trim().toLowerCase();
+    if (!targetSociety && !targetSocietyName) return false;
+    const profileSociety = (userProfile?.society || "").trim().toLowerCase();
+    const profileLocality = (userProfile?.locality || "").trim().toLowerCase();
+    return [profileSociety, profileLocality].some(value =>
+      !!value && [targetSociety, targetSocietyName].some(target => !!target && value === target)
     );
   }
   return true;

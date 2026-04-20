@@ -219,12 +219,21 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
     }
   }
 
-  await updateDoc(userRef, { ...nextData, updatedAt: serverTimestamp() });
+  const mergedData = { ...currentData, ...nextData };
+  const safe = derivePublicProfile(uid, mergedData);
+  if ("emailVisible" in mergedData && mergedData.emailVisible !== true) safe.email = deleteField();
+  if ("phoneVisible" in mergedData && mergedData.phoneVisible !== true) safe.phoneNumber = deleteField();
+  if ("flatVisible" in mergedData && mergedData.flatVisible !== true) safe.flatNumber = deleteField();
+
+  await runTransaction(db, async tx => {
+    tx.update(userRef, { ...nextData, updatedAt: serverTimestamp() });
+    if (Object.keys(safe).length > 1) {
+      tx.set(doc(db, "publicProfiles", uid), { ...safe, updatedAt: serverTimestamp() }, { merge: true });
+    }
+  });
   if (auth.currentUser?.uid === uid && typeof nextDisplayName === "string" && nextDisplayName.trim()) {
     await updateProfile(auth.currentUser, { displayName: nextDisplayName.trim() }).catch(() => {});
   }
-  // Mirror safe fields to /publicProfiles so other users never need /users
-  await mirrorPublicProfile(uid, { ...currentData, ...nextData });
 }
 
 export async function uploadProfilePhoto(uid: string, file: File) {
@@ -644,9 +653,10 @@ export async function createBooking(data: Record<string, unknown>) {
       if (balance < escrowCoins) throw new Error("INSUFFICIENT_BALANCE");
 
       const newBal = balance - escrowCoins;
-      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp() });
+      const ledgerEntryId = `${bookingRef.id}_hold_${clientId}`;
+      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.set(bookingRef, bookingDoc);
-      tx.set(doc(collection(db, "coinLedger", clientId, "entries"), `${bookingRef.id}_hold_${clientId}`), {
+      tx.set(doc(collection(db, "coinLedger", clientId, "entries"), ledgerEntryId), {
         uid: clientId,
         type: "booking_escrow",
         amount: -escrowCoins,
@@ -859,6 +869,59 @@ export async function addReview(bookingId: string, proId: string, rating: number
   // Spam flagging is handled server-side by a Cloud Function trigger.
   await recalculateProRating(proId);
 }
+
+export async function addResidentReview(bookingId: string, clientId: string, rating: number, comment: string) {
+  if (!auth.currentUser) throw new Error("Must be logged in to review");
+  const proId = auth.currentUser.uid;
+  const reviewId = `${bookingId}_${proId}`;
+  const reviewRef = doc(db, "residentReviews", reviewId);
+  const bookingRef = doc(db, "bookings", bookingId);
+
+  await runTransaction(db, async tx => {
+    const existing = await tx.get(reviewRef);
+    if (existing.exists()) {
+      throw new Error("You have already rated this resident for this booking.");
+    }
+
+    const bookingSnap = await tx.get(bookingRef);
+    if (!bookingSnap.exists()) {
+      throw new Error("Booking not found.");
+    }
+
+    const booking = bookingSnap.data() as Record<string, unknown>;
+    const status = String(booking.status || "");
+    const bookingClientId = String(booking.clientId || booking.clientUid || "");
+    const bookingProId = String(booking.proId || booking.proUid || "");
+
+    if (bookingProId !== proId) {
+      throw new Error("Only booking professional can rate resident.");
+    }
+    if (bookingClientId !== clientId) {
+      throw new Error("Resident mismatch for this booking.");
+    }
+    if (!['completed', 'reviewed'].includes(status)) {
+      throw new Error("Resident can be rated only after completion.");
+    }
+
+    tx.set(reviewRef, {
+      bookingId,
+      clientId,
+      proId,
+      reviewerRole: "pro",
+      rating,
+      comment,
+      createdAt: serverTimestamp(),
+    });
+  });
+}
+
+export async function hasResidentReview(bookingId: string, proId: string): Promise<boolean> {
+  if (!bookingId || !proId) return false;
+  const reviewId = `${bookingId}_${proId}`;
+  const snap = await getDoc(doc(db, "residentReviews", reviewId));
+  return snap.exists();
+}
+
 export async function getReviewsForUser(proId: string) {
   const q = query(collection(db, "reviews"), where("proId", "==", proId), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);

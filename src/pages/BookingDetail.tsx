@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview, updateBookingFields } from "../services/firestoreService";
+import { getBookingById, updateBookingStatus, getOrCreateConversation, formatTimestamp, addReview, updateBookingFields, addResidentReview, hasResidentReview } from "../services/firestoreService";
 import { releaseEscrow, earnCoins, rewardReferral, cancelBookingAndRefund } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 import { formatBookingDateTime } from "../utils/time";
@@ -35,6 +35,11 @@ export default function BookingDetail() {
   const [reviewRating, setRR] = useState(5);
   const [reviewComment, setRC] = useState("");
   const [reviewSub, setRS] = useState(false);
+  const [showResidentReview, setShowResidentReview] = useState(false);
+  const [residentReviewRating, setResidentReviewRating] = useState(5);
+  const [residentReviewComment, setResidentReviewComment] = useState("");
+  const [residentReviewSub, setResidentReviewSub] = useState(false);
+  const [residentReviewDone, setResidentReviewDone] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelComment, setCancelComment] = useState("");
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
@@ -46,6 +51,13 @@ export default function BookingDetail() {
       const b = await getBookingById(id);
       if (b && (b.clientId === user.uid || b.proId === user.uid)) {
         setBooking(b);
+        const status = String(b.status || "");
+        if (user.uid === b.proId && ["completed", "reviewed"].includes(status)) {
+          const alreadyRated = await hasResidentReview(id, user.uid).catch(() => false);
+          setResidentReviewDone(alreadyRated);
+        } else {
+          setResidentReviewDone(false);
+        }
       } else {
         setError("Booking not found or access denied.");
       }
@@ -110,11 +122,11 @@ export default function BookingDetail() {
       const escrowCoins = (booking.escrowCoins as number) || 0;
       if (escrowCoins === 0) {
         // Free session completed -> PRO earns free consult reward
-        await earnCoins(user!.uid, "earn_free_consult", id!);
+        await earnCoins(user!.uid, "earn_free_consult", id!).catch(() => {});
       }
       const result = await releaseEscrow(user!.uid, id!, (booking.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
-      await rewardReferral(booking.clientId as string, id!);
+        await rewardReferral(booking.clientId as string, id!).catch(() => {});
       logActivity(user!.uid, "booking.completed", `Completed booking: ${(booking.serviceName as string) || id} for ${(booking.clientName as string) || booking.clientId}`, { bookingId: id, role: "pro", escrowReleased: escrowCoins });
       setShowCompleteConfirm(false);
       await load();
@@ -127,12 +139,29 @@ export default function BookingDetail() {
     try {
       await addReview(id!, booking!.proId as string, reviewRating, reviewComment);
       await updateBookingStatus(id!, "reviewed");
-      await earnCoins(user!.uid, "earn_review", id!);
+      await earnCoins(user!.uid, "earn_review", id!).catch(() => {});
       setShowReview(false);
       setRR(5); setRC("");
       await load();
     } catch { setError("Failed to submit review."); }
     setRS(false);
+  };
+
+  const handleResidentReviewSubmit = async () => {
+    if (!booking || !id) return;
+    setResidentReviewSub(true);
+    setError("");
+    try {
+      await addResidentReview(id, booking.clientId as string, residentReviewRating, residentReviewComment);
+      setShowResidentReview(false);
+      setResidentReviewRating(5);
+      setResidentReviewComment("");
+      setResidentReviewDone(true);
+      await load();
+    } catch {
+      setError("Failed to submit resident rating.");
+    }
+    setResidentReviewSub(false);
   };
 
   const openChat = async () => {
@@ -227,6 +256,10 @@ export default function BookingDetail() {
             </button>
           )}
 
+          {isPro && (status === "completed" || status === "reviewed") && !residentReviewDone && (
+            <button className="btn btn-primary" onClick={() => setShowResidentReview(true)}>⭐ Rate Resident</button>
+          )}
+
           {isClient && (status === "pending" || status === "confirmed") && (
             <button className="btn btn-danger" disabled={!!actionLoading} onClick={handleCancel}>
               {actionLoading === "cancel" ? "Cancelling..." : `Cancel Booking${escrowCoins > 0 ? " & Request Refund" : ""}`}
@@ -271,6 +304,35 @@ export default function BookingDetail() {
               <button className="btn btn-secondary" disabled={reviewSub} onClick={() => setShowReview(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleReviewSubmit} disabled={reviewSub || !reviewComment.trim()}>
                 {reviewSub ? "Submitting…" : "Submit Review"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showResidentReview && (
+        <div className="modal-overlay" onClick={() => setShowResidentReview(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Rate Resident</h3>
+              <button className="modal-close" onClick={() => setShowResidentReview(false)}>✕</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Rating</label>
+              <div className="stars" style={{ display: "flex", gap: 4, fontSize: 24, cursor: "pointer" }}>
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} type="button" style={{ background: "none", border: "none", color: n <= residentReviewRating ? "#fbbf24" : "var(--muted)", cursor: "pointer", fontSize: 28 }} onClick={() => setResidentReviewRating(n)}>★</button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Comment</label>
+              <textarea className="form-input" placeholder="How was resident experience?" value={residentReviewComment} onChange={e => setResidentReviewComment(e.target.value)} />
+            </div>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button className="btn btn-secondary" disabled={residentReviewSub} onClick={() => setShowResidentReview(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleResidentReviewSubmit} disabled={residentReviewSub || !residentReviewComment.trim()}>
+                {residentReviewSub ? "Submitting…" : "Submit Rating"}
               </button>
             </div>
           </div>

@@ -10,16 +10,25 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     function noSensitiveFieldChange() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role", "coinBalance", "fcmToken", "disabled"]);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role", "coinBalance", "fcmToken", "disabled", "deleted", "lastLedgerEntryId"]);
     }
 
-    function ownerWalletMutationAllowed() {
+    function ownerWalletMutationAllowed(userId) {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return changed.hasOnly(["coinBalance", "updatedAt"])
+      let ledgerPath = /databases/$(database)/documents/coinLedger/$(userId)/entries/$(request.resource.data.lastLedgerEntryId);
+      return changed.hasOnly(["coinBalance", "updatedAt", "lastLedgerEntryId"])
+        && request.resource.data.lastLedgerEntryId is string
+        && request.resource.data.lastLedgerEntryId.size() > 0
         && request.resource.data.coinBalance is int
         && request.resource.data.coinBalance >= 0
-        && request.resource.data.coinBalance <= resource.data.coinBalance + 5000
-        && request.resource.data.coinBalance >= resource.data.coinBalance - 5000;
+        && existsAfter(ledgerPath)
+        && getAfter(ledgerPath).data.uid == userId
+        && getAfter(ledgerPath).data.type in [
+          'booking_debit', 'booking_refund', 'booking_escrow',
+          'booking_escrow_release', 'payout', 'payout_cancelled'
+        ]
+        && getAfter(ledgerPath).data.amount == request.resource.data.coinBalance - resource.data.coinBalance
+        && getAfter(ledgerPath).data.balanceAfter == request.resource.data.coinBalance;
     }
 
     function bookingStatusTransitionAllowed() {
@@ -28,6 +37,7 @@ service cloud.firestore {
         && (
           (resource.data.status == "pending" && request.resource.data.status == "confirmed" && request.auth.uid == resource.data.proId)
           || (resource.data.status == "pending" && request.resource.data.status == "cancelled" && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
+          || (resource.data.status == "confirmed" && request.resource.data.status == "cancelled" && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
           || (resource.data.status == "confirmed" && request.resource.data.status == "completed" && request.auth.uid == resource.data.proId)
           || (resource.data.status == "completed" && request.resource.data.status == "reviewed" && request.auth.uid == resource.data.clientId)
         );
@@ -68,8 +78,20 @@ service cloud.firestore {
     }
 
     function isBookingParticipant(bookingId) {
-      return get(/databases/$(database)/documents/bookings/$(bookingId)).data.clientId == request.auth.uid
-          || get(/databases/$(database)/documents/bookings/$(bookingId)).data.proId == request.auth.uid;
+      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      let clientId = ('clientId' in booking) ? booking.clientId : booking.clientUid;
+      let proId = ('proId' in booking) ? booking.proId : booking.proUid;
+      return clientId == request.auth.uid || proId == request.auth.uid;
+    }
+
+    function conversationMatchesBooking(bookingId, participants) {
+      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      let clientId = ('clientId' in booking) ? booking.clientId : booking.clientUid;
+      let proId = ('proId' in booking) ? booking.proId : booking.proUid;
+      return participants is list
+          && participants.size() == 2
+          && participants.hasAll([clientId, proId])
+          && participants.hasOnly([clientId, proId]);
     }
 
     // Public-safe fields any signed-in user may read on another user's profile.
@@ -103,18 +125,12 @@ service cloud.firestore {
         isAdmin() ||
         (isOwner(userId) && (
           noSensitiveFieldChange() ||
-          ownerWalletMutationAllowed() ||
+          ownerWalletMutationAllowed(userId) ||
           (
             request.resource.data.diff(resource.data).affectedKeys().hasAny(['residencyProofUrl', 'residentVerificationStatus']) &&
             request.resource.data.residentVerificationStatus == 'pending'
           )
-        )) ||
-        ( // Allow cross-user tipping for referrals and free consults (Spark plan path)
-          !isOwner(userId) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coinBalance', 'updatedAt']) &&
-          request.resource.data.coinBalance > resource.data.coinBalance &&
-          request.resource.data.coinBalance <= resource.data.coinBalance + 100 // Sanity check max reward
-        )
+        ))
       ) && (!isOwner(userId) || validUserDoc());
       allow delete: if isAdmin();
     }
@@ -166,6 +182,27 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Pro -> Client resident rating after completed booking.
+    match /residentReviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.bookingId is string
+        && request.resource.data.proId == request.auth.uid
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && reviewId == request.resource.data.bookingId + '_' + request.auth.uid
+        && ((('proId' in get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data)
+              ? get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.proId
+              : get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.proUid) == request.auth.uid)
+        && ((('clientId' in get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data)
+              ? get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.clientId
+              : get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.clientUid) == request.resource.data.clientId)
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status in ['completed', 'reviewed'];
+      allow update, delete: if isAdmin();
+    }
+
     match /reports/{reportId} {
       allow read, update, delete: if isAdmin();
       allow create: if isSignedIn()
@@ -192,17 +229,15 @@ service cloud.firestore {
       // Allow the owner to write entries to their own ledger
       allow create:        if isSignedIn() && (
         (isOwner(uid) && validLedgerEntry(uid))
+        && request.resource.data.type in [
+          'booking_debit', 'booking_refund', 'booking_escrow',
+          'booking_escrow_release', 'payout', 'payout_cancelled'
+        ]
         // Allow admins to post manual wallet adjustment entries for any user.
         || (
           isAdmin()
           && request.resource.data.type in ['admin_credit', 'admin_debit']
           && validLedgerEntry(uid)
-        )
-        // Allow another user (like a client or new signup) to credit the owner's ledger 
-        // for specific earning events (free consult, referral).
-        || (
-           request.resource.data.type in ['earn_free_consult', 'earn_referral', 'earn_review']
-           && validLedgerEntry(uid)
         )
       );
       allow update, delete: if false;
@@ -256,10 +291,7 @@ service cloud.firestore {
     // ── Messages ─────────────────────────────────────────
     match /messages/{convId} {
       allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
-      allow get: if isSignedIn() && (
-        (resource != null && request.auth.uid in resource.data.participants) ||
-        convId.matches('.*' + request.auth.uid + '.*')
-      );
+      allow get: if isSignedIn() && resource != null && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn() && (
         (isAdmin() && request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
         || (
@@ -268,6 +300,8 @@ service cloud.firestore {
           && request.auth.uid in request.resource.data.participants
           && request.resource.data.bookingId is string
           && exists(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId))
+          && isBookingParticipant(request.resource.data.bookingId)
+          && conversationMatchesBooking(request.resource.data.bookingId, request.resource.data.participants)
         )
       );
       allow update: if isSignedIn() && request.auth.uid in resource.data.participants && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'participantNames', 'participantPhotos', 'bookingId', 'lastReadAt']);

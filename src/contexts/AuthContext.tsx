@@ -46,6 +46,7 @@ export interface UserProfile {
   phoneVisible?: boolean;
   flatVisible?: boolean;
   deleted?: boolean;
+  disabled?: boolean;
   fcmToken?: string;
   createdAt: FirestoreTimestamp;
 }
@@ -165,6 +166,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    const userSnap = await getDoc(doc(db, "users", cred.user.uid));
+    const profile = userSnap.data() as { disabled?: boolean; deleted?: boolean } | undefined;
+    if (profile?.disabled || profile?.deleted) {
+      await signOut(auth);
+      throw new Error("ACCOUNT_DISABLED");
+    }
     logActivity(cred.user.uid, "user.login", `Signed in via email`);
   };
   const signUp = async (email: string, password: string, displayName: string, referralCode?: string) => {
@@ -183,6 +190,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const signInWithGoogle = async (referralCode?: string) => {
     const { user: u } = await signInWithPopup(auth, googleProvider);
+    const userSnap = await getDoc(doc(db, "users", u.uid));
+    const profile = userSnap.data() as { disabled?: boolean; deleted?: boolean } | undefined;
+    if (profile?.disabled || profile?.deleted) {
+      await signOut(auth);
+      throw new Error("ACCOUNT_DISABLED");
+    }
     const isNewProfile = await createUserProfile(u);
     const normalizedReferralCode = normalizeReferralCode(referralCode);
     if (isNewProfile && normalizedReferralCode) {

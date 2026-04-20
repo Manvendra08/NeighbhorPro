@@ -232,7 +232,14 @@ export default function Wallet() {
         <div>
           <div className="grid grid-3" style={{ marginBottom: 28 }}>
             {[
-              { icon: "🪙", bg: "rgba(27,107,138,0.1)", color: "#1B6B8A", value: balance.toLocaleString("en-IN"), label: "Current Balance (NC)" },
+              {
+                icon: "🪙",
+                bg: "rgba(27,107,138,0.1)",
+                color: "#1B6B8A",
+                value: balance.toLocaleString("en-IN"),
+                title: "Current Balance (NC)",
+                detail: "",
+              },
               {
                 icon: "🧾",
                 bg: "rgba(22,163,74,0.1)",
@@ -240,16 +247,27 @@ export default function Wallet() {
                 value: latestLedgerEntry
                   ? `${ledgerSign(latestLedgerEntry.amount)} NC`
                   : "No transactions",
-                label: latestLedgerEntry
+                title: "Last NC transaction",
+                detail: latestLedgerEntry
                   ? `${latestLedgerEntry.description} · ${formatTimestamp(latestLedgerEntry.createdAt)}`
-                  : "Last Transaction",
+                  : "No transaction yet",
               },
-              { icon: "🎯", bg: "rgba(245,105,44,0.1)", color: "#F5692C", value: hasPhone ? (myCode || "—") : "Pending", label: "Your Referral Code" },
-            ].map(({ icon, bg, color, value, label }) => (
-              <div key={label} className="stat-card">
-                <div className="stat-icon" style={{ background: bg, color }}>{icon}</div>
+              {
+                icon: "🎯",
+                bg: "rgba(245,105,44,0.1)",
+                color: "#F5692C",
+                value: hasPhone ? (myCode || "—") : "Pending",
+                title: "Your Referral Code",
+                detail: "",
+              },
+            ].map(({ icon, bg, color, value, title, detail }) => (
+              <div key={title} className="stat-card">
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div className="stat-icon" style={{ background: bg, color, marginBottom: 0 }}>{icon}</div>
+                  <div className="stat-label" style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{title}</div>
+                </div>
                 <div className="stat-value">{value}</div>
-                <div className="stat-label">{label}</div>
+                <div className="stat-label">{detail}</div>
               </div>
             ))}
           </div>
