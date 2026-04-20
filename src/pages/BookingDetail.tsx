@@ -37,6 +37,7 @@ export default function BookingDetail() {
   const [reviewSub, setRS] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelComment, setCancelComment] = useState("");
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
 
   const load = async () => {
     if (!id || !user) return;
@@ -103,7 +104,7 @@ export default function BookingDetail() {
     setAL(null);
   };
 
-  const handleComplete = async () => {
+  const submitCompletion = async () => {
     setAL("complete");
     try {
       const escrowCoins = (booking.escrowCoins as number) || 0;
@@ -115,6 +116,7 @@ export default function BookingDetail() {
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
       await rewardReferral(booking.clientId as string, id!);
       logActivity(user!.uid, "booking.completed", `Completed booking: ${(booking.serviceName as string) || id} for ${(booking.clientName as string) || booking.clientId}`, { bookingId: id, role: "pro", escrowReleased: escrowCoins });
+      setShowCompleteConfirm(false);
       await load();
     } catch { setError("Failed to complete booking."); }
     setAL(null);
@@ -220,7 +222,7 @@ export default function BookingDetail() {
           )}
 
           {isPro && status === "confirmed" && (
-            <button className="btn btn-success" disabled={!!actionLoading} onClick={handleComplete}>
+            <button className="btn btn-success" disabled={!!actionLoading} onClick={() => setShowCompleteConfirm(true)}>
               {actionLoading === "complete" ? "Processing..." : "✓ Mark as Completed"}
             </button>
           )}
@@ -299,6 +301,28 @@ export default function BookingDetail() {
                 disabled={Boolean(actionLoading) || !cancelComment.trim()}
               >
                 {actionLoading === "cancel" ? "Cancelling..." : (isClient ? "Cancel Booking" : "Decline Booking")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCompleteConfirm && (
+        <div className="modal-overlay" onClick={() => setShowCompleteConfirm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Confirm Completion</h3>
+              <button className="modal-close" onClick={() => setShowCompleteConfirm(false)}>✕</button>
+            </div>
+            <p style={{ marginBottom: 16, color: "var(--muted)" }}>
+              Are you sure? This will release payment and close the session.
+            </p>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCompleteConfirm(false)} disabled={Boolean(actionLoading)}>
+                Keep Open
+              </button>
+              <button className="btn btn-success" onClick={submitCompletion} disabled={Boolean(actionLoading)}>
+                {actionLoading === "complete" ? "Processing..." : "Yes, Mark Completed"}
               </button>
             </div>
           </div>

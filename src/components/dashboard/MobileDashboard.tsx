@@ -85,6 +85,10 @@ export default function MobileDashboard({
   const authorPhotoURL = (userProfile?.photoURL as string) || undefined;
   const coins = Number(userProfile?.coinBalance) || 0;
   const rating = computedRating ?? ((userProfile?.rating as number) || null);
+  const totalReviews = Object.values(reviewDistribution).reduce((sum, count) => sum + (Number(count) || 0), 0);
+  const ratingBreakdown = [5, 4, 3, 2, 1]
+    .map(star => `${star}★${Number(reviewDistribution[star]) || 0}`)
+    .join(" ");
   const proPending = proBookings.filter(booking => booking.status === "pending").length;
   const nextBooking = isPro ? findNextBooking(proBookings) : findNextBooking(upcomingBookings);
 
@@ -113,7 +117,7 @@ export default function MobileDashboard({
     : [
         { label: "Balance", value: `${coins.toLocaleString("en-IN")} NC`, helper: "Wallet", icon: "🪙", tone: "warning", to: "/wallet", sparkline: earningsSummary.balanceSeries },
         { label: "Upcoming", value: String(upcomingBookings.length), helper: "Next sessions", icon: "📅", tone: "accent", to: "/bookings", sparkline: earningsSummary.balanceSeries },
-        { label: "Rating", value: rating ? `${rating.toFixed(1)}★` : "—", helper: "Trust score", icon: "⭐", tone: "success", to: "/profile", sparkline: [1, 2, 3, 4, 5].map(star => Number(reviewDistribution[star]) || 0) },
+        { label: "Average Rating", value: rating ? `${rating.toFixed(1)}★` : "—", helper: `Reviews: ${totalReviews} · ${ratingBreakdown}`, icon: "⭐", tone: "success", to: "/profile", sparkline: [1, 2, 3, 4, 5].map(star => Number(reviewDistribution[star]) || 0) },
         { label: "Bookings", value: String(userBookings.length), helper: "Total", icon: "📦", tone: "accent", to: "/bookings", sparkline: earningsSummary.balanceSeries },
       ];
 

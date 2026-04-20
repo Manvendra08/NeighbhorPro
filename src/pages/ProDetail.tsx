@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   getPublicProfile, getServicesByUser, getReviewsForUser, trackProView, formatTimestamp,
-  hasUserReportedProfessional,
+  hasUserReportedProfessional, getPlatformSettings,
 } from "../services/firestoreService";
 import { useAuth } from "../contexts/AuthContext";
 import InfoTooltip from "../components/common/InfoTooltip";
@@ -81,6 +81,7 @@ export default function ProDetail() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportState, setReportState] = useState<"idle" | "reported">("idle");
   const [reportMessage, setReportMessage] = useState("");
+  const [commissionRate, setCommissionRate] = useState(10);
 
   useEffect(() => {
     if (!reportMessage) return;
@@ -93,10 +94,11 @@ export default function ProDetail() {
 
     const load = async () => {
       try {
-        const [profile, serviceRows, reviewRows] = await Promise.all([
+        const [profile, serviceRows, reviewRows, settings] = await Promise.all([
           getPublicProfile(id),
           getServicesByUser(id),
           getReviewsForUser(id),
+          getPlatformSettings(),
         ]);
 
         if (!profile) {
@@ -108,6 +110,8 @@ export default function ProDetail() {
 
         setServices(serviceRows);
         setReviews(reviewRows);
+        const configuredRate = Number(settings.commissionRate);
+        setCommissionRate(Number.isFinite(configuredRate) && configuredRate >= 0 ? configuredRate : 10);
 
         if (user?.uid && user.uid !== id) {
           trackProView(user.uid, id).catch(() => {});
@@ -192,6 +196,7 @@ export default function ProDetail() {
 
   const initials = ((pro.displayName as string) || "?").split(" ").map(word => word[0]).join("").slice(0, 2).toUpperCase();
   const isOwnProfile = user?.uid === id;
+  const canShowResidentPayable = !isOwnProfile;
   const publicEmail = typeof pro.email === "string" ? pro.email.trim() : "";
   const publicPhone = typeof pro.phoneNumber === "string" ? pro.phoneNumber.trim() : "";
   const publicTower = typeof pro.tower === "string" ? pro.tower.trim() : "";
@@ -273,7 +278,13 @@ export default function ProDetail() {
               </span>
               {(pro.priceAfterQuote as boolean)
                 ? <span className="badge badge-accent">Quote-based</span>
-                : <span style={{ fontWeight: 700, color: "var(--accent2)" }}>{(pro.hourlyRate as number) === 0 ? "Free Consultation" : `Rs ${(pro.hourlyRate as number)}/hr`}</span>}
+                : <span style={{ fontWeight: 700, color: "var(--accent2)" }}>
+                    {(pro.hourlyRate as number) === 0
+                      ? "Free Consultation"
+                      : canShowResidentPayable
+                        ? `Rs ${Math.round((pro.hourlyRate as number) * (1 + commissionRate / 100))}/hr`
+                        : `Rs ${(pro.hourlyRate as number)}/hr`}
+                  </span>}
               <ResponseTimeBadge avgResponseHours={avgResponseHrs} />
               {memberSince && <span className="badge badge-muted">Member since {memberSince}</span>}
               {pro.residentVerificationStatus === "verified" && (
@@ -345,8 +356,15 @@ export default function ProDetail() {
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div style={{ fontWeight: 700, color: (service.price as number) === 0 ? "var(--accent2)" : "var(--text)" }}>
-                    {(service.price as number) === 0 ? "Free" : `Rs ${service.price as number}`}
+                    {(service.price as number) === 0
+                      ? "Free"
+                      : canShowResidentPayable
+                        ? `Rs ${Math.round((service.price as number) * (1 + commissionRate / 100))}`
+                        : `Rs ${service.price as number}`}
                   </div>
+                  {(service.price as number) > 0 && canShowResidentPayable && (
+                    <div className="text-muted text-xs">Pro fee {(service.price as number).toLocaleString("en-IN")} + app fee ({commissionRate}%)</div>
+                  )}
                   {(service.duration as string) && <div className="text-muted text-xs">{service.duration as string}</div>}
                 </div>
               </div>

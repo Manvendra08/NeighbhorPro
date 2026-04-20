@@ -161,6 +161,14 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   }, []);
 
   useEffect(() => {
+    if (!society) return;
+    const selected = societies.find(item => (item.name as string) === society);
+    if (!selected) return;
+    const mappedLocality = ((selected.locality as string) || (selected.city as string) || "").trim();
+    setLocality(mappedLocality);
+  }, [society, societies]);
+
+  useEffect(() => {
     getPlatformSettings()
       .then((settings) => {
         setServiceCategories(normalizeServiceCategories(settings.serviceCategories));
@@ -461,12 +469,12 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
               <input
                 className="form-input"
                 value={locality}
-                onChange={(event) => setLocality(event.target.value)}
-                placeholder="Auto-filled from society, editable if needed"
+                readOnly
+                placeholder="Auto-filled from selected society"
                 id="profile-locality-input"
               />
               <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: 4 }}>
-                Locality is auto-filled when available. Update it manually if your society mapping is missing.
+                Auto-filled based on society name.
               </p>
             </div>
           </div>

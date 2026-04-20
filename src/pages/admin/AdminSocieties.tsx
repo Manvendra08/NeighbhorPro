@@ -18,12 +18,14 @@ export default function AdminSocieties() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [locality, setLocality] = useState("");
   const [city, setCity] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<Record<string, unknown> | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [editSociety, setEditSociety] = useState<Record<string, unknown> | null>(null);
   const [editName, setEditName] = useState("");
   const [editAddress, setEditAddress] = useState("");
+  const [editLocality, setEditLocality] = useState("");
   const [editCity, setEditCity] = useState("");
   const [toast, setToast] = useState("");
 
@@ -69,10 +71,10 @@ export default function AdminSocieties() {
     }
 
     try {
-      const id = await createSociety({ name: name.trim(), address, city });
+      const id = await createSociety({ name: name.trim(), address, locality: locality.trim(), city });
       await logAudit("society.create", adminId, adminName, `Created society: ${name.trim()}, ${city}`, id);
       showToast(`Society "${name.trim()}" created`);
-      setName(""); setAddress(""); setCity("");
+      setName(""); setAddress(""); setLocality(""); setCity("");
       setShowForm(false);
       load();
     } catch { showToast("Failed to create society"); }
@@ -103,6 +105,7 @@ export default function AdminSocieties() {
     setEditSociety(s);
     setEditName((s.name as string) || "");
     setEditAddress((s.address as string) || "");
+    setEditLocality((s.locality as string) || "");
     setEditCity((s.city as string) || "");
   };
 
@@ -122,6 +125,7 @@ export default function AdminSocieties() {
       await updateSociety(editSociety.id as string, {
         name: editName.trim(),
         address: editAddress.trim(),
+        locality: editLocality.trim(),
         city: editCity.trim(),
       });
       await logAudit("society.update", adminId, adminName, `Updated society: ${editName.trim()}`, editSociety.id as string);
@@ -169,6 +173,10 @@ export default function AdminSocieties() {
           <div className="form-group">
             <label className="form-label">Address</label>
             <input className="form-input" value={address} onChange={e => setAddress(e.target.value)} placeholder="Full address" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Locality</label>
+            <input className="form-input" value={locality} onChange={e => setLocality(e.target.value)} placeholder="e.g., Baner" />
           </div>
           <div className="form-group">
             <label className="form-label">City</label>
@@ -319,6 +327,10 @@ export default function AdminSocieties() {
             <div className="form-group">
               <label className="form-label">Address</label>
               <input className="form-input" value={editAddress} onChange={e => setEditAddress(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Locality</label>
+              <input className="form-input" value={editLocality} onChange={e => setEditLocality(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">City</label>

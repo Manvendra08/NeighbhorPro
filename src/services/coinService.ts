@@ -62,21 +62,21 @@ export function maskUpiId(upiId: string): string {
 }
 
 export const COIN_PACKS = [
-  { label: "Trial", priceRs: 50, coins: 50, bonus: 0, popular: false },
-  { label: "Starter", priceRs: 200, coins: 200, bonus: 20, popular: false },
-  { label: "Popular", priceRs: 500, coins: 500, bonus: 75, popular: true },
-  { label: "Pro", priceRs: 1000, coins: 1000, bonus: 175, popular: false },
+  { label: "Trial", priceRs: 300, coins: 300, bonus: 0, popular: false },
+  { label: "Starter", priceRs: 1000, coins: 1000, bonus: 100, popular: false },
+  { label: "Popular", priceRs: 1500, coins: 1500, bonus: 200, popular: true },
+  { label: "Pro", priceRs: 2000, coins: 2000, bonus: 250, popular: false },
   { label: "Society", priceRs: 2500, coins: 2500, bonus: 500, popular: false },
 ];
 
 export const EARN_RULES: Record<LedgerType, { coins: number; label: string }> = {
-  earn_signup_bonus: { coins: 100, label: "Welcome bonus 🎉" },
-  earn_profile: { coins: 20, label: "Profile completed" },
-  earn_review: { coins: 10, label: "Review written" },
-  earn_referral: { coins: 100, label: "Referral reward" },
-  earn_free_consult: { coins: 50, label: "Free consultation given" },
-  earn_groupsession: { coins: 5, label: "Group session attended" },
-  earn_ondemand: { coins: 75, label: "On-demand request fulfilled" },
+  earn_signup_bonus: { coins: 500, label: "Welcome bonus 🎉" },
+  earn_profile: { coins: 50, label: "Profile completed" },
+  earn_review: { coins: 20, label: "Review written" },
+  earn_referral: { coins: 200, label: "Referral reward" },
+  earn_free_consult: { coins: 100, label: "Free consultation given" },
+  earn_groupsession: { coins: 25, label: "Group session attended" },
+  earn_ondemand: { coins: 50, label: "On-demand request fulfilled" },
   earn_milestone: { coins: 50, label: "Community milestone" },
   topup: { coins: 0, label: "Coins purchased" },
   booking_debit: { coins: 0, label: "Booking payment" },
@@ -104,7 +104,7 @@ export const NC_TERMS_DEFAULTS: NCTerms = {
   refundPolicy: "Unused purchased NC refunded within 7 days of purchase if no bookings made. Earned NC is non-refundable.",
   earnCap: "Earned NC capped at 20% of monthly booking value.",
   minPayout: 200,
-  platformFeePct: 10,
+  platformFeePct: 15,
 };
 
 export async function getNCTerms(): Promise<NCTerms> {
@@ -443,8 +443,20 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
         });
         return;
       }
-      const platformFee = Math.round(escrowCoins * platformFeePct);
-      const proEarning = escrowCoins - platformFee;
+      const storedCommissionRate = Number(data.commissionRate);
+      const storedPlatformFee = Number(data.platformFee);
+      const storedProEarning = Number(data.proEarning);
+      const effectiveRate = Number.isFinite(storedCommissionRate) && storedCommissionRate >= 0
+        ? storedCommissionRate / 100
+        : platformFeePct;
+
+      const platformFee = Number.isFinite(storedPlatformFee) && storedPlatformFee >= 0
+        ? Math.min(escrowCoins, Math.round(storedPlatformFee))
+        : Math.round(escrowCoins * effectiveRate);
+
+      const proEarning = Number.isFinite(storedProEarning) && storedProEarning >= 0
+        ? Math.min(escrowCoins, Math.round(storedProEarning))
+        : Math.max(0, escrowCoins - platformFee);
       const proRef = doc(db, "users", proUid);
       const proSnap = await tx.get(proRef);
       const newProBal = ((proSnap.data()?.coinBalance as number) ?? 0) + proEarning;
@@ -464,7 +476,7 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       tx.set(ledgerEntryRef, {
         uid: proUid, type: "booking_escrow_release", amount: proEarning,
         balanceAfter: newProBal,
-        description: `Earned: ${serviceName} (10% platform fee deducted)`,
+        description: `Earned: ${serviceName} (platform fee deducted)`,
         refId: bookingId, createdAt: serverTimestamp(),
       } as LedgerEntry);
     });

@@ -65,6 +65,11 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
         requestAnimationFrame(() => focusAction(0));
     }, [open, permission, notifications.length]);
 
+    useEffect(() => {
+        if (!open || unreadCount === 0) return;
+        markAllRead();
+    }, [open, unreadCount, markAllRead]);
+
     const handlePanelKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
         const items = actionRefs.current.filter(Boolean);
         if (items.length === 0) return;

@@ -40,6 +40,7 @@ export default function Messages() {
 
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null);
   const [linkedBookingStatus, setLinkedBookingStatus] = useState<string | null>(null);
+  const [conversationBookingStatus, setConversationBookingStatus] = useState<Record<string, string>>({});
   const [reportingConversation, setReportingConversation] = useState(false);
 
   // Find the nearest scrollable ancestor for the virtualizer. On mobile the
@@ -201,6 +202,46 @@ export default function Messages() {
       });
   }, [activeConv, conversations, user, getOtherUserId]);
 
+  useEffect(() => {
+    if (!user || conversations.length === 0) {
+      setConversationBookingStatus({});
+      return;
+    }
+
+    const bookingPairs = conversations
+      .map(conv => {
+        const conversationId = conv.id as string;
+        const bookingId = (conv.bookingId as string | undefined) || getConversationBookingId(conversationId);
+        return { conversationId, bookingId };
+      })
+      .filter(pair => Boolean(pair.bookingId));
+
+    if (bookingPairs.length === 0) {
+      setConversationBookingStatus({});
+      return;
+    }
+
+    let alive = true;
+    Promise.all(
+      bookingPairs.map(async ({ conversationId, bookingId }) => {
+        const booking = await getBookingById(bookingId as string).catch(() => null);
+        const status = String((booking?.status as string) || "").toLowerCase();
+        return { conversationId, status };
+      })
+    ).then(results => {
+      if (!alive) return;
+      const next: Record<string, string> = {};
+      results.forEach(({ conversationId, status }) => {
+        next[conversationId] = status;
+      });
+      setConversationBookingStatus(next);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [conversations, user]);
+
   const handleReportConversation = async () => {
     if (!user || !activeConv || reportingConversation) return;
     const proceed = window.confirm("Report this conversation for review by support?");
@@ -346,6 +387,8 @@ export default function Messages() {
                 .split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
               const unread = unreadCounts[conv.id as string] || 0;
               const isActive = activeConv === conv.id;
+              const convStatus = String(conversationBookingStatus[conv.id as string] || "").toLowerCase();
+              const isConversationClosed = convStatus === "closed" || convStatus === "cancelled";
 
               return (
                 <div
@@ -416,6 +459,14 @@ export default function Messages() {
                         <span className="badge badge-muted" style={{ fontSize: 10 }}>
                           Booking #{String(conv.bookingId).slice(0, 8)}…
                         </span>
+                        {isConversationClosed && (
+                          <span
+                            className="badge badge-muted"
+                            style={{ fontSize: 10, marginLeft: 6, background: "#e5e7eb", color: "#4b5563", border: "1px solid #d1d5db" }}
+                          >
+                            {convStatus === "cancelled" ? "Cancelled" : "Closed"}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

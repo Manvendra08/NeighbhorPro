@@ -61,10 +61,10 @@ export default function BrowsePros() {
   };
 
   const buildServerFilters = () => {
-    const locality = localityFilter.trim();
+    const society = localityFilter.trim();
     const tower = towerFilter.trim();
     return {
-      ...(locality ? { locality } : {}),
+      ...(society ? { society } : {}),
       ...(tower ? { tower } : {}),
     };
   };
@@ -80,14 +80,18 @@ export default function BrowsePros() {
       // Server-side pro filter applied - only exclude self
       let visiblePros = data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
 
-      if (reset && visiblePros.length === 0 && (filters.locality || filters.tower)) {
+      if (reset && visiblePros.length === 0 && (filters.society || filters.tower)) {
         const fallback = await listProfessionals(null, {});
         visiblePros = fallback.data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
         cursorRef.current = fallback.nextCursor;
         setHasMore(fallback.nextCursor !== null);
 
-        const societyName = String(userProfile?.society || filters.locality || "your society");
-        setFallbackNotice(getBrowseFallbackNotice(societyName));
+        const selectedSociety = String(filters.society || "").trim();
+        if (selectedSociety) {
+          setFallbackNotice(getBrowseFallbackNotice(selectedSociety));
+        } else {
+          setFallbackNotice("");
+        }
       } else if (reset) {
         setFallbackNotice("");
       }
@@ -209,9 +213,9 @@ export default function BrowsePros() {
             onChange={(e) => setLocalityFilter(e.target.value)}
             style={{ flex: 1, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
           >
-            <option value="">All Localities</option>
+            <option value="">All Societies</option>
             {societies.map(s => (
-              <option key={s.id} value={s.name}>{s.name}</option>
+                <option key={s.id} value={s.name}>{s.name}</option>
             ))}
           </select>
         </div>

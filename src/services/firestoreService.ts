@@ -492,15 +492,14 @@ async function healProfessionalAggregates(profiles: Record<string, unknown>[]): 
  */
 export async function listProfessionals(
   cursor?: QueryDocumentSnapshot<DocumentData> | null,
-  filters?: { locality?: string; tower?: string }
+  filters?: { locality?: string; society?: string; tower?: string }
 ): Promise<{ data: Record<string, unknown>[]; nextCursor: QueryDocumentSnapshot<DocumentData> | null }> {
-  const primaryConstraints: QueryConstraint[] = [
-    where("isServiceProvider", "==", true),
-    orderBy("createdAt", "desc"),
-    limit(BROWSE_PAGE_SIZE),
-  ];
-  if (filters?.locality) primaryConstraints.splice(1, 0, where("locality", "==", filters.locality));
-  if (filters?.tower) primaryConstraints.splice(filters?.locality ? 2 : 1, 0, where("tower", "==", filters.tower));
+  const primaryConstraints: QueryConstraint[] = [where("isServiceProvider", "==", true)];
+  if (filters?.society) primaryConstraints.push(where("society", "==", filters.society));
+  if (filters?.locality) primaryConstraints.push(where("locality", "==", filters.locality));
+  if (filters?.tower) primaryConstraints.push(where("tower", "==", filters.tower));
+  primaryConstraints.push(orderBy("createdAt", "desc"));
+  primaryConstraints.push(limit(BROWSE_PAGE_SIZE));
   if (cursor) primaryConstraints.push(startAfter(cursor));
   const primaryDocs = await safeGetDocs(query(collection(db, "publicProfiles"), ...primaryConstraints));
   const primaryData = mergeAndSortProfessionals(primaryDocs);
@@ -517,6 +516,10 @@ export async function listProfessionals(
   const broadLimit = BROWSE_PAGE_SIZE * PROFESSIONAL_FALLBACK_MULTIPLIER;
   const broadPublicConstraints: QueryConstraint[] = [limit(broadLimit)];
   const broadUserConstraints: QueryConstraint[] = [limit(broadLimit)];
+  if (filters?.society) {
+    broadPublicConstraints.unshift(where("society", "==", filters.society));
+    broadUserConstraints.unshift(where("society", "==", filters.society));
+  }
   if (filters?.locality) {
     broadPublicConstraints.unshift(where("locality", "==", filters.locality));
     broadUserConstraints.unshift(where("locality", "==", filters.locality));

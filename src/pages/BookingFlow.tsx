@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createBooking, getPublicProfile, getServicesByUser, getOrCreateConversation,
-  getProAvailability, getBookingsForProOnDate, uploadBookingAttachment
+  getProAvailability, getBookingsForProOnDate, uploadBookingAttachment, getPlatformSettings
 } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
 import { BOOKING_BRIEF_MAX_CHARS, isBookingBriefValid } from "../utils/booking";
@@ -29,6 +29,7 @@ export default function BookingFlow() {
   const [postBookingWarning, setPostBookingWarning] = useState("");
 
   const [proAvail, setProAvail] = useState<Record<string, any> | null>(null);
+  const [commissionRate, setCommissionRate] = useState(10);
   const [availableSlots, setAvailSlots] = useState<string[]>([]);
   const [checkingAvail, setCA] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
@@ -41,12 +42,14 @@ export default function BookingFlow() {
 
   useEffect(() => {
     if (!proId) return;
-    Promise.all([getPublicProfile(proId), getServicesByUser(proId), getProAvailability(proId)])
-      .then(([p, s, a]) => {
+    Promise.all([getPublicProfile(proId), getServicesByUser(proId), getProAvailability(proId), getPlatformSettings()])
+      .then(([p, s, a, settings]) => {
         if (!p) { setPNF(true); return; }
         setPro(p);
         setServices(s);
         setProAvail(a);
+        const configuredRate = Number(settings.commissionRate);
+        setCommissionRate(Number.isFinite(configuredRate) && configuredRate >= 0 ? configuredRate : 10);
 
         // Pre-select default service
         const matchedSvc = preselectedServiceId ? s.find(service => String(service.id) === preselectedServiceId) : null;
@@ -95,7 +98,9 @@ export default function BookingFlow() {
 
   const isSelf = user?.uid === proId;
   const isFree = (selectedSvc?.price as number) === 0;
-  const feeCoins = (selectedSvc?.price as number) || 0;
+  const proFeeCoins = (selectedSvc?.price as number) || 0;
+  const appCommissionCoins = isFree ? 0 : Math.round((proFeeCoins * commissionRate) / 100);
+  const feeCoins = isFree ? 0 : proFeeCoins + appCommissionCoins;
   const balance = userProfile?.coinBalance ?? 0;
   const hasEnough = isFree || balance >= feeCoins;
 
@@ -161,8 +166,15 @@ export default function BookingFlow() {
         serviceName,
         serviceCategory: selectedSvc.category || "Other",
         date, timeSlot, notes,
-        isPaid: !isFree, amount: feeCoins,
-        coinsPaid: !isFree, escrowCoins: feeCoins, escrowStatus: !isFree ? "held" : "none",
+        isPaid: !isFree,
+        amount: feeCoins,
+        proFee: proFeeCoins,
+        commissionRate,
+        platformFee: appCommissionCoins,
+        proEarning: proFeeCoins,
+        coinsPaid: !isFree,
+        escrowCoins: feeCoins,
+        escrowStatus: !isFree ? "held" : "none",
         ...(attachData && { attachmentUrl: attachData.url, attachmentName: attachData.name, attachmentType: attachData.type })
       });
 
@@ -301,9 +313,12 @@ export default function BookingFlow() {
                       <div>
                         <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
                         {(svc.duration as string) && <div className="text-muted text-sm">{svc.duration as string}</div>}
+                        {(svc.price as number) > 0 && (
+                          <div className="text-muted text-xs">Pro fee {(svc.price as number).toLocaleString("en-IN")} NC + app fee ({commissionRate}%)</div>
+                        )}
                       </div>
                       <span style={{ fontWeight: 700, color: (svc.price as number) === 0 ? "var(--accent2)" : "var(--text)" }}>
-                        {(svc.price as number) === 0 ? "Free" : `${svc.price as number} NC`}
+                        {(svc.price as number) === 0 ? "Free" : `${((svc.price as number) + Math.round(((svc.price as number) * commissionRate) / 100)).toLocaleString("en-IN")} NC`}
                       </span>
                     </div>
                   ))}
@@ -424,6 +439,7 @@ export default function BookingFlow() {
               {isFree ? <span style={{ fontWeight: 700, color: "#16a34a" }}>Free 🎁</span> : (
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontWeight: 800, color: "#1B6B8A" }}>🪙 {feeCoins.toLocaleString("en-IN")} NC</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Pro fee: {proFeeCoins.toLocaleString("en-IN")} NC + app fee: {appCommissionCoins.toLocaleString("en-IN")} NC</div>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>held in escrow until completion</div>
                 </div>
               )}

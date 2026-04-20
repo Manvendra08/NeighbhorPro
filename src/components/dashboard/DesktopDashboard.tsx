@@ -105,6 +105,9 @@ export default function DesktopDashboard({
   const coins = Number(userProfile?.coinBalance) || 0;
   const rating = computedRating ?? ((userProfile?.rating as number) || null);
   const totalReviews = Object.values(reviewDistribution).reduce((sum, count) => sum + (Number(count) || 0), 0);
+  const ratingBreakdown = [5, 4, 3, 2, 1]
+    .map(star => `${star}★${Number(reviewDistribution[star]) || 0}`)
+    .join(" ");
 
   useEffect(() => {
     const unsub = subscribeToFeed(locality, setPosts);
@@ -184,9 +187,9 @@ export default function DesktopDashboard({
           sparkline: buildSeries(upcomingBookings, "upcoming"),
         },
         {
-          label: "Rating",
+          label: "Average Rating",
           value: rating ? `${rating.toFixed(1)}★` : "—",
-          helper: `${totalReviews} review${totalReviews === 1 ? "" : "s"} tracked`,
+          helper: `Reviews: ${totalReviews} · ${ratingBreakdown}`,
           icon: "⭐",
           tone: "success",
           to: "/profile",

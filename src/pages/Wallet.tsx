@@ -11,7 +11,7 @@ import {
 import { logActivity } from "../services/activityService";
 import { initiateTopUp, type PaymentStatus } from "../services/razorpayService";
 import { formatTimestamp, updateUserProfile } from "../services/firestoreService";
-import { useCoinBalanceQuery } from "../lib/queryClient";
+import { queryClient, queryKeys, useCoinBalanceQuery } from "../lib/queryClient";
 
 type Tab = "overview" | "buy" | "earn" | "referral" | "payout" | "history" | "terms";
 
@@ -38,12 +38,15 @@ export default function Wallet() {
   const [payoutLoading, setPL]    = useState(false);
   const [payoutMsg, setPayoutMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pendingPayout, setPendingPayout] = useState<CoinPayout | null>(null);
+  const [showPayoutConfirm, setShowPayoutConfirm] = useState(false);
+  const [payoutRequest, setPayoutRequest] = useState<{ coins: number; upiId: string } | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [ncTerms, setNcTerms]     = useState<NCTerms | null>(null);
   const [refCode, setRefCode]     = useState("");
   const [refMsg, setRefMsg]       = useState<{ type: "success"|"error"; text: string }|null>(null);
   const [refLoading, setRefLoading] = useState(false);
   const [copied, setCopied]       = useState(false);
+  const [latestLedgerEntry, setLatestLedgerEntry] = useState<LedgerEntry | null>(null);
 
   const { data: balance = userProfile?.coinBalance ?? 0 } = useCoinBalanceQuery(user?.uid, userProfile?.coinBalance ?? 0);
   const isPro   = userProfile?.isServiceProvider;
@@ -76,6 +79,16 @@ export default function Wallet() {
     setLL(true);
     getLedger(user.uid).then(r => { setLedger(r); setLL(false); });
   }, [tab, user]);
+
+  useEffect(() => {
+    if (!user) {
+      setLatestLedgerEntry(null);
+      return;
+    }
+    getLedger(user.uid, 1)
+      .then(entries => setLatestLedgerEntry(entries[0] || null))
+      .catch(() => setLatestLedgerEntry(null));
+  }, [user, payStatus, payoutMsg]);
 
   useEffect(() => {
     if (tab !== "terms") return;
@@ -116,21 +129,33 @@ export default function Wallet() {
       setPayoutMsg({ type: "error", text: "You already have a pending payout request. Cancel it before creating a new one." });
       return;
     }
-    const coins = parseInt(payoutCoins);
+    const coins = parseInt(payoutCoins, 10);
+    const normalizedUpiId = upiId.trim();
     if (!coins || isNaN(coins))  { setPayoutMsg({ type: "error", text: "Enter a valid amount." }); return; }
-    if (!upiId.includes("@"))    { setPayoutMsg({ type: "error", text: "Enter a valid UPI ID." }); return; }
+    if (!normalizedUpiId.includes("@"))    { setPayoutMsg({ type: "error", text: "Enter a valid UPI ID." }); return; }
+    setPayoutRequest({ coins, upiId: normalizedUpiId });
+    setShowPayoutConfirm(true);
+  };
+
+  const submitPayoutRequest = async () => {
+    if (!user || !userProfile || !payoutRequest) return;
+    const { coins, upiId: requestUpiId } = payoutRequest;
     setPL(true);
-    const res = await requestPayout(user.uid, userProfile.displayName, coins, upiId);
+    const res = await requestPayout(user.uid, userProfile.displayName, coins, requestUpiId);
     setPayoutMsg(res.success
       ? { type: "success", text: `Payout of ₹${coins} requested! Processed within 48 hrs.` }
       : { type: "error",   text: res.reason ?? "Failed. Try again." });
     if (res.success) {
-      const maskedUpi = maskUpiId(upiId);
+      const maskedUpi = maskUpiId(requestUpiId);
       logActivity(user.uid, "wallet.withdrawal", `Payout requested: ${coins} NC (₹${coins}) to UPI ${maskedUpi}`, { coins, upiMasked: maskedUpi });
       if (saveUpi) {
-        await updateUserProfile(user.uid, { preferredUpiId: upiId.trim() });
+        await updateUserProfile(user.uid, { preferredUpiId: requestUpiId });
       }
+      queryClient.setQueryData<number>(queryKeys.coinBalance(user.uid), Math.max(0, balance - coins));
+      queryClient.invalidateQueries({ queryKey: queryKeys.coinBalance(user.uid) }).catch(() => {});
       setPC(""); setUpi("");
+      setShowPayoutConfirm(false);
+      setPayoutRequest(null);
     }
     setPL(false);
   };
@@ -144,6 +169,8 @@ export default function Wallet() {
     const res = await cancelPayoutRequest(user.uid, pendingPayout.id);
     if (res.success) {
       setPayoutMsg({ type: "success", text: "Payout request cancelled and coins refunded to your balance." });
+      queryClient.setQueryData<number>(queryKeys.coinBalance(user.uid), balance + (pendingPayout.coinsRedeemed || 0));
+      queryClient.invalidateQueries({ queryKey: queryKeys.coinBalance(user.uid) }).catch(() => {});
       setPendingPayout(null);
     } else {
       setPayoutMsg({ type: "error", text: res.reason ?? "Failed to cancel payout request." });
@@ -206,7 +233,17 @@ export default function Wallet() {
           <div className="grid grid-3" style={{ marginBottom: 28 }}>
             {[
               { icon: "🪙", bg: "rgba(27,107,138,0.1)", color: "#1B6B8A", value: balance.toLocaleString("en-IN"), label: "Current Balance (NC)" },
-              { icon: "📈", bg: "rgba(22,163,74,0.1)",  color: "#16a34a", value: `₹${balance.toLocaleString("en-IN")}`, label: "Equivalent Value" },
+              {
+                icon: "🧾",
+                bg: "rgba(22,163,74,0.1)",
+                color: "#16a34a",
+                value: latestLedgerEntry
+                  ? `${ledgerSign(latestLedgerEntry.amount)} NC`
+                  : "No transactions",
+                label: latestLedgerEntry
+                  ? `${latestLedgerEntry.description} · ${formatTimestamp(latestLedgerEntry.createdAt)}`
+                  : "Last Transaction",
+              },
               { icon: "🎯", bg: "rgba(245,105,44,0.1)", color: "#F5692C", value: hasPhone ? (myCode || "—") : "Pending", label: "Your Referral Code" },
             ].map(({ icon, bg, color, value, label }) => (
               <div key={label} className="stat-card">
@@ -402,6 +439,32 @@ export default function Wallet() {
               {payoutLoading ? "Submitting…" : "Request Payout"}
             </button>
             {balance < MIN_PAYOUT_COINS && <p style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center", marginTop: 8 }}>Minimum {MIN_PAYOUT_COINS} NC required.</p>}
+          </div>
+        </div>
+      )}
+
+      {showPayoutConfirm && payoutRequest && (
+        <div className="modal-overlay" onClick={() => setShowPayoutConfirm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Confirm Payout Request</h3>
+              <button className="modal-close" onClick={() => setShowPayoutConfirm(false)}>✕</button>
+            </div>
+            <div style={{ marginBottom: 14, color: "var(--muted)" }}>
+              Please review and confirm these details before submitting:
+            </div>
+            <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 14px", marginBottom: 16 }}>
+              <div style={{ marginBottom: 6 }}><strong>Amount:</strong> {payoutRequest.coins} NC (₹{payoutRequest.coins.toLocaleString("en-IN")})</div>
+              <div><strong>UPI ID:</strong> {payoutRequest.upiId}</div>
+            </div>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button className="btn btn-secondary" onClick={() => setShowPayoutConfirm(false)} disabled={payoutLoading}>
+                Edit Details
+              </button>
+              <button className="btn btn-primary" onClick={submitPayoutRequest} disabled={payoutLoading}>
+                {payoutLoading ? "Submitting..." : "Confirm Request"}
+              </button>
+            </div>
           </div>
         </div>
       )}

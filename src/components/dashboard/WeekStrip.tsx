@@ -7,13 +7,19 @@ type WeekStripProps = {
 };
 
 function getDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function parseBookingDate(booking: BookingRow): Date | null {
   const date = typeof booking.date === "string" ? booking.date.trim() : "";
   if (!date) return null;
-  const parsed = new Date(date);
+  const match = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const parsed = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date(date);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 

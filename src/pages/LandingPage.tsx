@@ -194,7 +194,7 @@ export default function LandingPage() {
         `Full name: ${societyForm.fullName}`,
         `Email: ${societyForm.email}`,
         `Society name: ${societyForm.societyName}`,
-        `Area: ${societyForm.area}`,
+        `Area/Locality: ${societyForm.area}`,
         `City: ${societyForm.city}`,
         `Pin code: ${societyForm.pinCode}`,
       ].join("\n")

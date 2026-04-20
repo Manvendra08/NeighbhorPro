@@ -38,6 +38,7 @@ export default function MyBookings() {
   const [reviewSub, setRS] = useState(false);
   const [cancelRequest, setCancelRequest] = useState<{ booking: Record<string, unknown>; role: "client" | "pro" } | null>(null);
   const [cancelComment, setCancelComment] = useState("");
+  const [completeRequest, setCompleteRequest] = useState<Record<string, unknown> | null>(null);
 
   const [subTab, setSubTab] = useState<"upcoming" | "past">("upcoming");
   const [searchQ, setSearchQ] = useState("");
@@ -121,8 +122,10 @@ export default function MyBookings() {
     setAL(null); load();
   };
 
-  // Pro marks complete → release escrow to pro
-  const handleComplete = async (b: Record<string, unknown>) => {
+  // Pro confirms completion after explicit confirmation
+  const submitCompletion = async () => {
+    if (!completeRequest) return;
+    const b = completeRequest;
     const id = b.id as string;
     setAL(id);
     try {
@@ -136,6 +139,7 @@ export default function MyBookings() {
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
       await rewardReferral(b.clientId as string, id);
       logActivity(user!.uid, "booking.completed", `Completed booking: ${(b.serviceName as string) || id} for ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowReleased: (b.escrowCoins as number) || 0 });
+      setCompleteRequest(null);
     } catch { setError("Failed to complete booking."); }
     setAL(null); load();
   };
@@ -167,7 +171,7 @@ export default function MyBookings() {
 
   const isPastBooking = (b: Record<string, unknown>) => {
     const status = (b.status as string) || "";
-    if (["completed", "reviewed", "cancelled"].includes(status)) return true;
+    if (!["pending", "confirmed"].includes(status)) return true;
     const bookingDate = parseBookingDate(b);
     if (!bookingDate) return false;
     const today = new Date();
@@ -190,7 +194,7 @@ export default function MyBookings() {
 
   const STATUS_COLOR: Record<string, string> = {
     pending: "badge-warning", confirmed: "badge-accent",
-    completed: "badge-success", reviewed: "badge-success", cancelled: "badge-error",
+    completed: "badge-success", reviewed: "badge-success", cancelled: "badge-error", closed: "badge-muted",
   };
 
   const STATUS_LABEL: Record<string, string> = {
@@ -199,6 +203,7 @@ export default function MyBookings() {
     completed: "✔ Completed",
     reviewed: "⭐ Reviewed",
     cancelled: "✕ Cancelled",
+    closed: "🔒 Closed",
   };
 
   return (
@@ -299,7 +304,7 @@ export default function MyBookings() {
                             </>
                           )}
                           {tab === "pro" && status === "confirmed" && (
-                            <button className="btn btn-success btn-sm" disabled={busy} onClick={() => handleComplete(b)}>
+                            <button className="btn btn-success btn-sm" disabled={busy} onClick={() => setCompleteRequest(b)}>
                               {busy ? "Processing…" : "✓ Mark Complete"}
                             </button>
                           )}
@@ -394,6 +399,28 @@ export default function MyBookings() {
                 disabled={Boolean(actionLoading) || !cancelComment.trim()}
               >
                 {actionLoading ? "Submitting..." : (cancelRequest.role === "client" ? "Cancel Booking" : "Decline Booking")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {completeRequest && (
+        <div className="modal-overlay" onClick={() => setCompleteRequest(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Confirm Completion</h3>
+              <button className="modal-close" onClick={() => setCompleteRequest(null)}>✕</button>
+            </div>
+            <p style={{ marginBottom: 16, color: "var(--muted)" }}>
+              Are you sure? This will release payment and close the session.
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setCompleteRequest(null)} disabled={Boolean(actionLoading)}>
+                Keep Open
+              </button>
+              <button className="btn btn-success" onClick={submitCompletion} disabled={Boolean(actionLoading)}>
+                {actionLoading ? "Processing..." : "Yes, Mark Completed"}
               </button>
             </div>
           </div>
