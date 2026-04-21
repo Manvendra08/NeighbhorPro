@@ -7,6 +7,8 @@ const basePro = {
   uid: "pro-1",
   displayName: "Rahul Sharma",
   residentVerificationStatus: "verified",
+  society: "Green Meadows",
+  locality: "Pune",
   skills: ["Electrician", "Repairs"],
 };
 
@@ -50,6 +52,20 @@ describe("ProCard", () => {
     );
 
     expect(screen.getByText("No reviews yet")).toBeInTheDocument();
+  });
+
+  it("shows society first and hides fee details in list view", () => {
+    render(
+      <ProCard
+        pro={{ ...basePro, priceAfterQuote: true, hourlyRate: 250 }}
+        onBook={vi.fn()}
+        onViewProfile={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Green Meadows/)).toBeInTheDocument();
+    expect(screen.queryByText(/Pune/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Free|Quote-based|₹250\/hr/)).not.toBeInTheDocument();
   });
 
   it("renders mobile variant with same rating fallback behavior", () => {

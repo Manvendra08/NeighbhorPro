@@ -183,7 +183,7 @@ export default function Wallet() {
     setRefLoading(true);
     const res = await applyReferralCode(user.uid, normalizeReferralCode(refCode));
     setRefMsg(res.success
-      ? { type: "success", text: "Referral applied! You'll both earn 100 NC on your first completed booking." }
+      ? { type: "success", text: `Referral applied! ${EARN_RULES.earn_referral.coins} NC credited to your wallet.` }
       : { type: "error", text: res.reason ?? "Failed." });
     setRefLoading(false);
     if (res.success) setRefCode("");
@@ -347,7 +347,7 @@ export default function Wallet() {
                       {type === "earn_signup_bonus" && "Credited automatically on first login"}
                       {type === "earn_profile"      && "Complete all profile fields"}
                       {type === "earn_review"       && "Write a review after a completed booking"}
-                      {type === "earn_referral"     && "Both you and referral get 100 NC on first booking"}
+                      {type === "earn_referral"     && `Apply a valid referral code to get +${rule.coins} NC instantly`}
                       {type === "earn_free_consult" && "Pro who marks session as free"}
                       {type === "earn_groupsession" && "Per group session attended (Phase 2, not yet active)"}
                       {type === "earn_ondemand"     && "Pro who fulfils urgent request (Phase 2, not yet active)"}
@@ -367,7 +367,7 @@ export default function Wallet() {
         <div style={{ maxWidth: 560 }}>
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 4 }}>Your Referral Code</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Share with neighbours. You both earn 100 NC on their first completed booking.</p>
+            <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Share with neighbours. They get {EARN_RULES.earn_referral.coins} NC when they sign up with your code or referral link.</p>
             <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface-2)", borderRadius: 12, padding: "16px 20px", marginBottom: 16 }}>
               <div style={{ flex: 1, fontFamily: "monospace", fontSize: hasPhone ? "1.4rem" : "0.95rem", fontWeight: 800, letterSpacing: hasPhone ? 2 : 0, color: hasPhone ? "#1B6B8A" : "var(--muted)" }}>
                 {hasPhone ? (myCode || "—") : "Update mobile number to enable referral program."}
@@ -378,7 +378,7 @@ export default function Wallet() {
               {hasPhone && myCode ? (
                 <>
                   <a 
-                    href={`https://wa.me/?text=${encodeURIComponent(`Join ProNeighbor — your society's expert network! Use my referral code *${myCode}* and we both earn 100 NeighbourCoins 🎉 ${referralLink}`)}`} 
+                    href={`https://wa.me/?text=${encodeURIComponent(`Join ProNeighbor — your society's expert network! Use my referral code *${myCode}* and get ${EARN_RULES.earn_referral.coins} NeighbourCoins instantly 🎉 ${referralLink}`)}`}
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="btn btn-secondary btn-sm"
@@ -396,7 +396,7 @@ export default function Wallet() {
           </div>
           <div className="card">
             <h3 className="card-title" style={{ marginBottom: 4 }}>Have a Referral Code?</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>Enter a friend's code — you'll both earn 100 NC on your first booking.</p>
+            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>Enter a friend's code and get {EARN_RULES.earn_referral.coins} NC instantly.</p>
             <Msg m={refMsg} />
             <div style={{ display: "flex", gap: 10 }}>
               <input className="form-input" placeholder="e.g. PNABC123" value={refCode} onChange={e => setRefCode(normalizeReferralCode(e.target.value))} style={{ flex: 1, fontFamily: "monospace", letterSpacing: 1 }} />

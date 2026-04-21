@@ -1,6 +1,6 @@
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
-  serverTimestamp, query, orderBy, limit, runTransaction, where, setDoc, startAfter,
+  serverTimestamp, query, orderBy, limit, runTransaction, where, startAfter,
   getAggregateFromServer, sum, count, type QueryConstraint, type DocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase";
@@ -185,34 +185,14 @@ async function getReferrerUidFromCode(code: string): Promise<string | null> {
 }
 
 /**
- * Apply a referral code. Both referrer and new user earn 100 NC
- * on the new user's first completed booking (triggered from booking completion).
- * This function just validates + stores the referral link.
+ * Apply a referral code for the current user.
+ * Client flow credits the referrer instantly and records the referral.
  */
 export async function applyReferralCode(
   newUserUid: string,
   code: string
 ): Promise<{ success: boolean; reason?: string }> {
-  if (!code?.trim()) return { success: false, reason: "No code entered." };
-  const upper = code.trim().toUpperCase();
-
-  const referrerUid = await getReferrerUidFromCode(upper);
-  if (!referrerUid) return { success: false, reason: "Invalid referral code." };
-  if (referrerUid === newUserUid) return { success: false, reason: "Can't refer yourself." };
-
-  // Check not already applied
-  const existing = await getDoc(doc(db, "referrals", newUserUid));
-  if (existing.exists()) return { success: false, reason: "Referral code already applied." };
-
-  await setDoc(doc(db, "referrals", newUserUid), {
-    newUserUid,
-    referrerUid,
-    code: upper,
-    status: "pending", // becomes "rewarded" on first booking completion
-    createdAt: serverTimestamp(),
-  });
-
-  return { success: true };
+  return applyReferralCodeAtSignup(newUserUid, code);
 }
 
 export async function applyReferralCodeAtSignup(
@@ -227,53 +207,77 @@ export async function applyReferralCodeAtSignup(
   if (referrerUid === newUserUid) return { success: false, reason: "Can't refer yourself." };
 
   const rule = EARN_RULES.earn_referral;
+  try {
+    await runTransaction(db, async tx => {
+      const referralRef = doc(db, "referrals", newUserUid);
+      const referralSnap = await tx.get(referralRef);
+      if (referralSnap.exists()) {
+        throw new Error("REFERRAL_ALREADY_APPLIED");
+      }
 
-  await runTransaction(db, async tx => {
-    const referralRef = doc(db, "referrals", newUserUid);
-    const referralSnap = await tx.get(referralRef);
-    if (referralSnap.exists()) {
-      throw new Error("REFERRAL_ALREADY_APPLIED");
-    }
+      const userRef = doc(db, "users", newUserUid);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists()) {
+        throw new Error("USER_NOT_FOUND");
+      }
 
-    const userRef = doc(db, "users", newUserUid);
-    const userSnap = await tx.get(userRef);
-    if (!userSnap.exists()) {
-      throw new Error("USER_NOT_FOUND");
-    }
+      const referrerRef = doc(db, "users", referrerUid);
+      const referrerSnap = await tx.get(referrerRef);
+      if (!referrerSnap.exists()) {
+        throw new Error("REFERRER_NOT_FOUND");
+      }
 
-    const ledgerRef = doc(db, "coinLedger", newUserUid, "entries", `${newUserUid}_signup_referral`);
-    const ledgerSnap = await tx.get(ledgerRef);
-    if (ledgerSnap.exists()) {
-      throw new Error("REFERRAL_ALREADY_APPLIED");
-    }
+      const ledgerId = `${newUserUid}_signup_referral_referrer`;
+      const ledgerRef = doc(db, "coinLedger", referrerUid, "entries", ledgerId);
+      const ledgerSnap = await tx.get(ledgerRef);
+      if (ledgerSnap.exists()) {
+        throw new Error("REFERRAL_ALREADY_APPLIED");
+      }
 
-    const currentBalance = ((userSnap.data()?.coinBalance as number) ?? 0);
-    const newBalance = currentBalance + rule.coins;
+      const currentBalance = ((referrerSnap.data()?.coinBalance as number) ?? 0);
+      const newBalance = currentBalance + rule.coins;
 
-    tx.update(userRef, { coinBalance: newBalance, updatedAt: serverTimestamp(), lastLedgerEntryId: `${newUserUid}_signup_referral` });
-    tx.set(ledgerRef, {
-      uid: newUserUid,
-      type: "earn_referral",
-      amount: rule.coins,
-      balanceAfter: newBalance,
-      description: `Signup referral credit (${upper})`,
-      refId: referrerUid,
-      createdAt: serverTimestamp(),
-    } as LedgerEntry);
+      tx.update(referrerRef, { coinBalance: newBalance, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerId });
+      tx.set(ledgerRef, {
+        uid: referrerUid,
+        type: "earn_referral",
+        amount: rule.coins,
+        balanceAfter: newBalance,
+        description: `Referral signup credit (${upper})`,
+        refId: newUserUid,
+        createdAt: serverTimestamp(),
+      } as LedgerEntry);
 
-    tx.set(referralRef, {
-      newUserUid,
-      referrerUid,
-      code: upper,
-      status: "rewarded_signup",
-      createdAt: serverTimestamp(),
-      rewardedAt: serverTimestamp(),
-      rewardMode: "signup_new_user_only",
-      rewardCoins: rule.coins,
+      tx.set(referralRef, {
+        newUserUid,
+        referrerUid,
+        code: upper,
+        status: "rewarded_signup",
+        createdAt: serverTimestamp(),
+        rewardedAt: serverTimestamp(),
+        rewardMode: "signup_referrer_only",
+        rewardCoins: rule.coins,
+        rewardToUid: referrerUid,
+      });
     });
-  });
 
-  return { success: true };
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "REFERRAL_ALREADY_APPLIED") {
+      return { success: false, reason: "Referral code already applied." };
+    }
+    if (message === "USER_NOT_FOUND") {
+      return { success: false, reason: "User profile not found." };
+    }
+    if (message === "REFERRER_NOT_FOUND") {
+      return { success: false, reason: "Referrer profile not found." };
+    }
+    if (message.includes("permission") || message.includes("PERMISSION_DENIED")) {
+      return { success: false, reason: "Referral credit could not be applied right now. Try again in Wallet." };
+    }
+    return { success: false, reason: "Failed to apply referral code." };
+  }
 }
 
 /**

@@ -16,6 +16,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
 import { getUserActivityLogs } from "../../services/activityService";
 import type { ActivityLog } from "../../services/activityService";
+import { earnCoins } from "../../services/coinService";
 
 type UserRow = Record<string, unknown>;
 type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verification";
@@ -144,11 +145,13 @@ export default function AdminUsers() {
   const doAction = async (
     uid: string, patch: Record<string, unknown>, successMsg: string,
     auditAction: string, auditDetails: string
+    , postSuccess?: () => Promise<void> | void
   ) => {
     setActionLoading(uid);
     try {
       await updateUserProfile(uid, patch);
       await logAudit(auditAction, adminId, adminName, auditDetails, uid);
+      await postSuccess?.();
       showToast(successMsg);
       await load();
     } catch { showToast("Action failed", "error"); }
@@ -315,7 +318,10 @@ export default function AdminUsers() {
       },
       "User approved via mobile verification",
       "user.email_mobile_approve",
-      `Approved email verification bypass by mobile for: ${name} (${phone})`
+      `Approved email verification bypass by mobile for: ${name} (${phone})`,
+      async () => {
+        await earnCoins(u.uid as string, "earn_signup_bonus", u.uid as string).catch(() => {});
+      }
     );
   };
 

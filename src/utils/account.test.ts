@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import { profileCompleteness } from "./account";
 
 describe("account completeness", () => {
-  it("treats locality as complete when society is present", () => {
+  it("does not require skills for non-pro users", () => {
     const result = profileCompleteness({
       displayName: "User",
-      bio: "Bio",
-      society: "Lake View",
-      locality: "",
-      flatNumber: "A-101",
       photoURL: "a.jpg",
-      skills: ["Plumbing"],
+      society: "Lake View",
+      tower: "A",
+      flatNumber: "A-101",
       phoneNumber: "+919999999999",
+      residencyProofUrl: "proof.jpg",
+      isServiceProvider: false,
     });
-    expect(result.missing).not.toContain("Locality");
+    expect(result.missing).not.toContain("At least one skill");
   });
 });

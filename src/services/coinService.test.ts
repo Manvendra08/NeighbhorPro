@@ -244,28 +244,31 @@ describe("coinService", () => {
     expect(isValidReferralCode(code)).toBe(true);
   });
 
-  it("credits signup referral coins to new user when valid code used", async () => {
+  it("credits signup referral coins to referrer when valid code used", async () => {
     firestoreState.seed("referralCodes/PNABC123", { uid: "referrer-1", code: "PNABC123" });
+    firestoreState.seed("users/referrer-1", { coinBalance: 50 });
     firestoreState.seed("users/new-user-1", { coinBalance: 25 });
 
     const result = await applyReferralCodeAtSignup("new-user-1", "PNABC123");
 
     expect(result).toEqual({ success: true });
-    expect(firestoreState.read("users/new-user-1")?.coinBalance).toBe(125);
+    expect(firestoreState.read("users/new-user-1")?.coinBalance).toBe(25);
+    expect(firestoreState.read("users/referrer-1")?.coinBalance).toBe(250);
     expect(firestoreState.read("referrals/new-user-1")).toMatchObject({
       newUserUid: "new-user-1",
       referrerUid: "referrer-1",
       code: "PNABC123",
       status: "rewarded_signup",
-      rewardMode: "signup_new_user_only",
-      rewardCoins: 100,
+      rewardMode: "signup_referrer_only",
+      rewardCoins: 200,
+      rewardToUid: "referrer-1",
     });
-    expect(firestoreState.read("coinLedger/new-user-1/entries/new-user-1_signup_referral")).toMatchObject({
-      uid: "new-user-1",
+    expect(firestoreState.read("coinLedger/referrer-1/entries/new-user-1_signup_referral_referrer")).toMatchObject({
+      uid: "referrer-1",
       type: "earn_referral",
-      amount: 100,
-      balanceAfter: 125,
-      refId: "referrer-1",
+      amount: 200,
+      balanceAfter: 250,
+      refId: "new-user-1",
     });
   });
 });

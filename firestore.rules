@@ -25,7 +25,9 @@ service cloud.firestore {
         && getAfter(ledgerPath).data.uid == userId
         && getAfter(ledgerPath).data.type in [
           'booking_debit', 'booking_refund', 'booking_escrow',
-          'booking_escrow_release', 'payout', 'payout_cancelled'
+          'booking_escrow_release', 'payout', 'payout_cancelled',
+          'earn_signup_bonus', 'earn_profile', 'earn_referral',
+          'earn_review', 'earn_free_consult'
         ]
         && getAfter(ledgerPath).data.amount == request.resource.data.coinBalance - resource.data.coinBalance
         && getAfter(ledgerPath).data.balanceAfter == request.resource.data.coinBalance;
@@ -231,7 +233,9 @@ service cloud.firestore {
         (isOwner(uid) && validLedgerEntry(uid))
         && request.resource.data.type in [
           'booking_debit', 'booking_refund', 'booking_escrow',
-          'booking_escrow_release', 'payout', 'payout_cancelled'
+          'booking_escrow_release', 'payout', 'payout_cancelled',
+          'earn_signup_bonus', 'earn_profile', 'earn_referral',
+          'earn_review', 'earn_free_consult'
         ]
         // Allow admins to post manual wallet adjustment entries for any user.
         || (

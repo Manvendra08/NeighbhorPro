@@ -1,4 +1,13 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+
 type BookingRow = Record<string, unknown>;
+type CompletionInfo = {
+  percent: number;
+  missingTop: string[];
+  complete: boolean;
+};
+
 type SmartGreetingProps = {
   firstName: string;
   isPro: boolean;
@@ -6,7 +15,10 @@ type SmartGreetingProps = {
   nextBooking: BookingRow | null;
   profileIncomplete: boolean;
   missingFields: string[];
+  profileCompletion?: CompletionInfo;
 };
+
+const STORAGE_KEY = "pn_profile_nudge_dismissed";
 
 function parseBookingDate(booking: BookingRow | null): Date | null {
   if (!booking) return null;
@@ -37,7 +49,14 @@ export default function SmartGreeting({
   nextBooking,
   profileIncomplete,
   missingFields,
+  profileCompletion,
 }: SmartGreetingProps) {
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    setDismissed(localStorage.getItem(STORAGE_KEY) === "true");
+  }, []);
+
   const pendingRequests = proBookings.filter(booking => booking.status === "pending").length;
   const nextBookingDate = parseBookingDate(nextBooking);
   const within24Hours = nextBookingDate
@@ -59,22 +78,54 @@ export default function SmartGreeting({
     subtitle = `Stay ready for ${(nextBooking.serviceName as string) || "your upcoming booking"}.`;
     badge = "Coming Up";
   } else if (profileIncomplete) {
-    title = `${firstName}, finish your profile to unlock more trust`;
-    subtitle = `Still missing ${missingFields.slice(0, 2).join(" and ")}.`;
-    badge = "Profile Boost";
+    title = `Welcome back, ${firstName} 👋`;
+    subtitle = missingFields.length > 0
+      ? `Still missing ${missingFields.slice(0, 2).join(" and ")}.`
+      : "Finish your profile to unlock more trust.";
+    badge = "";
   }
 
   return (
     <div className="db-greeting">
-        <div className="db-greeting__copy">
-          {badge ? <span className="db-greeting__badge">{badge}</span> : null}
-          <h1 className="db-greeting__title">{title}</h1>
-          <p className="db-greeting__subtitle">{subtitle}</p>
-        </div>
-      <div className="db-greeting__pulse" aria-hidden="true">
-        <div className="db-greeting__pulse-ring" />
-        <div className="db-greeting__pulse-dot" />
+      <div className="db-greeting__copy">
+        {badge ? <span className="db-greeting__badge">{badge}</span> : null}
+        <h1 className="db-greeting__title">{title}</h1>
+        <p className="db-greeting__subtitle">{subtitle}</p>
       </div>
+
+      {profileCompletion && profileIncomplete && !profileCompletion.complete && !dismissed ? (
+        <div className="db-greeting__profile-nudge">
+          <div className="db-greeting__profile-ring">
+            <div className="db-greeting__profile-ring-center">
+              <strong>{profileCompletion.percent}%</strong>
+              <span>complete</span>
+            </div>
+          </div>
+
+          <div className="db-greeting__profile-copy">
+            <div className="db-greeting__profile-title">Finish your profile and earn 20 NC</div>
+            <div className="db-greeting__profile-meta">Missing: {profileCompletion.missingTop.join(", ")}</div>
+            <div className="db-greeting__profile-actions">
+              <Link className="btn btn-primary btn-sm" to="/account">Complete now</Link>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  localStorage.setItem(STORAGE_KEY, "true");
+                  setDismissed(true);
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="db-greeting__pulse" aria-hidden="true">
+          <div className="db-greeting__pulse-ring" />
+          <div className="db-greeting__pulse-dot" />
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,6 @@ import WeekStrip from "./WeekStrip";
 import EnhancedStatsCards, { type DashboardStatCard } from "./EnhancedStatsCards";
 import BookingPipeline from "./BookingPipeline";
 import PerformanceMetrics from "./PerformanceMetrics";
-import ProfileCompletionNudge from "./ProfileCompletionNudge";
 import CategoryBrowseChips from "./CategoryBrowseChips";
 import FeedComposer from "./FeedComposer";
 import FeedPostCard from "./FeedPostCard";
@@ -213,19 +212,21 @@ export default function DesktopDashboard({
   return (
     <div className="db-page db-page--desktop">
       {isPro ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
-          <h1 className="db-greeting__title" style={{ margin: 0, fontSize: "1.75rem", fontWeight: 700 }}>Welcome back, {firstName} 👋</h1>
-          <ProfileCompletionNudge completion={profileCompletion} />
+        <div className="db-user-top-stack">
+          <h1 className="db-greeting__title db-user-top-stack__title">Welcome back, {firstName} 👋</h1>
         </div>
       ) : (
-        <SmartGreeting
-          firstName={firstName}
-          isPro={isPro}
-          proBookings={proBookings}
-          nextBooking={nextBooking}
-          profileIncomplete={!profileCompletion.complete}
-          missingFields={profileCompletion.missingTop}
-        />
+        <div className="db-user-top-stack">
+          <SmartGreeting
+            firstName={firstName}
+            isPro={isPro}
+            proBookings={proBookings}
+            nextBooking={nextBooking}
+            profileIncomplete={!profileCompletion.complete}
+            missingFields={profileCompletion.missingTop}
+            profileCompletion={profileCompletion}
+          />
+        </div>
       )}
 
 
@@ -310,8 +311,6 @@ export default function DesktopDashboard({
           <CategoryBrowseChips />
         </DashboardSection>
       )}
-
-      {!isPro && <ProfileCompletionNudge completion={profileCompletion} />}
 
       <DashboardSection
         title={isPro ? "Community Feed" : "Neighborhood Feed"}

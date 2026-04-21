@@ -759,6 +759,59 @@
   color: var(--accent2);
 }
 
+/* Browse card polish */
+.m-pro-card {
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.m-pro-card:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.m-pro-card:active {
+  background: var(--surface);
+  transform: scale(0.99);
+}
+
+.m-pro-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.m-pro-name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.m-pro-resident-badge {
+  width: fit-content;
+  gap: 6px;
+}
+
+.m-pro-society {
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.m-pro-right {
+  min-width: 92px;
+  gap: 8px;
+}
+
+.m-pro-rating {
+  text-align: right;
+  line-height: 1.3;
+}
+
 .m-pro-rating {
   font-size: 12px;
   color: var(--warning);

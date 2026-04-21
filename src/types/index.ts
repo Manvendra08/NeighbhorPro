@@ -104,6 +104,7 @@ export interface Service {
   description: string;
   price: number;
   isFree: boolean;
+  quoteBased?: boolean;
   duration: string;
   category: string;
   status?: "pending" | "approved" | "featured" | "rejected";

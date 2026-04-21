@@ -97,12 +97,15 @@ export default function BookingFlow() {
   }, [availableSlots, rebookTimeSlot, timeSlot]);
 
   const isSelf = user?.uid === proId;
-  const isFree = (selectedSvc?.price as number) === 0;
-  const proFeeCoins = (selectedSvc?.price as number) || 0;
-  const appCommissionCoins = isFree ? 0 : Math.round((proFeeCoins * commissionRate) / 100);
-  const feeCoins = isFree ? 0 : proFeeCoins + appCommissionCoins;
+  const selectedServicePrice = Number(selectedSvc?.price) || 0;
+  const isQuoteBased = Boolean(selectedSvc?.quoteBased);
+  const isFree = !isQuoteBased && selectedServicePrice === 0;
+  const proFeeCoins = isQuoteBased ? 0 : selectedServicePrice;
+  const appCommissionCoins = isQuoteBased || isFree ? 0 : Math.round((proFeeCoins * commissionRate) / 100);
+  const feeCoins = isQuoteBased || isFree ? 0 : proFeeCoins + appCommissionCoins;
+  const requiresCoinHold = feeCoins > 0;
   const balance = userProfile?.coinBalance ?? 0;
-  const hasEnough = isFree || balance >= feeCoins;
+  const hasEnough = !requiresCoinHold || balance >= feeCoins;
 
   const categories = useMemo(() => getServiceCategories(services), [services]);
 
@@ -166,15 +169,16 @@ export default function BookingFlow() {
         serviceName,
         serviceCategory: selectedSvc.category || "Other",
         date, timeSlot, notes,
-        isPaid: !isFree,
+        isPaid: requiresCoinHold,
         amount: feeCoins,
         proFee: proFeeCoins,
         commissionRate,
         platformFee: appCommissionCoins,
         proEarning: proFeeCoins,
-        coinsPaid: !isFree,
+        coinsPaid: requiresCoinHold,
         escrowCoins: feeCoins,
-        escrowStatus: !isFree ? "held" : "none",
+        escrowStatus: requiresCoinHold ? "held" : "none",
+        quoteBased: isQuoteBased,
         ...(attachData && { attachmentUrl: attachData.url, attachmentName: attachData.name, attachmentType: attachData.type })
       });
 
@@ -190,7 +194,7 @@ export default function BookingFlow() {
 
       // 3. Log activity
       logActivity(user!.uid, "booking.created", `Booked ${selectedSvc?.title as string} with ${(pro?.displayName as string) || proId} on ${date} at ${timeSlot}`, { bookingId, proId, serviceId: selectedSvc?.id, amount: feeCoins, isFree });
-      if (!isFree && feeCoins > 0) {
+      if (requiresCoinHold) {
         logActivity(user!.uid, "payment.initiated", `Escrow held: ${feeCoins} NC for booking ${bookingId}`, { bookingId, amount: feeCoins });
       }
 
@@ -308,20 +312,31 @@ export default function BookingFlow() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {services
                   .filter(svc => !selectedCat || svc.category === selectedCat)
-                  .map(svc => (
-                    <div key={svc.id as string} onClick={() => setSvc(svc)} style={{ padding: "12px 16px", border: `2px solid ${selectedSvc?.id === svc.id ? "var(--accent)" : "var(--border)"}`, background: selectedSvc?.id === svc.id ? "rgba(13,107,107,0.04)" : "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
-                        {(svc.duration as string) && <div className="text-muted text-sm">{svc.duration as string}</div>}
-                        {(svc.price as number) > 0 && (
-                          <div className="text-muted text-xs">Pro fee {(svc.price as number).toLocaleString("en-IN")} NC + app fee ({commissionRate}%)</div>
-                        )}
+                  .map(svc => {
+                    const servicePrice = Number(svc.price) || 0;
+                    const serviceQuoteBased = Boolean(svc.quoteBased);
+                    const serviceIsFree = !serviceQuoteBased && servicePrice === 0;
+                    const serviceTotal = serviceQuoteBased || serviceIsFree
+                      ? 0
+                      : servicePrice + Math.round((servicePrice * commissionRate) / 100);
+
+                    return (
+                      <div key={svc.id as string} onClick={() => setSvc(svc)} style={{ padding: "12px 16px", border: `2px solid ${selectedSvc?.id === svc.id ? "var(--accent)" : "var(--border)"}`, background: selectedSvc?.id === svc.id ? "rgba(13,107,107,0.04)" : "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
+                          {(svc.duration as string) && <div className="text-muted text-sm">{svc.duration as string}</div>}
+                          {serviceQuoteBased ? (
+                            <div className="text-muted text-xs">Final NC shared after reviewing your requirement</div>
+                          ) : (
+                            null
+                          )}
+                        </div>
+                        <span style={{ fontWeight: 700, color: serviceQuoteBased ? "#1B6B8A" : serviceIsFree ? "var(--accent2)" : "var(--text)" }}>
+                          {serviceQuoteBased ? "Quote-based" : serviceIsFree ? "Free" : `${serviceTotal.toLocaleString("en-IN")} NC`}
+                        </span>
                       </div>
-                      <span style={{ fontWeight: 700, color: (svc.price as number) === 0 ? "var(--accent2)" : "var(--text)" }}>
-                        {(svc.price as number) === 0 ? "Free" : `${((svc.price as number) + Math.round(((svc.price as number) * commissionRate) / 100)).toLocaleString("en-IN")} NC`}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -422,9 +437,14 @@ export default function BookingFlow() {
           <h3 className="card-title" style={{ marginBottom: 16 }}>Confirm & Pay</h3>
 
           {/* Escrow info banner */}
-          {!isFree && (
+          {requiresCoinHold && (
             <div style={{ background: "rgba(27,107,138,0.06)", border: "1px solid rgba(27,107,138,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: "0.82rem", color: "#1B6B8A" }}>
               🔒 <strong>NC held securely.</strong> Payment is released to the pro only after the session is marked complete.
+            </div>
+          )}
+          {isQuoteBased && (
+            <div style={{ background: "rgba(27,107,138,0.06)", border: "1px solid rgba(27,107,138,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: "0.82rem", color: "#1B6B8A" }}>
+              💬 <strong>Quote-based request.</strong> No NC is held now. The pro can review your requirement and share the final quote.
             </div>
           )}
 
@@ -436,15 +456,19 @@ export default function BookingFlow() {
             ))}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderBottom: "1px solid var(--border)" }}>
               <span className="text-muted">Payment</span>
-              {isFree ? <span style={{ fontWeight: 700, color: "#16a34a" }}>Free 🎁</span> : (
+              {isQuoteBased ? (
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 800, color: "#1B6B8A" }}>Quote-based</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Final NC shared after pro reviews your request</div>
+                </div>
+              ) : isFree ? <span style={{ fontWeight: 700, color: "#16a34a" }}>Free 🎁</span> : (
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontWeight: 800, color: "#1B6B8A" }}>🪙 {feeCoins.toLocaleString("en-IN")} NC</div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Pro fee: {proFeeCoins.toLocaleString("en-IN")} NC + app fee: {appCommissionCoins.toLocaleString("en-IN")} NC</div>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>held in escrow until completion</div>
                 </div>
               )}
             </div>
-            {!isFree && (
+            {requiresCoinHold && (
               <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0" }}>
                 <span className="text-muted">Your balance</span>
                 <span style={{ fontWeight: 600, color: hasEnough ? "var(--text)" : "#dc2626" }}>{balance.toLocaleString("en-IN")} NC{!hasEnough && " ⚠️ insufficient"}</span>
@@ -465,7 +489,7 @@ export default function BookingFlow() {
           <div style={{ display: "flex", gap: 10 }}>
             <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}>Back</button>
             <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSubmit} disabled={loading || !hasEnough}>
-              {loading ? "Processing…" : isFree ? "Confirm Booking" : `Hold ${feeCoins} NC & Confirm`}
+              {loading ? "Processing…" : isQuoteBased ? "Send Quote Request" : isFree ? "Confirm Booking" : `Hold ${feeCoins} NC & Confirm`}
             </button>
           </div>
         </div>
@@ -478,7 +502,11 @@ export default function BookingFlow() {
           <h2 style={{ marginBottom: 8 }}>Booking Requested!</h2>
           <p className="text-muted" style={{ marginBottom: 16 }}>
             Your request has been sent to <strong>{pro.displayName as string}</strong> for <strong>{date}</strong> at <strong>{timeSlot}</strong>.
-            NC will be released to the pro once the session is complete.
+            {requiresCoinHold
+              ? " NC will be released to the pro once the session is complete."
+              : isQuoteBased
+                ? " No NC has been held yet. The pro can now review your requirement and share pricing."
+                : " This is a free consultation request."}
           </p>
 
           {postBookingWarning && (
@@ -487,14 +515,19 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {!isFree && (
+          {requiresCoinHold && (
             <div style={{ display: "inline-block", background: "rgba(27,107,138,0.08)", border: "1px solid rgba(27,107,138,0.15)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#1B6B8A", fontWeight: 600, fontSize: "0.88rem" }}>
               🔒 {feeCoins} NC held in escrow · Balance: {(balance - feeCoins).toLocaleString("en-IN")} NC
             </div>
           )}
+          {isQuoteBased && (
+            <div style={{ display: "inline-block", background: "rgba(27,107,138,0.08)", border: "1px solid rgba(27,107,138,0.15)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#1B6B8A", fontWeight: 600, fontSize: "0.88rem" }}>
+              💬 Quote-based request sent · no NC held yet
+            </div>
+          )}
           {isFree && (
             <div style={{ display: "inline-block", background: "rgba(22,163,74,0.1)", borderRadius: 10, padding: "8px 20px", marginBottom: 20, color: "#16a34a", fontWeight: 600, fontSize: "0.88rem" }}>
-              🏆 Pro earns +50 NC for free consultations
+              🏆 Pro earns +100 NC for free consultations
             </div>
           )}
 

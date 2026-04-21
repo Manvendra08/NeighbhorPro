@@ -7,6 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Layout from "./components/layout/Layout";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import PWASplashScreen from "./components/PWASplashScreen";
+import { useAuth } from "./contexts/AuthContext";
 
 import LandingPage    from "./pages/LandingPage";
 import Contact        from "./pages/Contact";
@@ -81,9 +82,16 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
-        <PWAInstallBanner />
+        <PWAWrapper />
       </AuthProvider>
     </BrowserRouter>
     </ErrorBoundary>
   );
+}
+
+function PWAWrapper() {
+  const auth = useAuth();
+  // Only show install banner when user is logged in (inside the webapp)
+  if (!auth?.user) return null;
+  return <PWAInstallBanner />;
 }

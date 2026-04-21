@@ -180,9 +180,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await createUserProfile({ ...u, displayName });
     const normalizedReferralCode = normalizeReferralCode(referralCode);
     if (normalizedReferralCode) {
-      const referralResult = await applyReferralCodeAtSignup(u.uid, normalizedReferralCode);
-      if (referralResult.success) {
-        logActivity(u.uid, "user.signup", `Applied referral code at signup: ${normalizedReferralCode}`);
+      try {
+        const referralResult = await applyReferralCodeAtSignup(u.uid, normalizedReferralCode);
+        if (referralResult.success) {
+          logActivity(u.uid, "user.signup", `Applied referral code at signup: ${normalizedReferralCode}`);
+        }
+      } catch {
+        // Keep signup success even if referral reward write fails due transient permission/race.
       }
     }
     await sendEmailVerification(u).catch(() => {});
@@ -199,9 +203,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isNewProfile = await createUserProfile(u);
     const normalizedReferralCode = normalizeReferralCode(referralCode);
     if (isNewProfile && normalizedReferralCode) {
-      const referralResult = await applyReferralCodeAtSignup(u.uid, normalizedReferralCode);
-      if (referralResult.success) {
-        logActivity(u.uid, "user.signup", `Applied referral code at signup: ${normalizedReferralCode}`);
+      try {
+        const referralResult = await applyReferralCodeAtSignup(u.uid, normalizedReferralCode);
+        if (referralResult.success) {
+          logActivity(u.uid, "user.signup", `Applied referral code at signup: ${normalizedReferralCode}`);
+        }
+      } catch {
+        // Keep signup success even if referral reward write fails due transient permission/race.
       }
     }
     logActivity(u.uid, "user.login", `Signed in via Google`);

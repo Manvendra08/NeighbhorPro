@@ -276,15 +276,6 @@ export default function ProDetail() {
               <span style={{ color: "var(--warning)", fontWeight: 600 }}>
                 {reviewCount > 0 ? `★ ${rating === null ? "—" : rating.toFixed(1)} (${reviewCount})` : "No reviews yet"}
               </span>
-              {(pro.priceAfterQuote as boolean)
-                ? <span className="badge badge-accent">Quote-based</span>
-                : <span style={{ fontWeight: 700, color: "var(--accent2)" }}>
-                    {(pro.hourlyRate as number) === 0
-                      ? "Free Consultation"
-                      : canShowResidentPayable
-                        ? `Rs ${Math.round((pro.hourlyRate as number) * (1 + commissionRate / 100))}/hr`
-                        : `Rs ${(pro.hourlyRate as number)}/hr`}
-                  </span>}
               <ResponseTimeBadge avgResponseHours={avgResponseHrs} />
               {memberSince && <span className="badge badge-muted">Member since {memberSince}</span>}
               {pro.residentVerificationStatus === "verified" && (
@@ -348,27 +339,39 @@ export default function ProDetail() {
           <p className="text-muted">No services listed.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {services.map(service => (
-              <div key={service.id as string} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>{service.title as string}</div>
-                  <div className="text-muted text-sm">{(service.description as string)?.slice(0, 80) || "No description provided."}</div>
-                </div>
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, color: (service.price as number) === 0 ? "var(--accent2)" : "var(--text)" }}>
-                    {(service.price as number) === 0
-                      ? "Free"
-                      : canShowResidentPayable
-                        ? `Rs ${Math.round((service.price as number) * (1 + commissionRate / 100))}`
-                        : `Rs ${service.price as number}`}
+            {services.map(service => {
+              const basePrice = Number(service.price) || 0;
+              const isQuoteBased = Boolean(service.quoteBased);
+              const isFreeService = !isQuoteBased && (Boolean(service.isFree) || basePrice === 0);
+
+              return (
+                <div key={service.id as string} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 2 }}>{service.title as string}</div>
+                    <div className="text-muted text-sm">{(service.description as string)?.slice(0, 80) || "No description provided."}</div>
                   </div>
-                  {(service.price as number) > 0 && canShowResidentPayable && (
-                    <div className="text-muted text-xs">Pro fee {(service.price as number).toLocaleString("en-IN")} + app fee ({commissionRate}%)</div>
-                  )}
-                  {(service.duration as string) && <div className="text-muted text-xs">{service.duration as string}</div>}
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontWeight: 700, color: isQuoteBased ? "#1B6B8A" : isFreeService ? "var(--accent2)" : "var(--text)" }}>
+                      {isQuoteBased
+                        ? "Quote-based"
+                        : isFreeService
+                          ? "Free"
+                          : canShowResidentPayable
+                            ? `Rs ${Math.round(basePrice * (1 + commissionRate / 100))}`
+                            : `Rs ${basePrice}`}
+                    </div>
+                    {isQuoteBased ? (
+                      <div className="text-muted text-xs">Final NC shared after requirement review</div>
+                    ) : (
+                      basePrice > 0 && canShowResidentPayable && (
+                        <div className="text-muted text-xs">Pro fee {basePrice.toLocaleString("en-IN")} + app fee ({commissionRate}%)</div>
+                      )
+                    )}
+                    {(service.duration as string) && <div className="text-muted text-xs">{service.duration as string}</div>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

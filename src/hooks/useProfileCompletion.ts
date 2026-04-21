@@ -16,10 +16,11 @@ const BASE_RULES = [
   { key: "society", label: "Society", weight: 10, test: (profile: ProfileRecord) => Boolean(String(profile?.society || "").trim()) },
   { key: "phoneNumber", label: "Phone number", weight: 15, test: (profile: ProfileRecord) => Boolean(String(profile?.phoneNumber || "").trim()) },
   { key: "bio", label: "Bio", weight: 10, test: (profile: ProfileRecord) => Boolean(String(profile?.bio || "").trim()) },
-  { key: "skills", label: "Skills", weight: 15, test: (profile: ProfileRecord) => Array.isArray(profile?.skills) && (profile?.skills as unknown[]).length > 0 },
+  { key: "residencyProof", label: "Residency Proof", weight: 15, test: (profile: ProfileRecord) => Boolean(profile?.residencyProofUrl || profile?.residencyProofPreviewUrl) },
 ] as const;
 
 const PRO_RULES = [
+  { key: "skills", label: "Skills", weight: 15, test: (profile: ProfileRecord) => Array.isArray(profile?.skills) && (profile?.skills as unknown[]).length > 0 },
   { key: "hourlyRate", label: "Hourly rate", weight: 10, test: (profile: ProfileRecord) => Number(profile?.hourlyRate) > 0 || profile?.isFreeConsultation === true },
   { key: "availability", label: "Availability", weight: 10, test: (_profile: ProfileRecord, availability: AvailabilityRecord) => hasAvailability(availability) },
 ] as const;

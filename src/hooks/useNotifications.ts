@@ -466,11 +466,12 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         if (userProfile?.role === "admin") {
             const pollAdminBuckets = async () => {
                 try {
-                    const [verificationSnap, payoutSnap, ticketSnap, disputeSnap] = await Promise.all([
+                    const [verificationSnap, payoutSnap, ticketSnap, disputeSnap, auditSnap] = await Promise.all([
                         getDocs(query(collection(db, "users"), where("residentVerificationStatus", "==", "pending"), limit(10))),
                         getDocs(query(collection(db, "coinPayouts"), where("status", "==", "pending"), orderBy("createdAt", "desc"), limit(10))),
                         getDocs(query(collection(db, "tickets"), where("status", "==", "open"), orderBy("createdAt", "desc"), limit(10))),
                         getDocs(query(collection(db, "disputes"), where("status", "==", "raised"), orderBy("createdAt", "desc"), limit(10))),
+                        getDocs(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"), limit(10))),
                     ]);
 
                     const verificationList: AppNotification[] = verificationSnap.docs.map(d => {
@@ -533,15 +534,60 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
                         };
                     });
 
+                    const auditList: AppNotification[] = auditSnap.docs.flatMap(d => {
+                        const data = d.data() as Record<string, unknown>;
+                        const createdAt = toMillis(data.createdAt ?? data.timestamp);
+                        const action = asString(data.action);
+                        const details = asString(data.details, "Admin action recorded");
+                        const targetId = asString(data.targetId, "");
+
+                        if (!action) return [];
+                        if (!/^(user\.|verification\.|booking\.|ticket\.|broadcast\.|dispute\.)/i.test(action)) return [];
+
+                        let title = "Admin Activity";
+                        let actionUrl = "/admin/audit";
+                        if (action.startsWith("verification.")) {
+                            title = "Verification Reviewed";
+                            actionUrl = "/admin/users?tab=verification";
+                        } else if (action.startsWith("ticket.")) {
+                            title = "Ticket Updated";
+                            actionUrl = "/admin/tickets";
+                        } else if (action.startsWith("booking.")) {
+                            title = "Booking Updated";
+                            actionUrl = "/admin/bookings";
+                        } else if (action.startsWith("broadcast.")) {
+                            title = "Broadcast Updated";
+                            actionUrl = "/admin/broadcast";
+                        } else if (action.startsWith("dispute.")) {
+                            title = "Dispute Updated";
+                            actionUrl = "/admin/tickets";
+                        } else if (action.startsWith("user.")) {
+                            title = "User Updated";
+                            actionUrl = targetId ? "/admin/users" : "/admin/audit";
+                        }
+
+                        return [{
+                            id: `admin-audit-${d.id}-${createdAt}`,
+                            kind: "admin_action",
+                            title,
+                            body: details,
+                            createdAt,
+                            actionUrl,
+                            priority: action.startsWith("dispute.") || action.startsWith("ticket.") ? "urgent" as const : "high" as const,
+                        }];
+                    });
+
                     setBucket("admin-verifications", verificationList);
                     setBucket("admin-payouts", payoutList);
                     setBucket("admin-tickets", ticketList);
                     setBucket("admin-disputes", disputeList);
+                    setBucket("admin-audit", auditList);
                 } catch {
                     setBucket("admin-verifications", []);
                     setBucket("admin-payouts", []);
                     setBucket("admin-tickets", []);
                     setBucket("admin-disputes", []);
+                    setBucket("admin-audit", []);
                 }
             };
 
