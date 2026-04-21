@@ -53,7 +53,10 @@ export default function BookingDetail() {
         setBooking(b);
         const status = String(b.status || "");
         if (user.uid === b.proId && ["completed", "reviewed"].includes(status)) {
-          const alreadyRated = await hasResidentReview(id, user.uid).catch(() => false);
+          const alreadyRated = await hasResidentReview(id, user.uid).catch((err) => {
+            console.error("Error checking resident review status:", err);
+            return true; // Safe default: treat as already rated to hide button
+          });
           setResidentReviewDone(alreadyRated);
         } else {
           setResidentReviewDone(false);

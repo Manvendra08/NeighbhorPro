@@ -151,7 +151,9 @@ export default function MyBookings() {
       const escrowCoins = (b.escrowCoins as number) || 0;
       if (escrowCoins === 0) {
         // Free session completed -> PRO earns free consult reward
-        await earnCoins(user!.uid, "earn_free_consult", id).catch(() => {});
+        await earnCoins(user!.uid, "earn_free_consult", id).catch((err) => {
+          console.error(`Failed to earn coins for free consult. User: ${user?.uid}, Booking: ${id}`, err);
+        });
       }
       // Release escrow FIRST, then update status
       const result = await releaseEscrow(user!.uid, id, (b.serviceName as string) || "Session");
@@ -172,7 +174,9 @@ export default function MyBookings() {
         const { addReview } = await import("../services/firestoreService");
         await addReview(reviewBid, booking.proId as string, reviewRating, reviewComment);
         await updateBookingStatus(reviewBid, "reviewed");
-        await earnCoins(user!.uid, "earn_review", reviewBid).catch(() => {});
+        await earnCoins(user!.uid, "earn_review", reviewBid).catch((err) => {
+          console.error(`Failed to earn coins for review. User: ${user?.uid}, Booking: ${reviewBid}`, err);
+        });
       }
       setReviewBid(null); setRR(5); setRC(""); load();
     } catch { setError("Failed to submit review."); }

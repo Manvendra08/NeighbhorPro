@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { useEffect, useState } from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -9,9 +10,19 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, adminOnly, userOnly, requireVerified }: ProtectedRouteProps) {
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, loading, logout } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading && user && (userProfile?.disabled || userProfile?.deleted)) {
+      setIsSigningOut(true);
+      logout().finally(() => {
+        setIsSigningOut(false);
+      });
+    }
+  }, [loading, user, userProfile, logout]);
+
+  if (loading || isSigningOut) {
     return (
       <div style={{
         minHeight: "100vh",
@@ -30,7 +41,8 @@ export function ProtectedRoute({ children, adminOnly, userOnly, requireVerified 
   }
 
   if (userProfile?.disabled || userProfile?.deleted) {
-    return <Navigate to="/login" replace />;
+    const reason = userProfile.deleted ? "deleted" : "disabled";
+    return <Navigate to={`/login?reason=${reason}`} replace />;
   }
 
   if (adminOnly && userProfile?.role !== "admin") {

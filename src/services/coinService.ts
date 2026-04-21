@@ -760,22 +760,30 @@ export async function getPendingPayouts(): Promise<CoinPayout[]> {
 export async function updatePayoutStatus(payoutId: string, status: "processed" | "failed", adminUid: string): Promise<void> {
   await updateDoc(doc(db, "coinPayouts", payoutId), { status, processedBy: adminUid, processedAt: serverTimestamp() });
 }
-export async function adminAdjustCoins(uid: string, amount: number, reason: string, adminUid: string): Promise<{ success: boolean; reason?: string }> {
+export async function adminAdjustCoins(uid: string, amount: number, reason: string, adminUid: string, idempotencyKey: string): Promise<{ success: boolean; reason?: string }> {
   if (amount === 0) return { success: false, reason: "Amount cannot be zero" };
+  if (!idempotencyKey) return { success: false, reason: "Idempotency key required" };
+
   try {
     await runTransaction(db, async tx => {
       const userRef = doc(db, "users", uid);
       const snap = await tx.get(userRef);
       if (!snap.exists()) throw new Error("USER_NOT_FOUND");
+
+      const ledgerEntryId = `admin_${uid}_${idempotencyKey}`;
+      const existingEntry = await tx.get(doc(db, "coinLedger", uid, "entries", ledgerEntryId));
+      if (existingEntry.exists()) throw new Error("ALREADY_PROCESSED");
+
       const newBal = ((snap.data()?.coinBalance as number) ?? 0) + amount;
       if (newBal < 0) throw new Error("WOULD_GO_NEGATIVE");
-      const ledgerEntryId = `admin_${Date.now()}_${uid}_${Math.abs(amount)}`;
+
       tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), { uid, type: amount > 0 ? "admin_credit" : "admin_debit", amount, balanceAfter: newBal, description: `Admin ${amount > 0 ? "credit" : "debit"}: ${reason}`, refId: adminUid, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
+    if (msg === "ALREADY_PROCESSED") return { success: true }; // Business success (idempotent)
     if (msg === "USER_NOT_FOUND") return { success: false, reason: "User not found" };
     if (msg === "WOULD_GO_NEGATIVE") return { success: false, reason: "Balance would go negative" };
     return { success: false, reason: "Transaction failed" };

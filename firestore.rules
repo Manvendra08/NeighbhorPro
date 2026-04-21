@@ -189,6 +189,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.bookingId is string
+        && request.resource.data.clientId is string
         && request.resource.data.proId == request.auth.uid
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1

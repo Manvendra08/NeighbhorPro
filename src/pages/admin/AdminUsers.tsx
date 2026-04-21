@@ -11,7 +11,8 @@ import {
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, updateProfile, signOut } from "firebase/auth";
-import { db, app } from "../../firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, app, functionsClient } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
 import { getUserActivityLogs } from "../../services/activityService";
@@ -373,6 +374,16 @@ export default function AdminUsers() {
         `Soft-deleted profile of: ${(u.displayName as string) || u.email as string}`,
         u.uid as string
       );
+
+      // Disable Auth account via Cloud Function
+      try {
+        const disableUserAuth = httpsCallable(functionsClient, "disableUserAuth");
+        await disableUserAuth({ uid: u.uid });
+      } catch (authErr) {
+        console.error("Failed to disable user auth account:", authErr);
+        // We continue anyway as the Firestore flags are already set
+      }
+
       showToast("User profile soft-deleted");
       setDeleteConfirm(null);
       await load();

@@ -166,11 +166,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    const userSnap = await getDoc(doc(db, "users", cred.user.uid));
-    const profile = userSnap.data() as { disabled?: boolean; deleted?: boolean } | undefined;
-    if (profile?.disabled || profile?.deleted) {
+    try {
+      const userSnap = await getDoc(doc(db, "users", cred.user.uid));
+      const profile = userSnap.data() as { disabled?: boolean; deleted?: boolean } | undefined;
+      if (profile?.disabled || profile?.deleted) {
+        await signOut(auth);
+        throw new Error("ACCOUNT_DISABLED");
+      }
+    } catch (err) {
       await signOut(auth);
-      throw new Error("ACCOUNT_DISABLED");
+      if ((err as Error).message === "ACCOUNT_DISABLED") throw err;
+      throw new Error("PROFILE_FETCH_FAILED");
     }
     logActivity(cred.user.uid, "user.login", `Signed in via email`);
   };
@@ -194,11 +200,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const signInWithGoogle = async (referralCode?: string) => {
     const { user: u } = await signInWithPopup(auth, googleProvider);
-    const userSnap = await getDoc(doc(db, "users", u.uid));
-    const profile = userSnap.data() as { disabled?: boolean; deleted?: boolean } | undefined;
-    if (profile?.disabled || profile?.deleted) {
+    try {
+      const userSnap = await getDoc(doc(db, "users", u.uid));
+      const profile = userSnap.data() as { disabled?: boolean; deleted?: boolean } | undefined;
+      if (profile?.disabled || profile?.deleted) {
+        await signOut(auth);
+        throw new Error("ACCOUNT_DISABLED");
+      }
+    } catch (err) {
       await signOut(auth);
-      throw new Error("ACCOUNT_DISABLED");
+      if ((err as Error).message === "ACCOUNT_DISABLED") throw err;
+      throw new Error("PROFILE_FETCH_FAILED");
     }
     const isNewProfile = await createUserProfile(u);
     const normalizedReferralCode = normalizeReferralCode(referralCode);
@@ -266,25 +278,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await confirmation.confirm(otp);
     if (auth.currentUser?.phoneNumber) {
       const userRef = doc(db, "users", auth.currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      const existingDisplayName = (userSnap.data()?.displayName as string | undefined) ?? auth.currentUser.displayName ?? "";
-      const existingReferralCode = normalizeReferralCode(userSnap.data()?.referralCode as string | undefined);
-      const referralCode = isValidReferralCode(existingReferralCode)
-        ? existingReferralCode
-        : await generateUniqueReferralCode({
-            displayName: existingDisplayName,
-            phoneNumber: auth.currentUser.phoneNumber,
-            uid: auth.currentUser.uid,
-          });
+      try {
+        const userSnap = await getDoc(userRef);
+        const profile = userSnap.data() as { disabled?: boolean; deleted?: boolean } | undefined;
+        if (profile?.disabled || profile?.deleted) {
+          await signOut(auth);
+          throw new Error("ACCOUNT_DISABLED");
+        }
+        const existingDisplayName = (userSnap.data()?.displayName as string | undefined) ?? auth.currentUser.displayName ?? "";
+        const existingReferralCode = normalizeReferralCode(userSnap.data()?.referralCode as string | undefined);
+        const referralCode = isValidReferralCode(existingReferralCode)
+          ? existingReferralCode
+          : await generateUniqueReferralCode({
+              displayName: existingDisplayName,
+              phoneNumber: auth.currentUser.phoneNumber,
+              uid: auth.currentUser.uid,
+            });
 
-      const update = {
-        phoneNumber: auth.currentUser.phoneNumber,
-        phoneVisible: Boolean(userSnap.data()?.phoneVisible),
-        referralCode,
-        updatedAt: serverTimestamp(),
-      };
-      await updateDoc(userRef, update);
-      await mirrorPublicProfile(auth.currentUser.uid, update);
+        const update = {
+          phoneNumber: auth.currentUser.phoneNumber,
+          phoneVisible: Boolean(userSnap.data()?.phoneVisible),
+          referralCode,
+          updatedAt: serverTimestamp(),
+        };
+        await updateDoc(userRef, update);
+        await mirrorPublicProfile(auth.currentUser.uid, update);
+      } catch (err) {
+        await signOut(auth);
+        if ((err as Error).message === "ACCOUNT_DISABLED") throw err;
+        throw new Error("PROFILE_FETCH_FAILED");
+      }
     }
     confirmationRef.current = null;
     recaptchaRef.current?.clear();

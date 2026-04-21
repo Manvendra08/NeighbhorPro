@@ -587,7 +587,7 @@ export default function Messages() {
               <div className="chat-messages-body" ref={messageListRef}>
                 {messages.length === 0 ? (
                   <div style={{ textAlign: "center", padding: 40, color: "var(--muted)", fontSize: 13 }}>
-                    {linkedBookingStatus === "pending" || linkedBookingStatus === "confirmed"
+                    {linkedBookingStatus === "pending" || linkedBookingStatus === "confirmed" || linkedBookingStatus === null || linkedBookingStatus === undefined
                       ? "No messages yet. Say hello! 👋"
                       : "No chat history for this booking."}
                   </div>

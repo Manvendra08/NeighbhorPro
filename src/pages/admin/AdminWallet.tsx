@@ -231,7 +231,8 @@ export default function AdminWallet() {
 
     setAdjLoading(true);
 
-    const res = await adminAdjustCoins(adjUid, finalAmount, adjReason.trim(), adminUid);
+    const idempotencyKey = `${Date.now()}_${Math.abs(finalAmount)}`;
+    const res = await adminAdjustCoins(adjUid, finalAmount, adjReason.trim(), adminUid, idempotencyKey);
     if (res.success) {
       await logAudit(
         `wallet.admin_${adjType}`, adminUid, adminName,
