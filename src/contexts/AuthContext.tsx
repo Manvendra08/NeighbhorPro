@@ -8,7 +8,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
-import { setUser as setSentryUser } from "../lib/sentry";
+import { captureError, setUser as setSentryUser } from "../lib/sentry";
 
 import { applyReferralCodeAtSignup, earnCoins, generateUniqueReferralCode, isValidReferralCode, normalizeReferralCode } from "../services/coinService";
 import { logActivity } from "../services/activityService";
@@ -117,7 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserProfile(data);
         if (!profileBonusClaimedRef.current && isProfileComplete(data)) {
           profileBonusClaimedRef.current = true;
-          earnCoins(user.uid, "earn_profile", user.uid).catch(() => {
+          earnCoins(user.uid, "earn_profile", user.uid).catch((error: unknown) => {
+            captureError(error, { operation: "earn_profile", uid: user.uid });
             profileBonusClaimedRef.current = false;
           });
         }
@@ -156,9 +157,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uid: u.uid,
         code: referralCode,
         createdAt: serverTimestamp(),
-      }).catch(() => {});
-      await mirrorPublicProfile(u.uid, profile).catch(() => {});
-      await earnCoins(u.uid, "earn_signup_bonus", u.uid).catch(() => {});
+      }).catch((error: unknown) => {
+        captureError(error, { operation: "create_referral_code_doc", uid: u.uid, referralCode });
+      });
+      await mirrorPublicProfile(u.uid, profile).catch((error: unknown) => {
+        captureError(error, { operation: "mirror_public_profile_on_signup", uid: u.uid });
+      });
+      await earnCoins(u.uid, "earn_signup_bonus", u.uid).catch((error: unknown) => {
+        captureError(error, { operation: "earn_signup_bonus", uid: u.uid });
+      });
       return true;
     }
     return false;
@@ -195,7 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Keep signup success even if referral reward write fails due transient permission/race.
       }
     }
-    await sendEmailVerification(u).catch(() => {});
+    await sendEmailVerification(u).catch((error: unknown) => {
+      captureError(error, { operation: "send_email_verification", uid: u.uid });
+    });
     logActivity(u.uid, "user.signup", `New account created: ${displayName} (${email})`);
   };
   const signInWithGoogle = async (referralCode?: string) => {
@@ -321,7 +330,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const isEmailProvider = auth.currentUser.providerData.some(p => p.providerId === "password");
       if (isEmailProvider && password) {
-        const credential = EmailAuthProvider.credential(auth.currentUser.email!, password);
+        const email = auth.currentUser.email;
+        if (!email) return { success: false, reason: "Email not available for re-authentication." };
+        const credential = EmailAuthProvider.credential(email, password);
         await reauthenticateWithCredential(auth.currentUser, credential);
       }
       const originalSnap = await getDoc(userRef);

@@ -100,6 +100,13 @@ npm run seed:test-users
 - **E2E Tests**: `npm run test:e2e`
 - **E2E UI**: `npm run test:e2e:ui`
 
+## 💳 Payments And Firebase Plan
+
+- Secure Razorpay top-ups in this project require server-created orders and webhook signature verification.
+- That flow depends on Firebase Cloud Functions and is intended for Blaze-ready deployments.
+- On Firebase Spark plan, wallet top-ups are intentionally disabled (fail-closed) to prevent insecure client-side crediting.
+- To enable top-ups in a Blaze environment, set `VITE_ENABLE_RAZORPAY_TOPUP=true` and deploy payment functions/webhook.
+
 ## 🚀 Deployment
 
 The project is configured for Firebase Hosting.

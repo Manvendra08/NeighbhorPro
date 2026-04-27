@@ -13,6 +13,25 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role", "coinBalance", "fcmToken", "disabled", "deleted", "lastLedgerEntryId"]);
     }
 
+    function bookingClientId(bookingId) {
+      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      return ('clientId' in booking) ? booking.clientId : booking.clientUid;
+    }
+
+    function bookingProId(bookingId) {
+      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      return ('proId' in booking) ? booking.proId : booking.proUid;
+    }
+
+    function ownerServiceUpdateAllowed() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([
+        "title", "description", "price", "isFree", "quoteBased",
+        "duration", "category", "updatedAt"
+      ])
+      && request.resource.data.userId == resource.data.userId;
+    }
+
     function ownerWalletMutationAllowed(userId) {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       let ledgerPath = /databases/$(database)/documents/coinLedger/$(userId)/entries/$(request.resource.data.lastLedgerEntryId);
@@ -143,21 +162,38 @@ service cloud.firestore {
     match /publicProfiles/{userId} {
       allow list:   if true;  // Required for getCountFromServer aggregation queries
       allow read:   if true;
-      allow create: if isSignedIn() && isOwner(userId) && !request.resource.data.keys().hasAny(['coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl']);
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin()) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl']);
+      allow create: if isSignedIn() && (
+        (isOwner(userId)
+          && !request.resource.data.keys().hasAny(['coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl', 'residentVerificationStatus']))
+        || isAdmin()
+      );
+      allow update: if isSignedIn() && (
+        (isOwner(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl', 'residentVerificationStatus']))
+        || isAdmin()
+      );
       allow delete: if isAdmin();
     }
 
     match /services/{serviceId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+        isAdmin()
+        || resource.data.userId == request.auth.uid
+        || resource.data.status in ['approved', 'featured']
+      );
       allow create: if isSignedIn() 
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 100
         && request.resource.data.category is string
-        && request.resource.data.description is string;
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+        && request.resource.data.description is string
+        && (!('status' in request.resource.data) || request.resource.data.status == 'pending');
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (resource.data.userId == request.auth.uid && ownerServiceUpdateAllowed())
+      );
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /bookings/{bookingId} {
@@ -179,8 +215,21 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
-        && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.clientId == request.auth.uid
-        && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status == 'completed';
+        && request.resource.data.bookingId is string
+        && request.resource.data.proId is string
+        && request.resource.data.clientId is string
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() > 0
+        && request.resource.data.comment.size() <= 1000
+        && request.resource.data.clientId == request.auth.uid
+        && reviewId == request.resource.data.bookingId + '_' + request.auth.uid
+        && exists(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId))
+        && bookingClientId(request.resource.data.bookingId) == request.auth.uid
+        && bookingProId(request.resource.data.bookingId) == request.resource.data.proId
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status in ['completed', 'reviewed'];
       allow update, delete: if isAdmin();
     }
 
@@ -255,13 +304,7 @@ service cloud.firestore {
     match /coinPurchases/{purchaseId} {
       allow list: if isAdmin();
       allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn()
-                    && request.resource.data.uid == request.auth.uid
-                    && request.resource.data.status == "pending"
-                    && request.resource.data.amountPaid is int
-                    && request.resource.data.amountPaid > 0
-                    && request.resource.data.coinsGranted is int
-                    && request.resource.data.coinsGranted > 0;
+      allow create: if isAdmin();
       allow update, delete: if isAdmin();
     }
     match /coinPayouts/{payoutId} {

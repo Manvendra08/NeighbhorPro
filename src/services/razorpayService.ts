@@ -1,19 +1,6 @@
-/**
- * razorpayService.ts - Spark Plan compatible flow
- *
- * Flow:
- *   1. Load checkout.js from Razorpay CDN
- *   2. Open modal directly with Key ID (public key - safe in browser)
- *   3. On payment success -> credit coins client-side via topUpCoins()
- *
- * No server-side verification in this mode.
- * Use only for pilot / Spark-plan testing.
- *
- * Setup:
- *   Add to .env.local -> VITE_RAZORPAY_KEY_ID=rzp_test_XXXXXXXXXXXX
- */
-
-import { topUpCoins, COIN_PACKS } from "./coinService";
+import { httpsCallable } from "firebase/functions";
+import { functionsClient } from "../firebase";
+import { COIN_PACKS } from "./coinService";
 
 declare global {
   interface Window {
@@ -23,6 +10,7 @@ declare global {
 
 interface RazorpayOptions {
   key: string;
+  order_id: string;
   amount: number;
   currency: string;
   name: string;
@@ -40,6 +28,19 @@ interface RazorpayInstance {
 
 interface RazorpayResponse {
   razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+interface CreateRazorpayOrderResponse {
+  orderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+}
+
+export function isRazorpayTopupEnabled(): boolean {
+  return String(import.meta.env.VITE_ENABLE_RAZORPAY_TOPUP ?? "").trim().toLowerCase() === "true";
 }
 
 export type PaymentStatus =
@@ -77,12 +78,13 @@ export async function initiateTopUp(params: {
 }): Promise<void> {
   const { uid, packLabel, userName, userEmail, onStatusChange, onSuccess, onError } = params;
 
-  const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID as string;
-  if (!keyId) {
-    onError("Razorpay key not configured. Add VITE_RAZORPAY_KEY_ID to .env.local");
+  if (!isRazorpayTopupEnabled()) {
+    onError("Coin top-ups are currently unavailable on the Firebase Spark plan. Contact support to enable Blaze-backed payments.");
     onStatusChange("failed");
     return;
   }
+
+  void uid;
 
   const pack = COIN_PACKS.find((p) => p.label === packLabel);
   if (!pack) {
@@ -92,14 +94,22 @@ export async function initiateTopUp(params: {
   }
 
   try {
+    const createOrder = httpsCallable<{ packLabel: string }, CreateRazorpayOrderResponse>(
+      functionsClient,
+      "createRazorpayOrder"
+    );
+    const orderResponse = await createOrder({ packLabel });
+    const { orderId, amount, currency, keyId } = orderResponse.data;
+
     await loadSDK();
     onStatusChange("awaiting_payment");
 
     await new Promise<void>((resolve) => {
       const rzp = new window.Razorpay({
         key:         keyId,
-        amount:      pack.priceRs * 100,
-        currency:    "INR",
+        order_id:    orderId,
+        amount,
+        currency,
         name:        "ProNeighbor",
         description: `${pack.label} Coin Pack - ${pack.coins + pack.bonus} NC`,
         image:       "/images/logo.png",
@@ -108,20 +118,8 @@ export async function initiateTopUp(params: {
 
         handler: async (response) => {
           onStatusChange("crediting");
-          try {
-            await topUpCoins(
-              uid,
-              pack.priceRs,
-              pack.coins + pack.bonus,
-              pack.label,
-              response.razorpay_payment_id
-            );
-            onSuccess(response.razorpay_payment_id);
-            onStatusChange("success");
-          } catch {
-            onError("Payment received but coin credit failed. Contact support with payment ID: " + response.razorpay_payment_id);
-            onStatusChange("failed");
-          }
+          onSuccess(response.razorpay_payment_id);
+          onStatusChange("success");
           resolve();
         },
 

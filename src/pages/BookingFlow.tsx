@@ -140,6 +140,7 @@ export default function BookingFlow() {
 
   const handleSubmit = async () => {
     if (!date || !timeSlot || !selectedSvc) { setError("Please select a service, date, and time slot."); return; }
+    if (!user || !proId) { setError("Session expired. Please sign in again."); return; }
     if (!isBookingBriefValid(notes.trim())) {
       setError(`Brief of service cannot exceed ${BOOKING_BRIEF_MAX_CHARS} characters.`);
       return;
@@ -161,9 +162,9 @@ export default function BookingFlow() {
 
       // 1. Create booking in pending state — escrow NOT yet released to pro
       const bookingId = await createBooking({
-        clientId: user!.uid,
-        clientName: userProfile?.displayName || user!.displayName || user!.email,
-        proId: proId!,
+        clientId: user.uid,
+        clientName: userProfile?.displayName || user.displayName || user.email,
+        proId,
         proName: (pro?.displayName as string) || "",
         serviceId: selectedSvc.id,
         serviceName,
@@ -185,7 +186,7 @@ export default function BookingFlow() {
       // 2. Auto-create conversation so client and pro can chat immediately.
       // Booking should remain successful even if chat bootstrap fails.
       try {
-        const cid = await getOrCreateConversation(user!.uid, proId!, { bookingId });
+        const cid = await getOrCreateConversation(user.uid, proId, { bookingId });
         setConvId(cid);
       } catch {
         setConvId(null);
@@ -193,9 +194,9 @@ export default function BookingFlow() {
       }
 
       // 3. Log activity
-      logActivity(user!.uid, "booking.created", `Booked ${selectedSvc?.title as string} with ${(pro?.displayName as string) || proId} on ${date} at ${timeSlot}`, { bookingId, proId, serviceId: selectedSvc?.id, amount: feeCoins, isFree });
+      logActivity(user.uid, "booking.created", `Booked ${selectedSvc?.title as string} with ${(pro?.displayName as string) || proId} on ${date} at ${timeSlot}`, { bookingId, proId, serviceId: selectedSvc?.id, amount: feeCoins, isFree });
       if (requiresCoinHold) {
-        logActivity(user!.uid, "payment.initiated", `Escrow held: ${feeCoins} NC for booking ${bookingId}`, { bookingId, amount: feeCoins });
+        logActivity(user.uid, "payment.initiated", `Escrow held: ${feeCoins} NC for booking ${bookingId}`, { bookingId, amount: feeCoins });
       }
 
       setStep(3);

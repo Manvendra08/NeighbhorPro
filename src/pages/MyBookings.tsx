@@ -8,6 +8,7 @@ import {
 import { releaseEscrow, cancelBookingAndRefund, earnCoins, rewardReferral } from "../services/coinService";
 import { logActivity } from "../services/activityService";
 import { formatBookingDateTime } from "../utils/time";
+import { captureError } from "../lib/sentry";
 
 function buildRecurringRebookQuery(booking: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -106,7 +107,9 @@ export default function MyBookings() {
         cancellationComment: cancelComment.trim(),
         cancellationCommentBy: user.uid,
         cancellationCommentRole: role,
-      }).catch(() => {});
+      }).catch((error: unknown) => {
+        captureError(error, { operation: "update_booking_cancellation_comment", uid: user.uid, bookingId: id });
+      });
 
       if (role === "client") {
         logActivity(user.uid, "booking.cancelled", `Cancelled booking: ${(b.serviceName as string) || id} with ${(b.proName as string) || b.proId}`, {
@@ -143,7 +146,7 @@ export default function MyBookings() {
 
   // Pro confirms completion after explicit confirmation
   const submitCompletion = async () => {
-    if (!completeRequest) return;
+    if (!completeRequest || !user) return;
     const b = completeRequest;
     const id = b.id as string;
     setAL(id);
@@ -151,22 +154,24 @@ export default function MyBookings() {
       const escrowCoins = (b.escrowCoins as number) || 0;
       if (escrowCoins === 0) {
         // Free session completed -> PRO earns free consult reward
-        await earnCoins(user!.uid, "earn_free_consult", id).catch((err) => {
-          console.error(`Failed to earn coins for free consult. User: ${user?.uid}, Booking: ${id}`, err);
+        await earnCoins(user.uid, "earn_free_consult", id).catch((error: unknown) => {
+          captureError(error, { operation: "earn_free_consult", uid: user.uid, bookingId: id });
         });
       }
       // Release escrow FIRST, then update status
-      const result = await releaseEscrow(user!.uid, id, (b.serviceName as string) || "Session");
+      const result = await releaseEscrow(user.uid, id, (b.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
-      await rewardReferral(b.clientId as string, id).catch(() => {});
-      logActivity(user!.uid, "booking.completed", `Completed booking: ${(b.serviceName as string) || id} for ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowReleased: (b.escrowCoins as number) || 0 });
+      await rewardReferral(b.clientId as string, id).catch((error: unknown) => {
+        captureError(error, { operation: "reward_referral", uid: user.uid, bookingId: id });
+      });
+      logActivity(user.uid, "booking.completed", `Completed booking: ${(b.serviceName as string) || id} for ${(b.clientName as string) || b.clientId}`, { bookingId: id, role: "pro", escrowReleased: (b.escrowCoins as number) || 0 });
       setCompleteRequest(null);
     } catch { setError("Failed to complete booking."); }
     setAL(null); load();
   };
 
   const handleReviewSubmit = async () => {
-    if (!reviewBid) return;
+    if (!reviewBid || !user) return;
     setRS(true);
     try {
       const booking = clientBookings.find(b => b.id === reviewBid);
@@ -174,8 +179,8 @@ export default function MyBookings() {
         const { addReview } = await import("../services/firestoreService");
         await addReview(reviewBid, booking.proId as string, reviewRating, reviewComment);
         await updateBookingStatus(reviewBid, "reviewed");
-        await earnCoins(user!.uid, "earn_review", reviewBid).catch((err) => {
-          console.error(`Failed to earn coins for review. User: ${user?.uid}, Booking: ${reviewBid}`, err);
+        await earnCoins(user.uid, "earn_review", reviewBid).catch((error: unknown) => {
+          captureError(error, { operation: "earn_review", uid: user.uid, bookingId: reviewBid });
         });
       }
       setReviewBid(null); setRR(5); setRC(""); load();

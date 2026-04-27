@@ -37,7 +37,7 @@ import { validateUpload } from "../utils/cloudinary";
 const PUBLIC_PROFILE_FIELDS = [
   'uid', 'displayName', 'photoURL', 'bio', 'skills', 'isServiceProvider',
   'rating', 'reviewCount', 'society', 'locality', 'tower',
-  'residentVerificationStatus', 'hourlyRate', 'isFreeConsultation',
+  'hourlyRate', 'isFreeConsultation',
   'priceAfterQuote', 'role', 'disabled', 'createdAt',
   'emailVisible', 'phoneVisible', 'flatVisible',
 ] as const;
@@ -376,6 +376,14 @@ export async function updateResidentVerification(
 
   // Write update
   await updateDoc(doc(db, "users", uid), update);
+  await setDoc(
+    doc(db, "publicProfiles", uid),
+    {
+      residentVerificationStatus: status,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
   await mirrorPublicProfile(uid, update);
 
   // Assert write succeeded by reading back
@@ -570,7 +578,12 @@ export async function createService(data: Record<string, unknown>) {
   return ref.id;
 }
 export async function getServicesByUser(userId: string) {
-  const q = query(collection(db, "services"), where("userId", "==", userId));
+  const constraints: QueryConstraint[] = [where("userId", "==", userId)];
+  const isOwnerView = auth.currentUser?.uid === userId;
+  if (!isOwnerView) {
+    constraints.push(where("status", "in", ["approved", "featured"]));
+  }
+  const q = query(collection(db, "services"), ...constraints);
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
 }
@@ -845,13 +858,44 @@ export async function updateProAvailability(proId: string, availabilityData: Rec
 export async function addReview(bookingId: string, proId: string, rating: number, comment: string) {
   if (!auth.currentUser) throw new Error("Must be logged in to review");
   const clientId = auth.currentUser.uid;
+  const normalizedRating = Math.trunc(Number(rating));
+  const normalizedComment = comment.trim();
+
+  if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+    throw new Error("Rating must be an integer between 1 and 5.");
+  }
+  if (!normalizedComment || normalizedComment.length > 1000) {
+    throw new Error("Comment must be between 1 and 1000 characters.");
+  }
+
   const reviewId = `${bookingId}_${clientId}`;
   const reviewRef = doc(db, "reviews", reviewId);
+  const bookingRef = doc(db, "bookings", bookingId);
 
   await runTransaction(db, async tx => {
     const existing = await tx.get(reviewRef);
     if (existing.exists()) {
       throw new Error("You have already submitted a review for this booking.");
+    }
+
+    const bookingSnap = await tx.get(bookingRef);
+    if (!bookingSnap.exists()) {
+      throw new Error("Booking not found.");
+    }
+
+    const booking = bookingSnap.data() as Record<string, unknown>;
+    const bookingClientId = String(booking.clientId || booking.clientUid || "");
+    const bookingProId = String(booking.proId || booking.proUid || "");
+    const bookingStatus = String(booking.status || "");
+
+    if (bookingClientId !== clientId) {
+      throw new Error("Only the booking client can submit a review.");
+    }
+    if (bookingProId !== proId) {
+      throw new Error("Review professional does not match booking.");
+    }
+    if (!['completed', 'reviewed'].includes(bookingStatus)) {
+      throw new Error("Review can only be submitted after booking completion.");
     }
 
     tx.set(reviewRef, {
@@ -860,8 +904,8 @@ export async function addReview(bookingId: string, proId: string, rating: number
       clientId,
       clientName: auth.currentUser?.displayName || "User",
       clientPhoto: auth.currentUser?.photoURL || "",
-      rating,
-      comment,
+      rating: normalizedRating,
+      comment: normalizedComment,
       createdAt: serverTimestamp(),
     });
   });

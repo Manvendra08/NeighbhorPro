@@ -9,7 +9,7 @@ import {
   type LedgerEntry, type NCTerms, type CoinPayout,
 } from "../services/coinService";
 import { logActivity } from "../services/activityService";
-import { initiateTopUp, type PaymentStatus } from "../services/razorpayService";
+import { initiateTopUp, isRazorpayTopupEnabled, type PaymentStatus } from "../services/razorpayService";
 import { formatTimestamp, updateUserProfile } from "../services/firestoreService";
 import { queryClient, queryKeys, useCoinBalanceQuery } from "../lib/queryClient";
 
@@ -51,6 +51,7 @@ export default function Wallet() {
   const { data: balance = userProfile?.coinBalance ?? 0 } = useCoinBalanceQuery(user?.uid, userProfile?.coinBalance ?? 0);
   const isPro   = userProfile?.isServiceProvider;
   const isBusy  = payStatus === "awaiting_payment" || payStatus === "crediting";
+  const topupsEnabled = isRazorpayTopupEnabled();
   const storedCode = normalizeReferralCode(userProfile?.referralCode);
   const myCode = isValidReferralCode(storedCode)
     ? storedCode
@@ -112,6 +113,11 @@ export default function Wallet() {
 
   const handleBuy = async () => {
     if (!user || !userProfile || isBusy) return;
+    if (!topupsEnabled) {
+      setPayStatus("failed");
+      setPayError("Coin top-ups are disabled on Spark plan. Blaze-backed Functions + webhook are required for secure payments.");
+      return;
+    }
     setPayError("");
     await initiateTopUp({
       uid: user.uid, packLabel: COIN_PACKS[selectedPack].label,
@@ -284,7 +290,15 @@ export default function Wallet() {
             </div>
           </div>
           <div className="grid grid-2">
-            <button className="btn btn-primary btn-lg" onClick={() => setTab("buy")} style={{ justifyContent: "center" }}>+ Buy Coins</button>
+            <button
+              className="btn btn-primary btn-lg"
+              onClick={() => topupsEnabled ? setTab("buy") : null}
+              style={{ justifyContent: "center" }}
+              disabled={!topupsEnabled}
+              title={topupsEnabled ? "" : "Top-ups unavailable on Spark plan"}
+            >
+              + Buy Coins
+            </button>
             <button className="btn btn-secondary btn-lg" onClick={() => setTab("referral")} style={{ justifyContent: "center" }}>🎯 Refer & Earn</button>
           </div>
         </div>
@@ -296,9 +310,14 @@ export default function Wallet() {
           <div className="card">
             <h3 className="card-title" style={{ marginBottom: 4 }}>Select a Coin Pack</h3>
             <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Purchased coins never expire.</p>
+            {!topupsEnabled && (
+              <div className="error-box" style={{ marginBottom: 16 }}>
+                Top-ups are disabled on Firebase Spark plan. Secure Razorpay payments require Blaze-backed Cloud Functions and webhook verification.
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
               {COIN_PACKS.map((pack, i) => (
-                <div key={pack.label} onClick={() => !isBusy && setSP(i)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderRadius: 12, position: "relative", cursor: isBusy ? "not-allowed" : "pointer", opacity: isBusy ? 0.6 : 1, border: selectedPack === i ? "2px solid #1B6B8A" : "2px solid var(--border)", background: selectedPack === i ? "rgba(27,107,138,0.05)" : "var(--surface)", transition: "all 0.15s" }}>
+                <div key={pack.label} onClick={() => !isBusy && topupsEnabled && setSP(i)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderRadius: 12, position: "relative", cursor: isBusy || !topupsEnabled ? "not-allowed" : "pointer", opacity: isBusy || !topupsEnabled ? 0.6 : 1, border: selectedPack === i ? "2px solid #1B6B8A" : "2px solid var(--border)", background: selectedPack === i ? "rgba(27,107,138,0.05)" : "var(--surface)", transition: "all 0.15s" }}>
                   {pack.popular && <span style={{ position: "absolute", top: -10, left: 16, background: "linear-gradient(135deg,#F5692C,#E8450A)", color: "#fff", fontSize: "0.7rem", fontWeight: 700, padding: "2px 10px", borderRadius: 50 }}>MOST POPULAR</span>}
                   <div>
                     <div style={{ fontWeight: 700 }}>{pack.label} Pack</div>
@@ -319,7 +338,7 @@ export default function Wallet() {
             </div>
             {payStatus !== "idle" && STATUS_UI[payStatus] && <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 18px", marginBottom: 16, fontSize: "0.9rem", fontWeight: 500, textAlign: "center", color: STATUS_UI[payStatus]!.color }}>{STATUS_UI[payStatus]!.text}</div>}
             {payError && <div className="error-box" style={{ marginBottom: 16 }}>{payError}</div>}
-            <button className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center", background: "linear-gradient(135deg,#F5692C,#E8450A)" }} onClick={handleBuy} disabled={isBusy || payStatus === "success"}>
+            <button className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center", background: "linear-gradient(135deg,#F5692C,#E8450A)" }} onClick={handleBuy} disabled={!topupsEnabled || isBusy || payStatus === "success"}>
               {isBusy ? "Processing…" : payStatus === "success" ? "✅ Coins added!" : `Pay ₹${COIN_PACKS[selectedPack].priceRs} via UPI / Card`}
             </button>
             <p style={{ fontSize: "0.76rem", color: "var(--muted)", textAlign: "center", marginTop: 10 }}>🔒 Secured by Razorpay · No auto-renewal</p>
@@ -497,7 +516,7 @@ export default function Wallet() {
               <div className="empty-state-icon">📋</div>
               <div className="empty-state-title">No transactions yet</div>
               <div className="empty-state-desc">Your coin activity will appear here once you make your first booking or purchase.</div>
-              <button className="btn btn-primary btn-sm" onClick={() => setTab("buy")} style={{ marginTop: 12 }}>Buy Coins to Get Started</button>
+              <button className="btn btn-primary btn-sm" onClick={() => topupsEnabled ? setTab("buy") : null} style={{ marginTop: 12 }} disabled={!topupsEnabled}>Buy Coins to Get Started</button>
             </div>
           ) : (
             <div className="table-wrap">

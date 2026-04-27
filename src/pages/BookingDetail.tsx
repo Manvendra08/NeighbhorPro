@@ -6,6 +6,7 @@ import { releaseEscrow, earnCoins, rewardReferral, cancelBookingAndRefund } from
 import { logActivity } from "../services/activityService";
 import { formatBookingDateTime } from "../utils/time";
 import { getPaymentStatusLabel } from "../utils/booking";
+import { captureError } from "../lib/sentry";
 
 function buildRecurringRebookQuery(booking: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -91,20 +92,23 @@ export default function BookingDetail() {
   };
 
   const submitCancellation = async () => {
+    if (!user || !id) return;
     setAL("cancel");
     try {
       const role = isClient ? "client" : "pro";
-      const result = await cancelBookingAndRefund(user!.uid, id!, role);
+      const result = await cancelBookingAndRefund(user.uid, id, role);
       if (!result.success) { setError(result.reason || "Failed to cancel."); setAL(null); return; }
 
-      await updateBookingFields(id!, {
+      await updateBookingFields(id, {
         cancellationComment: cancelComment.trim(),
-        cancellationCommentBy: user!.uid,
+        cancellationCommentBy: user.uid,
         cancellationCommentRole: role,
-      }).catch(() => {});
+      }).catch((error: unknown) => {
+        captureError(error, { operation: "update_booking_cancellation_comment", uid: user.uid, bookingId: id });
+      });
 
       const counterparty = isClient ? (booking.proName as string) || booking.proId : (booking.clientName as string) || booking.clientId;
-      logActivity(user!.uid, "booking.cancelled", `${isClient ? "Cancelled" : "Declined"} booking: ${(booking.serviceName as string) || id} ${isClient ? "with" : "from"} ${counterparty}`, { bookingId: id, role, escrowRefunded: escrowCoins, comment: cancelComment.trim() });
+      logActivity(user.uid, "booking.cancelled", `${isClient ? "Cancelled" : "Declined"} booking: ${(booking.serviceName as string) || id} ${isClient ? "with" : "from"} ${counterparty}`, { bookingId: id, role, escrowRefunded: escrowCoins, comment: cancelComment.trim() });
       setShowCancelConfirm(false);
       setCancelComment("");
       await load();
@@ -113,24 +117,30 @@ export default function BookingDetail() {
   };
 
   const handleConfirm = async () => {
+    if (!id) return;
     setAL("confirm");
-    try { await updateBookingStatus(id!, "confirmed"); await load(); }
+    try { await updateBookingStatus(id, "confirmed"); await load(); }
     catch { setError("Failed to confirm."); }
     setAL(null);
   };
 
   const submitCompletion = async () => {
+    if (!user || !id) return;
     setAL("complete");
     try {
       const escrowCoins = (booking.escrowCoins as number) || 0;
       if (escrowCoins === 0) {
         // Free session completed -> PRO earns free consult reward
-        await earnCoins(user!.uid, "earn_free_consult", id!).catch(() => {});
+        await earnCoins(user.uid, "earn_free_consult", id).catch((error: unknown) => {
+          captureError(error, { operation: "earn_free_consult", uid: user.uid, bookingId: id });
+        });
       }
-      const result = await releaseEscrow(user!.uid, id!, (booking.serviceName as string) || "Session");
+      const result = await releaseEscrow(user.uid, id, (booking.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
-        await rewardReferral(booking.clientId as string, id!).catch(() => {});
-      logActivity(user!.uid, "booking.completed", `Completed booking: ${(booking.serviceName as string) || id} for ${(booking.clientName as string) || booking.clientId}`, { bookingId: id, role: "pro", escrowReleased: escrowCoins });
+      await rewardReferral(booking.clientId as string, id).catch((error: unknown) => {
+        captureError(error, { operation: "reward_referral", uid: user.uid, bookingId: id });
+      });
+      logActivity(user.uid, "booking.completed", `Completed booking: ${(booking.serviceName as string) || id} for ${(booking.clientName as string) || booking.clientId}`, { bookingId: id, role: "pro", escrowReleased: escrowCoins });
       setShowCompleteConfirm(false);
       await load();
     } catch { setError("Failed to complete booking."); }
@@ -138,11 +148,14 @@ export default function BookingDetail() {
   };
 
   const handleReviewSubmit = async () => {
+    if (!user || !id) return;
     setRS(true); setError("");
     try {
-      await addReview(id!, booking!.proId as string, reviewRating, reviewComment);
-      await updateBookingStatus(id!, "reviewed");
-      await earnCoins(user!.uid, "earn_review", id!).catch(() => {});
+      await addReview(id, booking.proId as string, reviewRating, reviewComment);
+      await updateBookingStatus(id, "reviewed");
+      await earnCoins(user.uid, "earn_review", id).catch((error: unknown) => {
+        captureError(error, { operation: "earn_review", uid: user.uid, bookingId: id });
+      });
       setShowReview(false);
       setRR(5); setRC("");
       await load();
@@ -168,8 +181,9 @@ export default function BookingDetail() {
   };
 
   const openChat = async () => {
+    if (!user || !id) return;
     try {
-      const cid = await getOrCreateConversation(user!.uid, otherUid, { bookingId: id! });
+      const cid = await getOrCreateConversation(user.uid, otherUid, { bookingId: id });
       navigate(`/messages?conv=${cid}`);
     } catch {
       setError("Unable to open chat right now. Please try again in a moment.");

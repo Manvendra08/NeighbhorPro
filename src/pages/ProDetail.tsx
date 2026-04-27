@@ -292,13 +292,22 @@ export default function ProDetail() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button className="btn btn-primary" onClick={handleBookConsultation}>Book Consultation</button>
               <button className="btn btn-secondary" onClick={async () => {
+                if (!user || !id) {
+                  alert("Please sign in to continue.");
+                  return;
+                }
                 const { getLatestBookingBetweenUsers, getOrCreateConversation } = await import("../services/firestoreService");
-                const latestBooking = await getLatestBookingBetweenUsers(user!.uid, id!);
+                const latestBooking = await getLatestBookingBetweenUsers(user.uid, id);
                 if (!latestBooking?.id) {
                   alert("Messaging is enabled after a booking is created.");
                   return;
                 }
-                const convId = await getOrCreateConversation(user!.uid, id!, { bookingId: latestBooking.id as string });
+                const bookingId = String(latestBooking.id || "").trim();
+                if (!bookingId) {
+                  alert("Messaging is enabled after a booking is created.");
+                  return;
+                }
+                const convId = await getOrCreateConversation(user.uid, id, { bookingId });
                 navigate(`/messages?conv=${convId}`);
               }}>Message</button>
             </div>

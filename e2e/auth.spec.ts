@@ -1,40 +1,84 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/test-fixtures";
 
-test.describe("Authentication", () => {
-  test("landing page loads and shows sign-in", async ({ page }) => {
+test.describe("Authentication Flow", () => {
+  test("landing page loads and displays sign-in CTA", async ({ page, loginPage }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/ProNeighbor|NeighbourPro/i);
-    // Sign In may be a button or link on the landing page
-    await expect(
-      page.locator("a, button").filter({ hasText: /sign in|log in|get started/i }).first()
-    ).toBeVisible();
+    await loginPage.waitForLoad();
+    
+    await loginPage.assertTitleContains(/ProNeighbor|NeighbourPro/i);
+    await expect(loginPage.signInButton).toBeVisible();
+    await expect(loginPage.signUpButton).toBeVisible();
   });
 
-  test("unauthenticated user is redirected from dashboard", async ({ page }) => {
+  test("unauthenticated user is redirected from protected routes", async ({ page, dashboardPage }) => {
     await page.goto("/dashboard");
-    // Should redirect to landing or login
-    await expect(page).not.toHaveURL(/dashboard/);
+    await dashboardPage.waitForLoad();
+    
+    await dashboardPage.assertRedirected();
   });
 
-  test("sign-in page renders email and password fields", async ({ page }) => {
-    await page.goto("/");
-    // Click the first sign-in CTA (may be a button or link)
-    const signinBtn = page.locator("a, button").filter({ hasText: /sign in|log in/i }).first();
-    if (await signinBtn.isVisible()) {
-      await signinBtn.click();
-    }
-    await expect(page.locator("input[type='email'], input[name='email']").first()).toBeVisible({ timeout: 5000 });
+  test("login page renders with required form fields", async ({ loginPage }) => {
+    await loginPage.goto();
+    await loginPage.assertFormVisible();
+    
+    await expect(loginPage.emailInput).toBeVisible();
+    await expect(loginPage.passwordInput).toBeVisible();
+    await expect(loginPage.signInButton).toBeVisible();
   });
 
-  test("displays error on invalid credentials", async ({ page }) => {
-    await page.goto("/login");
-    const emailInput = page.locator("input[type='email'], input[name='email']").first();
-    await emailInput.fill("notreal@example.com");
-    await page.locator("input[type='password']").first().fill("wrongpassword");
-    await page.getByRole("button", { name: /sign in/i }).first().click();
-    // The app shows an error-box div with the error message
+  test("displays error message on invalid credentials", async ({ loginPage }) => {
+    await loginPage.login("notreal@example.com", "wrongpassword");
+    
+    await loginPage.assertLoginFailure();
+    const errorMessage = await loginPage.getErrorMessage();
+    expect(errorMessage).toBeTruthy();
+    expect(errorMessage).toMatch(/invalid|incorrect|error|failed/i);
+  });
+
+  test("successful login redirects to dashboard", async ({ 
+    page, 
+    loginPage, 
+    dashboardPage 
+  }, testInfo) => {
+    // Skip if test credentials not configured
+    test.skip(
+      !process.env.TEST_RESIDENT_EMAIL, 
+      "Test credentials not configured. Set TEST_RESIDENT_EMAIL and TEST_RESIDENT_PASSWORD env vars."
+    );
+
+    const email = process.env.TEST_RESIDENT_EMAIL!;
+    const password = process.env.TEST_RESIDENT_PASSWORD!;
+    
+    await loginPage.login(email, password);
+    await loginPage.assertLoginSuccess();
+    
+    await dashboardPage.waitForDataLoad();
+    await dashboardPage.assertLoaded();
+    
+    // Verify user-specific content is visible
+    await expect(dashboardPage.welcomeMessage).toBeVisible();
+    await expect(dashboardPage.walletBalance).toBeVisible();
+  });
+
+  test("forgot password flow is accessible", async ({ loginPage }) => {
+    await loginPage.goto();
+    
+    await expect(loginPage.forgotPasswordLink).toBeVisible();
+    await loginPage.clickForgotPassword();
+    
+    // Should navigate to password reset page or show modal
     await expect(
-      page.locator(".error-box").first(),
-    ).toBeVisible({ timeout: 15_000 });
+      page.locator("text=/reset password|forgot password|enter your email/i").first()
+    ).toBeVisible({ timeout: 5000 });
+  });
+
+  test("navigation from login to signup works", async ({ loginPage, page }) => {
+    await loginPage.goto();
+    
+    await expect(loginPage.signUpLink).toBeVisible();
+    await loginPage.clickSignUp();
+    
+    // Should navigate to signup page
+    await expect(page).toHaveURL(/signup|register|auth\/sign-up/);
   });
 });
