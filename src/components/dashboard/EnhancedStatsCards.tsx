@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import SparklineChart from "./SparklineChart";
 
@@ -5,6 +6,7 @@ export type DashboardStatCard = {
   label: string;
   value: string;
   helper: string;
+  helperContent?: ReactNode;
   icon: string;
   tone?: "accent" | "success" | "warning" | "danger";
   to?: string;
@@ -32,6 +34,7 @@ export default function EnhancedStatsCards({ cards }: EnhancedStatsCardsProps) {
             <div className="db-stats-card__value">{card.value}</div>
             <div className="db-stats-card__label">{card.label}</div>
             <div className="db-stats-card__helper">{card.helper}</div>
+            {card.helperContent}
           </>
         );
 

@@ -18,6 +18,7 @@ import { Timestamp } from "firebase/firestore";
 import { relativeTime } from "../utils/time";
 import { createTicket } from "../services/supportService";
 import { fetchCachedPublicProfile } from "../lib/queryClient";
+import { captureError } from "../lib/sentry";
 
 
 export default function Messages() {
@@ -143,7 +144,9 @@ export default function Messages() {
       setMessages(msgs);
     });
     // Mark as read
-    markConversationRead(activeConv, user.uid).catch(() => {});
+    markConversationRead(activeConv, user.uid).catch((error: unknown) => {
+      captureError(error, { operation: "mark_conversation_read_subscribe", convId: activeConv, uid: user.uid });
+    });
     setUnreadCounts(prev => ({ ...prev, [activeConv]: 0 }));
     return unsub;
   }, [activeConv, user]);
@@ -173,7 +176,8 @@ export default function Messages() {
         .then(booking => {
           setLinkedBookingStatus((booking?.status as string) || null);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          captureError(error, { operation: "messages.get_linked_booking_status", bookingId });
           setLinkedBookingStatus(null);
         });
       return;
@@ -196,7 +200,8 @@ export default function Messages() {
         setLinkedBookingId((booking?.id as string) || null);
         setLinkedBookingStatus((booking?.status as string) || null);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        captureError(error, { operation: "messages.get_latest_booking_between_users", uid: user.uid, otherId });
         setLinkedBookingId(null);
         setLinkedBookingStatus(null);
       });
@@ -224,7 +229,10 @@ export default function Messages() {
     let alive = true;
     Promise.all(
       bookingPairs.map(async ({ conversationId, bookingId }) => {
-        const booking = await getBookingById(bookingId as string).catch(() => null);
+        const booking = await getBookingById(bookingId as string).catch((error: unknown) => {
+          captureError(error, { operation: "messages.get_booking_status_for_conversation", conversationId, bookingId });
+          return null;
+        });
         const status = String((booking?.status as string) || "").toLowerCase();
         return { conversationId, status };
       })
@@ -283,7 +291,9 @@ export default function Messages() {
     setNewMsg("");
     setShowEmojiPicker(false);
     await sendMessage(activeConv, user.uid, text);
-    markConversationRead(activeConv, user.uid).catch(() => {});
+    markConversationRead(activeConv, user.uid).catch((error: unknown) => {
+      captureError(error, { operation: "mark_conversation_read_send", convId: activeConv, uid: user.uid });
+    });
     // Log once per conversation per session (throttle to avoid per-message writes)
     if (!loggedConvsRef.current.has(activeConv)) {
       loggedConvsRef.current.add(activeConv);

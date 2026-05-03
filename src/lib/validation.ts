@@ -159,3 +159,38 @@ export type AuditLogInput = z.infer<typeof AuditLogSchema>;
 export function validateAuditEntry(data: unknown): AuditLogInput {
   return validateInput(AuditLogSchema, data, "audit log");
 }
+
+// ── Runtime type-safe getters ────────────────────────────────────────────────
+/**
+ * Safely extract a string from an unknown value.
+ * Use instead of `value as string` to avoid runtime crashes.
+ */
+export function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+/**
+ * Safely extract a number from an unknown value.
+ * Use instead of `value as number` to avoid runtime crashes.
+ */
+export function asNumber(value: unknown, fallback = 0): number {
+  if (typeof value === "number" && !Number.isNaN(value)) return value;
+  const parsed = Number(value);
+  return !Number.isNaN(parsed) ? parsed : fallback;
+}
+
+/**
+ * Safely extract an array from an unknown value.
+ * Use instead of `value as T[]` to avoid runtime crashes.
+ */
+export function asArray<T>(value: unknown, fallback: T[] = []): T[] {
+  return Array.isArray(value) ? (value as T[]) : fallback;
+}
+
+/**
+ * Safely extract a boolean from an unknown value.
+ * Use instead of `value as boolean` to avoid runtime crashes.
+ */
+export function asBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}

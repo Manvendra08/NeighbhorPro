@@ -8,7 +8,7 @@ import "./pwa.css";
 import "./darkmode.css";
 import App from "./App.tsx";
 import { queryClient } from "./lib/queryClient";
-import { initSentry } from "./lib/sentry";
+import { captureError, initSentry } from "./lib/sentry";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 initSentry();
@@ -17,7 +17,7 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator) {
   if (import.meta.env.PROD) {
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("/sw.js").catch((err) => {
-        console.warn("SW registration failed:", err);
+        captureError(err, { operation: "service_worker_register" });
       });
     });
   } else {

@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, MapPin, Phone, MessageSquare, Send, ArrowLeft } from "lucide-react";
 
@@ -20,16 +20,25 @@ export default function Contact() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    return () => {
+      if (submitTimerRef.current) {
+        clearTimeout(submitTimerRef.current);
+      }
+    };
   }, []);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     // Simulate API call
-    setTimeout(() => {
+    if (submitTimerRef.current) {
+      clearTimeout(submitTimerRef.current);
+    }
+    submitTimerRef.current = setTimeout(() => {
       setLoading(false);
       setSubmitted(true);
     }, 1500);

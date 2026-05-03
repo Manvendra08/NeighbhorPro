@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   createService,
@@ -8,6 +8,7 @@ import {
   getServicesByUser,
   updateService,
   updateUserProfile,
+  deleteResidencyProof,
   uploadProfilePhoto,
   uploadResidencyProof,
 } from "../services/firestoreService";
@@ -80,6 +81,10 @@ const SKILL_SUGGESTIONS = [
   "Pet Grooming",
 ];
 
+function getDeliverableProofUrl(url: unknown): string {
+  return typeof url === "string" ? url.replace(/\/raw\/upload\//i, "/image/upload/") : "";
+}
+
 type ProfileProps = {
   profileOverride?: Record<string, unknown> | null;
   uidOverride?: string | null;
@@ -120,6 +125,9 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   const [saveError, setSaveError] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
+  const [deletingProof, setDeletingProof] = useState(false);
+
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [services, setServices] = useState<Record<string, unknown>[]>([]);
   const [showServiceForm, setShowServiceForm] = useState(false);
@@ -183,6 +191,14 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     getServicesByUser(targetUid).then(setServices).catch(() => setServices([]));
   }, [targetUid]);
 
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) {
+        clearTimeout(savedTimerRef.current);
+      }
+    };
+  }, []);
+
   const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !targetUid || isAdminViewAs) return;
@@ -193,7 +209,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     }
     const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
-      alert("Invalid file type. Only JPG, PNG, and WebP are allowed.");
+      alert("Invalid file type for profile photo. Only JPG, PNG, and WebP images are allowed.\n\nFor residency proof (PDF/DOC), please use the 'Upload proof document' button below.");
       return;
     }
     
@@ -251,7 +267,10 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
         adminViewAs: isAdminViewAs,
       });
       setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      if (savedTimerRef.current) {
+        clearTimeout(savedTimerRef.current);
+      }
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2500);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Profile save failed. Please try again.");
     } finally {
@@ -324,6 +343,26 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
 
   const targetEmail = (targetProfile?.email as string) || user?.email || "";
   const verificationStatus = (targetProfile?.residentVerificationStatus as string) || "none";
+  const proofUrl = getDeliverableProofUrl(targetProfile?.residencyProofUrl);
+  const rejectionNote = typeof targetProfile?.verificationReviewNote === "string" ? targetProfile.verificationReviewNote.trim() : "";
+  const hasRejectedProof = verificationStatus === "none" && Boolean(proofUrl) && Boolean(rejectionNote);
+  const canDeleteProof = Boolean(proofUrl) && verificationStatus !== "verified" && !isAdminViewAs;
+
+  const handleDeleteProof = async () => {
+    if (!targetUid || !canDeleteProof) return;
+    const ok = window.confirm("Delete uploaded residency proof? You can upload a new document after this.");
+    if (!ok) return;
+
+    setDeletingProof(true);
+    try {
+      await deleteResidencyProof(targetUid);
+      void logActivity(targetUid, "verification.submitted", "Residency proof deleted");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to delete residency proof.");
+    } finally {
+      setDeletingProof(false);
+    }
+  };
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto" }}>
@@ -483,21 +522,39 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div>
                 <label className="form-label" style={{ marginBottom: 4 }}>Residency Proof</label>
-                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Upload a clear JPG, JPEG, or PNG document.</p>
+                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Upload a clear JPG, PNG, WebP, PDF, or DOC document.</p>
               </div>
               {verificationStatus === "verified" && <span className="badge badge-success" style={{ fontSize: 11 }}>Verified Resident</span>}
               {verificationStatus === "pending" && <span className="badge badge-warning" style={{ fontSize: 11 }}>Pending Review</span>}
+              {hasRejectedProof && <span className="badge badge-error" style={{ fontSize: 11 }}>Rejected</span>}
             </div>
-            {targetProfile?.residencyProofUrl && (
-              <div style={{ marginBottom: 8, fontSize: 12 }}>
-                <a href={targetProfile.residencyProofUrl as string} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>View uploaded proof</a>
+            {hasRejectedProof && (
+              <div style={{ marginBottom: 10, padding: 10, border: "1px solid rgba(255, 92, 92, 0.25)", borderRadius: 6, background: "rgba(255, 92, 92, 0.08)", fontSize: 12 }}>
+                <strong style={{ color: "var(--error)" }}>Reason: </strong>
+                <span>{rejectionNote}</span>
+              </div>
+            )}
+            {proofUrl && (
+              <div style={{ marginBottom: 8, fontSize: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <a
+                  href={proofUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "var(--accent)" }}
+                >View uploaded proof</a>
+                {canDeleteProof && (
+                  <button type="button" className="btn btn-danger btn-sm" onClick={handleDeleteProof} disabled={deletingProof || uploadingProof}>
+                    {deletingProof ? "Deleting..." : "Delete proof"}
+                  </button>
+                )}
               </div>
             )}
             <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: uploadingProof || isAdminViewAs ? "default" : "pointer", padding: "8px 16px", border: "1px dashed var(--border)", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--muted)" }}>
               {uploadingProof ? "Uploading..." : isAdminViewAs ? "Upload disabled in Login As mode" : "Upload proof document"}
               <input
                 type="file"
-                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                capture="environment"
                 style={{ display: "none" }}
                 disabled={uploadingProof || isAdminViewAs}
                 onChange={async (event) => {
@@ -508,10 +565,20 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                     alert("Proof document is too large. Max size is 10MB.");
                     return;
                   }
-                  
-                  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-                  if (!allowedTypes.includes(file.type)) {
-                    alert("Invalid file type. Only JPG, PNG, and WebP are allowed.");
+
+                  const allowedTypes = [
+                    "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
+                    "application/pdf", "application/msword",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  ];
+
+                  // Fallback to file extension check if MIME type is missing or incorrect (common on some mobile devices)
+                  const fileName = file.name.toLowerCase();
+                  const isAllowedExtension = /\.(jpe?g|png|webp|heic|heif|pdf|docx?)$/i.test(fileName);
+                  const isAllowedType = allowedTypes.includes(file.type) || (!file.type && isAllowedExtension);
+
+                  if (!isAllowedType) {
+                    alert("Invalid file type. Accepted: JPG, PNG, WebP, PDF, DOC, DOCX.");
                     return;
                   }
 

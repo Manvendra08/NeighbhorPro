@@ -85,9 +85,10 @@ export default function MobileDashboard({
   const coins = Number(userProfile?.coinBalance) || 0;
   const rating = computedRating ?? ((userProfile?.rating as number) || null);
   const totalReviews = Object.values(reviewDistribution).reduce((sum, count) => sum + (Number(count) || 0), 0);
-  const ratingBreakdown = [5, 4, 3, 2, 1]
-    .map(star => `${star}★${Number(reviewDistribution[star]) || 0}`)
-    .join(" ");
+  const ratingBars = [5, 4, 3, 2, 1].map((star) => {
+    const count = Number(reviewDistribution[star]) || 0;
+    return { star, count };
+  });
   const proPending = proBookings.filter(booking => booking.status === "pending").length;
   const nextBooking = isPro ? findNextBooking(proBookings) : findNextBooking(upcomingBookings);
 
@@ -116,8 +117,27 @@ export default function MobileDashboard({
     : [
         { label: "Balance", value: `${coins.toLocaleString("en-IN")} NC`, helper: "Wallet", icon: "🪙", tone: "warning", to: "/wallet", sparkline: earningsSummary.balanceSeries },
         { label: "Upcoming", value: String(upcomingBookings.length), helper: "Next sessions", icon: "📅", tone: "accent", to: "/bookings", sparkline: earningsSummary.balanceSeries },
-        { label: "Average Rating", value: rating ? `${rating.toFixed(1)}★` : "—", helper: `Reviews: ${totalReviews} · ${ratingBreakdown}`, icon: "⭐", tone: "success", to: "/profile", sparkline: [1, 2, 3, 4, 5].map(star => Number(reviewDistribution[star]) || 0) },
-        { label: "Bookings", value: String(userBookings.length), helper: "Total", icon: "📦", tone: "accent", to: "/bookings", sparkline: earningsSummary.balanceSeries },
+        {
+          label: "Average Rating",
+          value: rating ? `${rating.toFixed(1)}` : "—",
+          helper: `${totalReviews} total review${totalReviews === 1 ? "" : "s"}`,
+          helperContent: (
+            <div className="db-stats-rating">
+              {ratingBars.map(({ star, count }) => (
+                <div key={star} className="db-stats-rating__row">
+                  <span className="db-stats-rating__star">{star}★</span>
+                  <progress className="db-stats-rating__progress" value={count} max={Math.max(totalReviews, 1)} aria-label={`${star} star reviews`} />
+                  <strong className="db-stats-rating__count">{count}</strong>
+                </div>
+              ))}
+            </div>
+          ),
+          icon: "⭐",
+          tone: "success",
+          to: "/profile",
+          sparkline: [1, 2, 3, 4, 5].map(star => Number(reviewDistribution[star]) || 0),
+        },
+        { label: "Bookings", value: String(userBookings.length), helper: "Total", icon: "📦", tone: "accent", to: "/bookings?subTab=past", sparkline: earningsSummary.balanceSeries },
       ];
 
   if (loading && !userProfile) {

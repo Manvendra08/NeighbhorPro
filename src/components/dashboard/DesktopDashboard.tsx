@@ -104,9 +104,10 @@ export default function DesktopDashboard({
   const coins = Number(userProfile?.coinBalance) || 0;
   const rating = computedRating ?? ((userProfile?.rating as number) || null);
   const totalReviews = Object.values(reviewDistribution).reduce((sum, count) => sum + (Number(count) || 0), 0);
-  const ratingBreakdown = [5, 4, 3, 2, 1]
-    .map(star => `${star}★${Number(reviewDistribution[star]) || 0}`)
-    .join(" ");
+  const ratingBars = [5, 4, 3, 2, 1].map((star) => {
+    const count = Number(reviewDistribution[star]) || 0;
+    return { star, count };
+  });
 
   useEffect(() => {
     const unsub = subscribeToFeed(locality, setPosts);
@@ -187,8 +188,19 @@ export default function DesktopDashboard({
         },
         {
           label: "Average Rating",
-          value: rating ? `${rating.toFixed(1)}★` : "—",
-          helper: `Reviews: ${totalReviews} · ${ratingBreakdown}`,
+          value: rating ? `${rating.toFixed(1)}` : "—",
+          helper: `${totalReviews} total review${totalReviews === 1 ? "" : "s"}`,
+          helperContent: (
+            <div className="db-stats-rating">
+              {ratingBars.map(({ star, count }) => (
+                <div key={star} className="db-stats-rating__row">
+                  <span className="db-stats-rating__star">{star}★</span>
+                  <progress className="db-stats-rating__progress" value={count} max={Math.max(totalReviews, 1)} aria-label={`${star} star reviews`} />
+                  <strong className="db-stats-rating__count">{count}</strong>
+                </div>
+              ))}
+            </div>
+          ),
           icon: "⭐",
           tone: "success",
           to: "/profile",
@@ -200,7 +212,7 @@ export default function DesktopDashboard({
           helper: "Sessions booked so far",
           icon: "📦",
           tone: "accent",
-          to: "/bookings",
+          to: "/bookings?subTab=past",
           sparkline: buildSeries(userBookings),
         },
       ];

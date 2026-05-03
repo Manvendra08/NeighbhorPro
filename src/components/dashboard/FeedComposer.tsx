@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createFeedPost } from "../../services/firestoreService";
 import EmojiPicker from "./EmojiPicker";
 
@@ -14,6 +14,15 @@ export default function FeedComposer({ uid, displayName, locality, tower, societ
   const [posting, setPosting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const cursorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cursorTimerRef.current) {
+        clearTimeout(cursorTimerRef.current);
+      }
+    };
+  }, []);
 
   const handlePost = async () => {
     if (!text.trim() || posting) return;
@@ -39,7 +48,10 @@ export default function FeedComposer({ uid, displayName, locality, tower, societ
     const end = ta.selectionEnd;
     const newText = text.slice(0, start) + emoji + text.slice(end);
     setText(newText);
-    setTimeout(() => { ta.selectionStart = ta.selectionEnd = start + emoji.length; ta.focus(); }, 0);
+    if (cursorTimerRef.current) {
+      clearTimeout(cursorTimerRef.current);
+    }
+    cursorTimerRef.current = setTimeout(() => { ta.selectionStart = ta.selectionEnd = start + emoji.length; ta.focus(); }, 0);
   };
 
   return (

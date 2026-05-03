@@ -28,6 +28,7 @@ import { updateProfile } from "firebase/auth";
 import { db, auth } from "../firebase";
 import { generateUniqueReferralCode, isValidReferralCode, normalizeReferralCode } from "./coinService";
 import { validateUpload } from "../utils/cloudinary";
+import { captureError } from "../lib/sentry";
 
 /* ═══════════════════════════════════════════
    USERS
@@ -40,6 +41,7 @@ const PUBLIC_PROFILE_FIELDS = [
   'hourlyRate', 'isFreeConsultation',
   'priceAfterQuote', 'role', 'disabled', 'createdAt',
   'emailVisible', 'phoneVisible', 'flatVisible',
+  'residencyProofUrl', 'residentVerificationStatus',
 ] as const;
 
 const AVAILABILITY_DAYS = [
@@ -232,8 +234,49 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
     }
   });
   if (auth.currentUser?.uid === uid && typeof nextDisplayName === "string" && nextDisplayName.trim()) {
-    await updateProfile(auth.currentUser, { displayName: nextDisplayName.trim() }).catch(() => {});
+    await updateProfile(auth.currentUser, { displayName: nextDisplayName.trim() }).catch((error: unknown) => {
+      captureError(error, { operation: "sync_auth_display_name", uid });
+    });
   }
+}
+
+/**
+ * Standardized Cloudinary upload with retry logic and consistent error handling.
+ */
+async function uploadToCloudinary(
+  file: File,
+  folder: string,
+  preset: string,
+  cloudName: string,
+  resourceType: "image" | "raw" | "auto" = "auto",
+  retries = 2
+): Promise<{ secure_url: string; resource_type: string; format: string; original_filename: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", preset);
+  formData.append("folder", folder);
+
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error?.message || "Upload failed");
+      }
+      return await response.json();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < retries) {
+        // Exponential backoff: 1s, 2s
+        await new Promise(res => setTimeout(res, 1000 * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastError;
 }
 
 export async function uploadProfilePhoto(uid: string, file: File) {
@@ -241,14 +284,10 @@ export async function uploadProfilePhoto(uid: string, file: File) {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName || !uploadPreset) throw new Error("Cloudinary configuration is missing.");
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
-  formData.append("folder", "ProNeighbor/profiles");
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: "POST", body: formData });
-  if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
-  const data = await response.json();
+
+  const data = await uploadToCloudinary(file, "ProNeighbor/profiles", uploadPreset, cloudName, "image");
   const photoURL = data.secure_url;
+
   if (auth.currentUser) await updateProfile(auth.currentUser, { photoURL });
   await updateDoc(doc(db, "users", uid), { photoURL, updatedAt: serverTimestamp() });
   await mirrorPublicProfile(uid, { photoURL });
@@ -267,34 +306,20 @@ export async function uploadResidencyProof(uid: string, file: File) {
     throw new Error("Cloudinary upload preset is missing. Set VITE_CLOUDINARY_UPLOAD_PRESET or VITE_CLOUDINARY_RESIDENCY_UPLOAD_PRESET.");
   }
 
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
-  formData.append("folder", "ProNeighbor/residency-proofs");
+  // Keep Cloudinary default document handling; forcing raw URLs can trigger 401 on delivery.
+  const data = await uploadToCloudinary(file, "ProNeighbor/residency-proofs", uploadPreset, cloudName, "auto");
+  let residencyProofUrl = data.secure_url;
+  const resourceType = data.resource_type || "image";
 
-  const isImageFile = file.type.startsWith("image/");
-  if (!isImageFile) {
-    throw new Error("Only image files are supported for residency proof. Please upload JPG, PNG, or WEBP.");
+  // Backward compatibility for previously rewritten PDF URLs.
+  if (/\.pdf($|[?#])/i.test(residencyProofUrl) && residencyProofUrl.includes("/raw/upload/")) {
+    residencyProofUrl = residencyProofUrl.replace("/raw/upload/", "/image/upload/");
   }
-
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: "POST",
-    body: formData,
-  });
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error?.message || "Cloudinary upload failed");
-  }
-  const data = await response.json() as {
-    secure_url: string;
-  };
-
-  const residencyProofUrl = data.secure_url;
 
   const update = {
     residencyProofUrl,
     residencyProofPreviewUrl: null,
-    residencyProofResourceType: "image",
+    residencyProofResourceType: resourceType,
     residentVerificationStatus: "pending",
     verificationMethod: null,
     verificationReviewNote: null,
@@ -303,8 +328,17 @@ export async function uploadResidencyProof(uid: string, file: File) {
     verificationSubmittedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-  await updateDoc(doc(db, "users", uid), update);
-  await mirrorPublicProfile(uid, update);
+  try {
+    await updateDoc(doc(db, "users", uid), update);
+  } catch (error) {
+    console.error("Residency proof upload failed:", { uid, error, fields: Object.keys(update) });
+    throw new Error(`Failed to upload residency proof: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
+  // CRITICAL FIX: Mirror to public profile so other users see verification status
+  await mirrorPublicProfile(uid, {
+    residencyProofUrl,
+    residentVerificationStatus: "pending",
+  });
   return residencyProofUrl;
 }
 
@@ -338,8 +372,6 @@ export async function deleteResidencyProof(uid: string) {
     residentVerificationStatus: "none",
     verificationMethod: null,
     verificationReviewNote: preserveReviewNote,
-    verificationReviewedBy: null,
-    verificationReviewedAt: null,
     verificationSubmittedAt: null,
     updatedAt: serverTimestamp(),
   };
@@ -808,13 +840,8 @@ export async function uploadBookingAttachment(bookingId: string | null, file: Fi
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName || !uploadPreset) throw new Error("Cloudinary missing");
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
-  const resourceType = file.type.startsWith("image/") ? "image" : "raw";
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, { method: "POST", body: formData });
-  if (!res.ok) throw new Error("Upload failed");
-  const data = await res.json();
+
+  const data = await uploadToCloudinary(file, "ProNeighbor/bookings", uploadPreset, cloudName, "auto");
   const fileUrl = data.secure_url;
 
   if (bookingId) {
@@ -1194,14 +1221,8 @@ export async function uploadAttachment(conversationId: string, file: File) {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   if (!cloudName || !uploadPreset) throw new Error("Cloudinary configuration is missing.");
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
-  formData.append("folder", `ProNeighbor/messages/${conversationId}`);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: formData });
-  if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Upload failed"); }
-  const data = await response.json();
+  const data = await uploadToCloudinary(file, `ProNeighbor/messages/${conversationId}`, uploadPreset, cloudName, "auto");
   return { url: data.secure_url as string, resourceType: data.resource_type as string, format: data.format as string, originalFilename: data.original_filename as string };
 }
 export function subscribeToMessages(conversationId: string, callback: (messages: Record<string, unknown>[]) => void): Unsubscribe {
@@ -1396,8 +1417,6 @@ export async function getUnreadCount(convId: string, uid: string): Promise<numbe
   const snap = await getDocs(q);
   return snap.size;
 }
-
-
 /* ═══════════════════════════════════════════
    PLATFORM STATS (Public)
    ═══════════════════════════════════════════ */

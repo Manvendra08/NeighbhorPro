@@ -37,7 +37,10 @@ export function fetchCachedPublicProfile(uid: string) {
 export function usePublicProfileQuery(uid?: string | null) {
   return useQuery({
     queryKey: uid ? queryKeys.publicProfile(uid) : ["profiles", "public", "unknown"],
-    queryFn: () => getPublicProfile(uid!),
+    queryFn: () => {
+      if (!uid) throw new Error("uid is required");
+      return getPublicProfile(uid);
+    },
     enabled: Boolean(uid),
     staleTime: PROFILE_STALE_TIME,
   });
@@ -46,7 +49,10 @@ export function usePublicProfileQuery(uid?: string | null) {
 export function useServicesByUserQuery(uid?: string | null) {
   return useQuery({
     queryKey: uid ? queryKeys.servicesByUser(uid) : ["services", "user", "unknown"],
-    queryFn: () => getServicesByUser(uid!),
+    queryFn: () => {
+      if (!uid) throw new Error("uid is required");
+      return getServicesByUser(uid);
+    },
     enabled: Boolean(uid),
     staleTime: SERVICES_STALE_TIME,
   });
@@ -63,7 +69,10 @@ export function useAllServicesQuery(limit = 50) {
 export function useCoinBalanceQuery(uid?: string | null, initialBalance?: number) {
   return useQuery({
     queryKey: uid ? queryKeys.coinBalance(uid) : ["wallet", "balance", "unknown"],
-    queryFn: () => getCoinBalance(uid!),
+    queryFn: () => {
+      if (!uid) throw new Error("uid is required");
+      return getCoinBalance(uid);
+    },
     enabled: Boolean(uid),
     staleTime: BALANCE_STALE_TIME,
     initialData: initialBalance,

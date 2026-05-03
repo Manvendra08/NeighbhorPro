@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getProAvailability, updateProAvailability } from "../services/firestoreService";
+import { captureError } from "../lib/sentry";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const ALL_SLOTS = [
@@ -16,29 +17,45 @@ export default function ProAvailabilityEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (user) {
-      getProAvailability(user.uid).then(data => {
-        if (!data) {
-          const defaultSlots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"];
-          const defaultAvail: Record<string, any> = {
-            monday: { active: true, slots: defaultSlots },
-            tuesday: { active: true, slots: defaultSlots },
-            wednesday: { active: true, slots: defaultSlots },
-            thursday: { active: true, slots: defaultSlots },
-            friday: { active: true, slots: defaultSlots },
-            saturday: { active: false, slots: [] },
-            sunday: { active: false, slots: [] },
-          };
-          setAvail(defaultAvail);
-        } else {
-          setAvail(data);
-        }
-        setLoading(false);
-      });
-    }
+    if (!user) return;
+    let alive = true;
+    getProAvailability(user.uid).then(data => {
+      if (!alive) return;
+      if (!data) {
+        const defaultSlots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"];
+        const defaultAvail: Record<string, any> = {
+          monday: { active: true, slots: defaultSlots },
+          tuesday: { active: true, slots: defaultSlots },
+          wednesday: { active: true, slots: defaultSlots },
+          thursday: { active: true, slots: defaultSlots },
+          friday: { active: true, slots: defaultSlots },
+          saturday: { active: false, slots: [] },
+          sunday: { active: false, slots: [] },
+        };
+        setAvail(defaultAvail);
+      } else {
+        setAvail(data);
+      }
+      setLoading(false);
+    }).catch((error: unknown) => {
+      if (alive) setLoading(false);
+      captureError(error, { operation: "get_pro_availability", uid: user?.uid });
+    });
+    return () => {
+      alive = false;
+    };
   }, [user]);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) {
+        clearTimeout(savedTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSave = async () => {
     if (!user || !avail) return;
@@ -46,9 +63,10 @@ export default function ProAvailabilityEditor() {
     try {
       await updateProAvailability(user.uid, avail);
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
     } catch (e) {
-        console.error("Failed to save availability", e);
+      captureError(e instanceof Error ? e : new Error(String(e)), { operation: "save_pro_availability", uid: user.uid });
     }
     setSaving(false);
   };
@@ -149,4 +167,3 @@ export default function ProAvailabilityEditor() {
     </div>
   );
 }
-

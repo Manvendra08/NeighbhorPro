@@ -295,7 +295,43 @@ export const logActivityFunction = functions.onCall(
 );
 
 /* ═══════════════════════════════════════════════════════
-  5. flagSpamReviews — server-side automated review abuse signal
+   6. deleteUserAuth — Hard-delete Firebase Auth account
+      Called by admin after cascade Firestore deletion.
+      Admin SDK bypasses client auth restrictions.
+═══════════════════════════════════════════════════════ */
+export const deleteUserAuth = functions.onCall(
+  { region: "asia-south1" },
+  async (request: any) => {
+    if (!request.auth) {
+      throw new functions.HttpsError("unauthenticated", "Login required.");
+    }
+    // Verify caller is admin
+    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+    if (!callerDoc.exists || callerDoc.data()?.role !== "admin") {
+      throw new functions.HttpsError("permission-denied", "Admin only.");
+    }
+    const { uid } = request.data as { uid: string };
+    if (!uid || typeof uid !== "string") {
+      throw new functions.HttpsError("invalid-argument", "uid required.");
+    }
+    // Prevent self-deletion
+    if (uid === request.auth.uid) {
+      throw new functions.HttpsError("failed-precondition", "Cannot delete own account.");
+    }
+    try {
+      await admin.auth().deleteUser(uid);
+      logger.info("Auth account deleted", { uid, by: request.auth.uid });
+      return { success: true };
+    } catch (err: any) {
+      // user-not-found = already deleted, treat as success
+      if (err?.code === "auth/user-not-found") {
+        return { success: true, alreadyDeleted: true };
+      }
+      logger.error("Failed to delete auth account", { uid, err });
+      throw new functions.HttpsError("internal", "Failed to delete auth account.");
+    }
+  }
+);
 ═══════════════════════════════════════════════════════ */
 export const flagSpamReviews = onDocumentCreated(
   {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getRecommendedPros } from "../../services/firestoreService";
+import { captureError } from "../../lib/sentry";
 
 type RecommendedProsProps = {
   uid: string;
@@ -17,7 +18,18 @@ export default function RecommendedPros({
   const [pros, setPros] = useState<Record<string, unknown>[]>([]);
 
   useEffect(() => {
-    getRecommendedPros(uid, compact ? 3 : 4).then(setPros).catch(() => {});
+    let alive = true;
+    getRecommendedPros(uid, compact ? 3 : 4)
+      .then((data) => {
+        if (alive) setPros(data);
+      })
+      .catch((error: unknown) => {
+        captureError(error, { operation: "get_recommended_pros", uid, compact });
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [compact, uid]);
 
   if (!pros.length) return null;

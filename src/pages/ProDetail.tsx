@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import InfoTooltip from "../components/common/InfoTooltip";
 import { computeAggregateRating } from "../utils/rating";
+import { captureError } from "../lib/sentry";
 
 function Skel({ w = "100%", h = 16, radius = 6, mb = 0 }: { w?: string | number; h?: number; radius?: number; mb?: number }) {
   return <div className="skeleton" style={{ width: w, height: h, borderRadius: radius, marginBottom: mb, flexShrink: 0 }} />;
@@ -91,6 +92,7 @@ export default function ProDetail() {
 
   useEffect(() => {
     if (!id) return;
+    let alive = true;
 
     const load = async () => {
       try {
@@ -102,30 +104,46 @@ export default function ProDetail() {
         ]);
 
         if (!profile) {
-          setError("not_found");
+          if (alive) setError("not_found");
         } else {
-          setPro(profile);
-          computeResponseTime(id).then(setAvgRespHrs);
+          if (alive) setPro(profile);
+          computeResponseTime(id)
+            .then((value) => {
+              if (alive) setAvgRespHrs(value);
+            })
+            .catch((error: unknown) => {
+              captureError(error, { operation: "compute_response_time", proId: id });
+            });
         }
 
+        if (!alive) return;
         setServices(serviceRows);
         setReviews(reviewRows);
         const configuredRate = Number(settings.commissionRate);
         setCommissionRate(Number.isFinite(configuredRate) && configuredRate >= 0 ? configuredRate : 10);
 
         if (user?.uid && user.uid !== id) {
-          trackProView(user.uid, id).catch(() => {});
+          trackProView(user.uid, id).catch((error: unknown) => {
+            captureError(error, { operation: "track_pro_view", uid: user.uid, proId: id });
+          });
           hasUserReportedProfessional(id, user.uid)
-            .then((reported) => setReportState(reported ? "reported" : "idle"))
-            .catch(() => setReportState("idle"));
+            .then((reported) => {
+              if (alive) setReportState(reported ? "reported" : "idle");
+            })
+            .catch(() => {
+              if (alive) setReportState("idle");
+            });
         }
       } catch {
-        setError("load_failed");
+        if (alive) setError("load_failed");
       }
-      setLoading(false);
+      if (alive) setLoading(false);
     };
 
     load();
+    return () => {
+      alive = false;
+    };
   }, [id, user?.uid]);
 
   async function computeResponseTime(proId: string): Promise<number | null> {
@@ -152,11 +170,15 @@ export default function ProDetail() {
   }
 
   const handleReportSubmit = async () => {
+    if (!id) {
+      setReportMessage("Invalid professional profile.");
+      return;
+    }
     setReportSubmitting(true);
     setReportMessage("");
     try {
       const { reportProfessional } = await import("../services/firestoreService");
-      const result = await reportProfessional(id!, reportReason, reportComment.trim());
+      const result = await reportProfessional(id, reportReason, reportComment.trim());
       if (result.alreadyReported) {
         setReportState("reported");
         setReportMessage("Already reported");

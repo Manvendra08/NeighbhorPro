@@ -8,6 +8,7 @@ import Layout from "./components/layout/Layout";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import PWASplashScreen from "./components/PWASplashScreen";
 import { useAuth } from "./contexts/AuthContext";
+import { usePushNotifications } from "./hooks/usePushNotifications";
 
 import LandingPage    from "./pages/LandingPage";
 import Contact        from "./pages/Contact";
@@ -91,6 +92,9 @@ export default function App() {
 
 function PWAWrapper() {
   const auth = useAuth();
+  // Initialize push notifications for logged-in users
+  usePushNotifications(auth?.user?.uid);
+  
   // Only show install banner when user is logged in (inside the webapp)
   if (!auth?.user) return null;
   return <PWAInstallBanner />;

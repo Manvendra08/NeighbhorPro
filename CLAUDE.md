@@ -9,22 +9,29 @@ ProNeighbor is a verified-neighborhood service marketplace PWA (React + Firebase
 ## Commands
 
 ```bash
-npm run dev          # Vite dev server on port 5173
-npm run build        # TypeScript check + Vite production build
-npm run preview      # Serve production build on port 4173
-npm run test         # Vitest with coverage (threads pool)
-npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright end-to-end tests (Chromium)
-npm run test:e2e:ui  # Playwright interactive UI mode
+npm run dev                # Vite dev server on port 5173
+npm run build              # TypeScript check + Vite production build
+npm run preview            # Serve production build on port 4173
+npm run test               # Vitest with coverage (threads pool)
+npm run test:watch         # Vitest in watch mode
+npm run test:e2e           # Playwright end-to-end tests (Chromium)
+npm run test:e2e:ui        # Playwright interactive UI mode
+npm run test:e2e:headed    # Run e2e tests in headed mode (browser visible)
+npm run test:e2e:debug     # Debug e2e tests (Playwright Inspector)
+npm run test:e2e:report    # View the last test report
+npm run test:e2e:trace     # Run e2e tests with trace recording for debugging
+npm run test:e2e:install   # Install Playwright browsers
+npm run seed:test-users    # Seed test users (requires Firebase service account key)
 ```
 
 Run a single test file: `npx vitest run src/services/coinService.test.ts`
+Run a single e2e test: `npx playwright test e2e/dashboard.spec.ts`
 
 ## Tech Stack
 
 - **Frontend:** React 18, React Router 6, TypeScript 5.4 (strict), Vite 6
 - **State:** TanStack React Query for server state, React Context for auth
-- **Styling:** Plain CSS files (index.css, responsive.css, mobile.css, darkmode.css)
+- **Styling:** Modular plain CSS files (`index.css` base, `responsive.css` for tablets, `mobile.css` for phones, `pwa.css` for app shell, `darkmode.css` for theme)
 - **Validation:** Zod schemas at boundaries (`src/lib/validation.ts`)
 - **Backend:** Firebase (Auth, Firestore, Storage, Hosting, Cloud Functions, Cloud Messaging)
 - **Payments:** Razorpay (INR) with coin-based wallet system
@@ -91,6 +98,7 @@ Service worker at `public/sw.js` (cache name `proneighbor-v3-*`). Network-first 
 
 - Prefer immutability — create new objects/arrays, don't mutate (especially React state)
 - Keep files small and cohesive — extract responsibilities, avoid god components
+- Target 200–400 lines per file; split if exceeding 600 lines
 - Handle errors explicitly — no silent catches, user-friendly messages in UI
 - Validate at boundaries with Zod schemas, infer types from schemas
 - Exported functions/components need explicit types; allow inference for locals
@@ -98,17 +106,66 @@ Service worker at `public/sw.js` (cache name `proneighbor-v3-*`). Network-first 
 - Use named `type`/`interface` for React props, not `React.FC`
 - No `console.log` in production code
 
+## Component & File Organization
+
+**Component structure:** Keep components focused, <400 lines typical, split at ~600 lines.
+- **Heavy lifting:** Page components (`src/pages/`) orchestrate data fetching and layout
+- **Reusable:** Components in `src/components/` are modular, composable, single-responsibility
+- **Custom hooks:** Extract state/logic into `src/hooks/` when used across 2+ components
+
+**File naming:**
+- Components: PascalCase (`UserCard.tsx`)
+- Hooks: camelCase with `use` prefix (`useUserProfile.ts`)
+- Services: camelCase (`firestoreService.ts`)
+- Utilities/constants: camelCase or UPPER_SNAKE_CASE
+
+**Props pattern:** Use named `interface ComponentProps`, avoid `React.FC`, let TypeScript infer generic component type.
+
+Example:
+```typescript
+interface UserCardProps {
+  userId: string
+  onSelect: (id: string) => void
+}
+
+export function UserCard({ userId, onSelect }: UserCardProps) {
+  // implementation
+}
+```
+
+## Error Handling & Monitoring
+
+**Client-side errors:** Use `ErrorBoundary` component to catch React render errors and display fallback UI. Sentry automatically captures unhandled promise rejections and uncaught exceptions.
+
+**Service-layer errors:** Wrap Firebase calls in try-catch. Return typed error objects or throw with clear messages. Example: `throw new Error("Unable to book service: insufficient coins")` (user-facing).
+
+**Server-side errors (Cloud Functions):** Return structured errors with HTTP status codes. Log via `activityService` for audit trails. Avoid leaking sensitive data in error messages.
+
+**Sentry integration:** Configured in `src/main.tsx`. Import `captureError` from `src/lib/sentry` for manual error reporting. Use `operation` context field to tag errors by feature.
+
+## State Management Pattern
+
+Use this decision tree:
+
+- **Auth state?** → `useAuth()` from `AuthContext.tsx` (wraps Firebase Auth + Firestore profile)
+- **Server data** (users, services, bookings, balances)? → React Query hooks in `src/lib/queryClient.ts` (caching + auto-refetch)
+- **UI state** (modal open, filter selection, form input)? → Local `useState`
+- **Theme/global UI?** → Create a new Context (currently only auth uses global Context)
+
+React Query caches: profiles (5m), services (2m), balances (30s). Invalidate stale data after mutations via `queryClient.invalidateQueries()` using the same query key.
+
 ## Service Layer Pattern
 
 All services in `src/services/` follow this pattern:
-1. **Input validation** with Zod (at function entry)
-2. **Firebase operation** (Firestore read/write via SDK or Cloud Functions)
-3. **Output transformation** if needed
-4. **Error handling** with user-friendly messages
+1. **Define Zod schema** at the top of the function/file
+2. **Parse inputs** — `schema.parse(input)` throws `ZodError` if invalid
+3. **Firebase operation** — Firestore read/write or Cloud Function call
+4. **Error handling** — Wrap in try-catch, throw user-friendly messages
+5. **Return typed results** — Infer types from schema using `z.infer<typeof schema>`
 
-Example: `coinService.ts` validates coin amounts, calls Firestore ledger operations, returns typed results.
+Example: `coinService.ts` validates amounts with Zod, transfers coins via Firestore `increment()`, catches and wraps errors.
 
-React Query hooks cache responses by key (profiles 5m, services 2m, balances 30s). Invalidate on mutations via `queryClient.invalidateQueries()`.
+**React Query layer:** Wrap services in hooks in `src/lib/queryClient.ts`. Cache profiles (5m), services (2m), balances (30s). Invalidate after mutations: `queryClient.invalidateQueries({ queryKey: ['userBalance', userId] })`.
 
 ## Cloud Functions
 
@@ -136,10 +193,22 @@ Backend logic in `functions/`. Deployed via `firebase deploy --only functions`.
 
 ## Testing
 
+**Unit/Integration Tests:**
+- Tool: Vitest with Testing Library
+- Setup: `src/test/setup.ts` configures jsdom, Testing Library, and error handlers
+- Mocking: MSW handlers in `src/test/msw.ts` intercept Firestore/API calls
 - Coverage thresholds: 80% statements/lines/functions, 60% branches
-- Test setup: `src/test/setup.ts` with MSW handlers in `src/test/msw.ts`
-- E2E tests in `e2e/` directory (Playwright, Chromium only, 30s timeout)
-- Test user seeding: `npm run seed:test-users` (requires Firebase service account key)
+- Currently covers `loyaltyService.ts` and `src/lib/validation.ts`; expand as needed
+- Run single test: `npx vitest run src/services/coinService.test.ts`
+
+**E2E Tests:**
+- Tool: Playwright (Chromium only)
+- Location: `e2e/` directory
+- Timeout: 30 seconds per test
+- Test critical user flows (login, booking, payment)
+- Use test user seeding: `npm run seed:test-users` (requires Firebase service account key)
+- Debug failing tests: `npm run test:e2e:debug` opens Playwright Inspector
+- View traces: `npm run test:e2e:trace` records browser actions for replay
 
 ## Environment Variables
 
@@ -152,3 +221,8 @@ Required in `.env.local`:
 ## Deployment
 
 Firebase Hosting from `dist/`. Cache strategy: no-cache for HTML/SW/manifest, immutable (1yr) for JS/CSS assets. Firestore rules in `firestore.rules`, indexes in `firestore.indexes.json`.
+
+## Graphify
+
+- Use `graphify-out/graph.json` as the RAG source after a graph build.
+- If Graphify is available in the session, rebuild the graph after code or docs changes.

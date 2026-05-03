@@ -201,8 +201,14 @@ export default function AdminWallet() {
 
   /* ── Payout actions ── */
   const handlePayoutAction = async (payout: CoinPayout, status: "processed" | "failed") => {
-    setActionLoading(payout.id!);
-    await updatePayoutStatus(payout.id!, status, adminUid);
+    const payoutId = String(payout.id || "").trim();
+    if (!payoutId) {
+      showToast("Invalid payout id", "error");
+      return;
+    }
+
+    setActionLoading(payoutId);
+    await updatePayoutStatus(payoutId, status, adminUid);
     const payoutUpi = payout.upiMasked || maskUpiId(payout.upiId || "");
     await logAudit(
       `payout.${status}`, adminUid, adminName,

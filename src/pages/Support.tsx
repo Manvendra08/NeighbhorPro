@@ -22,6 +22,7 @@ function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket;
   const [sending, setSending] = useState(false);
   const [localStatus, setLocalStatus] = useState(ticket.status);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setLocalStatus(ticket.status);
@@ -31,9 +32,17 @@ function TicketChat({ ticket, onBack, onStatusChange }: { ticket: SupportTicket;
     if (!ticket.id) return;
     const unsub = subscribeTicketMessages(ticket.id, msgs => {
       setMessages(msgs);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+      scrollTimerRef.current = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     });
-    return unsub;
+    return () => {
+      unsub();
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+    };
   }, [ticket.id]);
 
   const send = async (e: FormEvent) => {
@@ -111,7 +120,17 @@ function NewTicketForm({ onCreated }: { onCreated: (t: SupportTicket) => void })
   const [error, setError] = useState("");
 
   useEffect(() => {
-    generateTicketNumber().then(setTicketNumber);
+    let alive = true;
+    generateTicketNumber()
+      .then((value) => {
+        if (alive) setTicketNumber(value);
+      })
+      .catch(() => {
+        if (alive) setTicketNumber("AUTO");
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -187,7 +206,19 @@ export default function Support() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [activeTicket, setActive] = useState<SupportTicket | null>(null);
-  useEffect(() => { getFAQs().then(setFaqs); }, []);
+  useEffect(() => {
+    let alive = true;
+    getFAQs()
+      .then((data) => {
+        if (alive) setFaqs(data);
+      })
+      .catch(() => {
+        if (alive) setFaqs([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) return;

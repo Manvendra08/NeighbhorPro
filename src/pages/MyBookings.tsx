@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getBookingsForUser, getBookingsForPro, updateBookingStatus, updateBookingFields,
@@ -27,6 +27,7 @@ function buildRecurringRebookQuery(booking: Record<string, unknown>): string {
 export default function MyBookings() {
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<"client" | "pro">("client");
   const [clientBookings, setClientB] = useState<Record<string, unknown>[]>([]);
   const [proBookings, setProB] = useState<Record<string, unknown>[]>([]);
@@ -46,8 +47,22 @@ export default function MyBookings() {
   const [cancelComment, setCancelComment] = useState("");
   const [completeRequest, setCompleteRequest] = useState<Record<string, unknown> | null>(null);
 
-  const [subTab, setSubTab] = useState<"upcoming" | "past">("upcoming");
+  const [subTab, setSubTab] = useState<"upcoming" | "past">(() => {
+    const requestedSubTab = searchParams.get("subTab");
+    return requestedSubTab === "past" ? "past" : "upcoming";
+  });
   const [searchQ, setSearchQ] = useState("");
+
+  useEffect(() => {
+    const requestedSubTab = searchParams.get("subTab");
+    if (requestedSubTab === "past") {
+      setSubTab("past");
+      return;
+    }
+    if (requestedSubTab === "upcoming") {
+      setSubTab("upcoming");
+    }
+  }, [searchParams]);
 
   const load = async () => {
     if (!user) return;

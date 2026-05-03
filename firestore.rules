@@ -6,8 +6,32 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isOwner(userId) { return request.auth.uid == userId; }
     function isAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isFcmTokenOnlyUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']);
+    }
+
+    function isResidencyProofUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      // Check final document state (not diff) so re-uploads where status is already 'pending' still pass
+      let uploadProof = request.resource.data.residencyProofUrl is string
+        && request.resource.data.residentVerificationStatus == 'pending'
+        && request.resource.data.verificationSubmittedAt != null;
+      let deleteProof = resource.data.residentVerificationStatus != 'verified'
+        && request.resource.data.residencyProofUrl == null
+        && request.resource.data.residencyProofPreviewUrl == null
+        && request.resource.data.residencyProofResourceType == null
+        && request.resource.data.residentVerificationStatus == 'none'
+        && request.resource.data.verificationSubmittedAt == null
+        && changed.hasOnly([
+          'residencyProofUrl', 'residencyProofPreviewUrl', 'residencyProofResourceType',
+          'residentVerificationStatus', 'verificationMethod', 'verificationReviewNote',
+          'verificationSubmittedAt', 'updatedAt'
+        ]);
+      return (uploadProof || deleteProof)
+        && !changed.hasAny(['role', 'coinBalance', 'disabled', 'deleted', 'fcmToken', 'lastLedgerEntryId']);
     }
     function noSensitiveFieldChange() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role", "coinBalance", "fcmToken", "disabled", "deleted", "lastLedgerEntryId"]);
@@ -68,7 +92,7 @@ service cloud.firestore {
     function validUserDoc() {
       let data = request.resource.data;
       return (data.displayName is string && data.displayName.size() <= 100)
-          && (data.email is string)
+          && (!('email' in data) || (data.email is string))
           && (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000))
           && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20));
     }
@@ -141,18 +165,13 @@ service cloud.firestore {
       // All other callers must read from /publicProfiles/{userId} instead.
       allow get:    if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list:   if isAdmin();
-      allow create: if isSignedIn() && isOwner(userId) && validUserDoc();
-      allow update: if isSignedIn() && (
-        isAdmin() ||
-        (isOwner(userId) && (
-          noSensitiveFieldChange() ||
-          ownerWalletMutationAllowed(userId) ||
-          (
-            request.resource.data.diff(resource.data).affectedKeys().hasAny(['residencyProofUrl', 'residentVerificationStatus']) &&
-            request.resource.data.residentVerificationStatus == 'pending'
-          )
-        ))
-      ) && (!isOwner(userId) || validUserDoc());
+      allow create: if isSignedIn() && isOwner(userId) && validUserDoc() && request.resource.data.role == "user";
+      allow update: if isAdmin() || (isSignedIn() && isOwner(userId) && (
+        isFcmTokenOnlyUpdate() ||
+        isResidencyProofUpdate() ||
+        (noSensitiveFieldChange() && validUserDoc()) ||
+        ownerWalletMutationAllowed(userId)
+      ));
       allow delete: if isAdmin();
     }
 
@@ -164,12 +183,12 @@ service cloud.firestore {
       allow read:   if true;
       allow create: if isSignedIn() && (
         (isOwner(userId)
-          && !request.resource.data.keys().hasAny(['coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl', 'residentVerificationStatus']))
+          && !request.resource.data.keys().hasAny(['coinBalance', 'fcmToken', 'referralCode']))
         || isAdmin()
       );
       allow update: if isSignedIn() && (
         (isOwner(userId)
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coinBalance', 'fcmToken', 'referralCode', 'residencyProofUrl', 'residentVerificationStatus']))
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coinBalance', 'fcmToken', 'referralCode']))
         || isAdmin()
       );
       allow delete: if isAdmin();

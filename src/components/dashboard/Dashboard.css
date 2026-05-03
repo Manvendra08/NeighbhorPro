@@ -336,6 +336,55 @@
   font-size: 12px;
 }
 
+.db-stats-rating {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.db-stats-rating__row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.db-stats-rating__star {
+  color: var(--text-2);
+}
+
+.db-stats-rating__progress {
+  width: 100%;
+  height: 6px;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  appearance: none;
+}
+
+.db-stats-rating__progress::-webkit-progress-bar {
+  background: var(--surface-2);
+  border-radius: 999px;
+}
+
+.db-stats-rating__progress::-webkit-progress-value {
+  background: linear-gradient(90deg, var(--warning), var(--accent2));
+  border-radius: 999px;
+}
+
+.db-stats-rating__progress::-moz-progress-bar {
+  background: linear-gradient(90deg, var(--warning), var(--accent2));
+  border-radius: 999px;
+}
+
+.db-stats-rating__count {
+  justify-self: end;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
 .db-week-strip {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));

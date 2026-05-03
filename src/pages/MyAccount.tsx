@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getUserProfile, updateUserProfile } from "../services/firestoreService";
@@ -87,6 +87,7 @@ export default function MyAccount() {
   const [viewAsUid, setViewAsUid] = useState<string | null>(null);
   const [viewAsLoading, setViewAsLoading] = useState(false);
   const [viewAsError, setViewAsError] = useState("");
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
@@ -146,6 +147,14 @@ export default function MyAccount() {
     });
   }, [accountProfile]);
 
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) {
+        clearTimeout(savedTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleTabChange = (nextTab: Tab) => {
     setTab(nextTab);
     if (nextTab === "privacy") {
@@ -166,7 +175,10 @@ export default function MyAccount() {
         setViewAsProfile(prev => (prev ? { ...prev, ...privacy } : prev));
       }
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      if (savedTimerRef.current) {
+        clearTimeout(savedTimerRef.current);
+      }
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
     }

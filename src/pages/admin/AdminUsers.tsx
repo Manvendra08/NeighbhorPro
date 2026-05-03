@@ -8,7 +8,7 @@ import {
   getOrCreateConversation,
   mirrorPublicProfile
 } from "../../services/firestoreService";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, deleteDoc, writeBatch } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, updateProfile, signOut } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -18,9 +18,183 @@ import { logAudit } from "./AdminAuditLog";
 import { getUserActivityLogs } from "../../services/activityService";
 import type { ActivityLog } from "../../services/activityService";
 import { earnCoins } from "../../services/coinService";
+import { captureError } from "../../lib/sentry";
+import { queryClient, queryKeys } from "../../lib/queryClient";
 
 type UserRow = Record<string, unknown>;
 type FilterTab = "all" | "active" | "disabled" | "admins" | "pros" | "verification";
+
+// Helper: Delete documents matching a query in batches of 500
+async function deleteQueryBatch(q: ReturnType<typeof query>) {
+  try {
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return 0;
+    
+    let deleted = 0;
+    for (let i = 0; i < snapshot.docs.length; i += 500) {
+      const chunk = snapshot.docs.slice(i, i + 500);
+      const batch = writeBatch(db);
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      deleted += chunk.length;
+    }
+    return deleted;
+  } catch (error) {
+    console.error("Error in deleteQueryBatch:", error);
+    // Don't throw - allow cascade to continue
+    return 0;
+  }
+}
+
+// Helper: Cascade delete all user data across collections
+async function cascadeDeleteUserData(uid: string) {
+  console.log(`[Cascade Delete] Starting for user: ${uid}`);
+  
+  // 1. Delete services
+  try {
+    await deleteQueryBatch(query(collection(db, "services"), where("userId", "==", uid)));
+    console.log(`[Cascade Delete] Services deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting services:`, error);
+  }
+  
+  // 2. Delete bookings (client or pro)
+  try {
+    await deleteQueryBatch(query(collection(db, "bookings"), where("clientUid", "==", uid)));
+    await deleteQueryBatch(query(collection(db, "bookings"), where("proUid", "==", uid)));
+    await deleteQueryBatch(query(collection(db, "bookings"), where("clientId", "==", uid)));
+    await deleteQueryBatch(query(collection(db, "bookings"), where("proId", "==", uid)));
+    console.log(`[Cascade Delete] Bookings deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting bookings:`, error);
+  }
+  
+  // 3. Delete reviews
+  try {
+    await deleteQueryBatch(query(collection(db, "reviews"), where("clientId", "==", uid)));
+    await deleteQueryBatch(query(collection(db, "reviews"), where("proId", "==", uid)));
+    console.log(`[Cascade Delete] Reviews deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting reviews:`, error);
+  }
+  
+  // 4. Delete residentReviews
+  try {
+    await deleteQueryBatch(query(collection(db, "residentReviews"), where("clientId", "==", uid)));
+    await deleteQueryBatch(query(collection(db, "residentReviews"), where("proId", "==", uid)));
+    console.log(`[Cascade Delete] Resident reviews deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting resident reviews:`, error);
+  }
+  
+  // 5. Delete messages and chat subcollections
+  try {
+    const convSnap = await getDocs(query(collection(db, "messages"), where("participants", "array-contains", uid)));
+    for (const convDoc of convSnap.docs) {
+      // Delete chats subcollection
+      const chatsSnap = await getDocs(collection(db, `messages/${convDoc.id}/chats`));
+      if (!chatsSnap.empty) {
+        const chatBatch = writeBatch(db);
+        chatsSnap.docs.forEach(d => chatBatch.delete(d.ref));
+        await chatBatch.commit();
+      }
+      // Delete conversation
+      await deleteDoc(convDoc.ref);
+    }
+    console.log(`[Cascade Delete] Messages deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting messages:`, error);
+  }
+  
+  // 6. Delete localFeed posts
+  try {
+    await deleteQueryBatch(query(collection(db, "localFeed"), where("authorId", "==", uid)));
+    console.log(`[Cascade Delete] Feed posts deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting feed posts:`, error);
+  }
+  
+  // 7. Delete coinLedger entries
+  try {
+    const ledgerSnap = await getDocs(collection(db, `coinLedger/${uid}/entries`));
+    if (!ledgerSnap.empty) {
+      const ledgerBatch = writeBatch(db);
+      ledgerSnap.docs.forEach(d => ledgerBatch.delete(d.ref));
+      await ledgerBatch.commit();
+    }
+    console.log(`[Cascade Delete] Coin ledger deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting coin ledger:`, error);
+  }
+  
+  // 8. Delete reports (client-side filter for safety against missing indexes)
+  try {
+    const reportsSnap = await getDocs(collection(db, "reports"));
+    const reportsToDelete = reportsSnap.docs.filter(d => {
+      const data = d.data();
+      return data.proId === uid || data.reporterId === uid;
+    });
+    if (reportsToDelete.length > 0) {
+      const reportBatch = writeBatch(db);
+      reportsToDelete.forEach(d => reportBatch.delete(d.ref));
+      await reportBatch.commit();
+    }
+    console.log(`[Cascade Delete] Reports deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting reports:`, error);
+  }
+  
+  // 9. Delete feedReports
+  try {
+    const feedReportsSnap = await getDocs(collection(db, "feedReports"));
+    const feedReportsToDelete = feedReportsSnap.docs.filter(d => d.data().reporterId === uid);
+    if (feedReportsToDelete.length > 0) {
+      const feedReportBatch = writeBatch(db);
+      feedReportsToDelete.forEach(d => feedReportBatch.delete(d.ref));
+      await feedReportBatch.commit();
+    }
+    console.log(`[Cascade Delete] Feed reports deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting feed reports:`, error);
+  }
+  
+  // 10. Delete proAvailability
+  try {
+    await deleteDoc(doc(db, "proAvailability", uid));
+    console.log(`[Cascade Delete] Pro availability deleted`);
+  } catch (error) {
+    // Ignore - document might not exist
+  }
+  
+  // 11. Delete transactions
+  try {
+    await deleteQueryBatch(query(collection(db, "transactions"), where("userId", "==", uid)));
+    await deleteQueryBatch(query(collection(db, "transactions"), where("clientId", "==", uid)));
+    await deleteQueryBatch(query(collection(db, "transactions"), where("proId", "==", uid)));
+    console.log(`[Cascade Delete] Transactions deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting transactions:`, error);
+  }
+  
+  // 12. Delete publicProfiles
+  try {
+    await deleteDoc(doc(db, "publicProfiles", uid));
+    console.log(`[Cascade Delete] Public profile deleted`);
+  } catch (error) {
+    // Ignore - document might not exist
+  }
+  
+  // 13. Delete users
+  try {
+    await deleteDoc(doc(db, "users", uid));
+    console.log(`[Cascade Delete] User document deleted`);
+  } catch (error) {
+    console.error(`[Cascade Delete] Error deleting user document:`, error);
+    throw error; // This one is critical - rethrow
+  }
+  
+  console.log(`[Cascade Delete] Completed for user: ${uid}`);
+}
 
 export default function AdminUsers() {
   const { userProfile, user } = useAuth();
@@ -281,6 +455,8 @@ export default function AdminUsers() {
           `${action === "verified" ? "Verified" : "Rejected"} resident verification for: ${name}${reviewNote ? ` | Note: ${reviewNote}` : ""}`,
           u.uid as string
         );
+        // Invalidate resident's profile cache so they see updated status
+        queryClient.invalidateQueries({ queryKey: queryKeys.publicProfile(u.uid as string) });
         showToast(action === "verified" ? "Resident verified" : "Verification rejected");
         // Refresh verification queue after action if on verification tab
         if (tab === "verification") {
@@ -321,7 +497,9 @@ export default function AdminUsers() {
       "user.email_mobile_approve",
       `Approved email verification bypass by mobile for: ${name} (${phone})`,
       async () => {
-        await earnCoins(u.uid as string, "earn_signup_bonus", u.uid as string).catch(() => {});
+        await earnCoins(u.uid as string, "earn_signup_bonus", u.uid as string).catch((error: unknown) => {
+          captureError(error, { operation: "admin.approve_email_by_mobile_signup_bonus", uid: u.uid as string });
+        });
       }
     );
   };
@@ -338,56 +516,42 @@ export default function AdminUsers() {
 
     setActionLoading(u.uid as string);
     try {
-      await updateUserProfile(u.uid as string, {
-        disabled: true,
-        deleted: true,
-        deletedAt: serverTimestamp(),
-        emailVisible: false,
-        phoneVisible: false,
-        flatVisible: false,
-        displayName: "Deleted User",
-        bio: "",
-        photoURL: "",
-        skills: [],
-        society: "",
-        locality: "",
-        tower: "",
-        flatNumber: "",
-      });
-      await mirrorPublicProfile(u.uid as string, {
-        uid: u.uid,
-        disabled: true,
-        deleted: true,
-        displayName: "Deleted User",
-        bio: "",
-        photoURL: "",
-        society: "",
-        locality: "",
-        tower: "",
-        flatNumber: "",
-        emailVisible: false,
-        phoneVisible: false,
-        flatVisible: false,
-      });
+      const targetName = (u.displayName as string) || u.email as string;
+      
+      console.log(`[Admin Delete] Starting deletion for user: ${targetName} (${u.uid})`);
+      
+      // 1. Write audit log BEFORE deletion
       await logAudit(
-        "user.delete", adminId, adminName,
-        `Soft-deleted profile of: ${(u.displayName as string) || u.email as string}`,
+        "user.hard_delete", adminId, adminName,
+        `Permanently deleted user and all associated data: ${targetName}`,
         u.uid as string
       );
+      console.log(`[Admin Delete] Audit log written`);
 
-      // Disable Auth account via Cloud Function
+      // 2. Cascade delete all user data
+      await cascadeDeleteUserData(u.uid as string);
+      console.log(`[Admin Delete] Cascade deletion completed`);
+
+      // 3. Hard-delete Firebase Auth account via Cloud Function
+      // NOTE: Requires Blaze plan. On Spark, admin must manually delete from Firebase Console.
       try {
-        const disableUserAuth = httpsCallable(functionsClient, "disableUserAuth");
-        await disableUserAuth({ uid: u.uid });
-      } catch (authErr) {
-        console.error("Failed to disable user auth account:", authErr);
-        // We continue anyway as the Firestore flags are already set
+        const deleteUserAuth = httpsCallable(functionsClient, "deleteUserAuth");
+        await deleteUserAuth({ uid: u.uid });
+        console.log(`[Admin Delete] Auth account deleted`);
+      } catch (authErr: unknown) {
+        console.warn(`[Admin Delete] Auth account not deleted (requires Blaze plan or manual deletion from Firebase Console):`, authErr);
+        // Non-fatal: Firestore data is deleted. Auth account must be removed manually from Firebase Console.
       }
 
-      showToast("User profile soft-deleted");
+      showToast("User and all data permanently deleted");
       setDeleteConfirm(null);
       await load();
-    } catch { showToast("Delete failed", "error"); }
+      console.log(`[Admin Delete] Deletion completed successfully`);
+    } catch (err) {
+      console.error(`[Admin Delete] Fatal error during deletion:`, err);
+      captureError(err, { operation: "admin.hard_delete_user", uid: u.uid as string });
+      showToast("Delete failed", "error");
+    }
     setActionLoading(null);
   };
 
@@ -447,7 +611,14 @@ export default function AdminUsers() {
     a.click();
   };
 
-  const getProofUrl = (u: UserRow) => (u.residencyProofUrl as string) || "";
+  const getProofUrl = (u: UserRow) => {
+    const url = (u.residencyProofUrl as string) || "";
+    // Fix legacy URLs rewritten to raw delivery path (can 401 on some Cloudinary setups).
+    if (url && isPdfUrl(url) && url.includes("/raw/upload/")) {
+      return url.replace("/raw/upload/", "/image/upload/");
+    }
+    return url;
+  };
   const isPdfUrl = (url: string) => /\.pdf($|[?#])/i.test(url) || url.toLowerCase().includes("application/pdf");
 
   const closeRoleModal = () => {
@@ -923,8 +1094,11 @@ export default function AdminUsers() {
               <button className="modal-close" onClick={() => setDeleteConfirm(null)} aria-label="Close delete confirmation dialog">✕</button>
             </div>
             <p>
-              Permanently remove <strong>{deleteConfirm.displayName as string || deleteConfirm.email as string}</strong>'s profile?
-              This cannot be undone.
+              Permanently delete <strong>{deleteConfirm.displayName as string || deleteConfirm.email as string}</strong> and ALL associated data?
+              <br />
+              <span className="text-xs text-muted">This includes profile, bookings, messages, reviews, transactions, and feed posts. This action cannot be undone.</span>
+              <br />
+              <span className="text-xs text-muted" style={{color: "var(--warning)"}}>⚠️ Firebase Auth account must be manually deleted from Firebase Console to allow re-registration with the same email.</span>
             </p>
             <div className="modal-actions">
               <button className="btn btn-secondary btn-sm" onClick={() => setDeleteConfirm(null)}>Cancel</button>
@@ -983,7 +1157,9 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
       setError((e as Error).message || "Failed"); 
     } finally {
       if (secondaryApp) {
-        deleteApp(secondaryApp).catch(() => {});
+        deleteApp(secondaryApp).catch((error: unknown) => {
+          captureError(error, { operation: "admin.delete_secondary_app" });
+        });
       }
       setSaving(false);
     }

@@ -51,6 +51,83 @@ export interface UserProfile {
   createdAt: FirestoreTimestamp;
 }
 
+function toString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function toBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function toVerificationStatus(value: unknown): UserProfile["residentVerificationStatus"] {
+  return value === "pending" || value === "verified" ? value : "none";
+}
+
+function toVerificationMethod(value: unknown): UserProfile["verificationMethod"] {
+  return value === "manual" || value === "auto" ? value : null;
+}
+
+function toRole(value: unknown): UserProfile["role"] {
+  return value === "admin" ? "admin" : "user";
+}
+
+function toFirestoreTimestamp(value: unknown): FirestoreTimestamp {
+  return (value ?? null) as FirestoreTimestamp;
+}
+
+function toUserProfile(raw: Record<string, unknown>): UserProfile {
+  const verificationReviewNote = raw.verificationReviewNote;
+
+  return {
+    uid: toString(raw.uid),
+    displayName: toString(raw.displayName),
+    email: toString(raw.email),
+    phoneNumber: toOptionalString(raw.phoneNumber),
+    photoURL: toString(raw.photoURL),
+    bio: toString(raw.bio),
+    skills: toStringArray(raw.skills),
+    hourlyRate: toNumber(raw.hourlyRate),
+    isFreeConsultation: toBoolean(raw.isFreeConsultation, true),
+    society: toString(raw.society),
+    locality: toString(raw.locality),
+    tower: toString(raw.tower),
+    flatNumber: toString(raw.flatNumber),
+    residencyProofUrl: toOptionalString(raw.residencyProofUrl),
+    residencyProofPreviewUrl: toOptionalString(raw.residencyProofPreviewUrl),
+    residentVerificationStatus: toVerificationStatus(raw.residentVerificationStatus),
+    verificationReviewNote: verificationReviewNote === null || typeof verificationReviewNote === "string" ? verificationReviewNote : null,
+    verificationMethod: toVerificationMethod(raw.verificationMethod),
+    isServiceProvider: toBoolean(raw.isServiceProvider),
+    priceAfterQuote: toBoolean(raw.priceAfterQuote),
+    role: toRole(raw.role),
+    rating: toNumber(raw.rating),
+    reviewCount: toNumber(raw.reviewCount),
+    coinBalance: toNumber(raw.coinBalance),
+    referralCode: toOptionalString(raw.referralCode),
+    emailVerified: toBoolean(raw.emailVerified),
+    emailVisible: toBoolean(raw.emailVisible),
+    phoneVisible: toBoolean(raw.phoneVisible),
+    flatVisible: toBoolean(raw.flatVisible),
+    deleted: toBoolean(raw.deleted),
+    disabled: toBoolean(raw.disabled),
+    fcmToken: toOptionalString(raw.fcmToken),
+    createdAt: toFirestoreTimestamp(raw.createdAt),
+  };
+}
+
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
@@ -113,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     const unsub = onSnapshot(doc(db, "users", user.uid), snap => {
       if (snap.exists()) {
-        const data = normalizeProfileData({ uid: snap.id, ...snap.data() }) as unknown as UserProfile;
+        const data = toUserProfile(normalizeProfileData({ uid: snap.id, ...snap.data() }));
         setUserProfile(data);
         if (!profileBonusClaimedRef.current && isProfileComplete(data)) {
           profileBonusClaimedRef.current = true;

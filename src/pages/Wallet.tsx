@@ -12,6 +12,7 @@ import { logActivity } from "../services/activityService";
 import { initiateTopUp, isRazorpayTopupEnabled, type PaymentStatus } from "../services/razorpayService";
 import { formatTimestamp, updateUserProfile } from "../services/firestoreService";
 import { queryClient, queryKeys, useCoinBalanceQuery } from "../lib/queryClient";
+import { captureError } from "../lib/sentry";
 
 type Tab = "overview" | "buy" | "earn" | "referral" | "payout" | "history" | "terms";
 
@@ -77,8 +78,21 @@ export default function Wallet() {
 
   useEffect(() => {
     if (tab !== "history" || !user) return;
+    let alive = true;
     setLL(true);
-    getLedger(user.uid).then(r => { setLedger(r); setLL(false); });
+    getLedger(user.uid)
+      .then(r => {
+        if (!alive) return;
+        setLedger(r);
+        setLL(false);
+      })
+      .catch((error: unknown) => {
+        captureError(error, { operation: "wallet.get_ledger", uid: user.uid });
+        if (alive) setLL(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, [tab, user]);
 
   useEffect(() => {
@@ -86,18 +100,39 @@ export default function Wallet() {
       setLatestLedgerEntry(null);
       return;
     }
+    let alive = true;
     getLedger(user.uid, 1)
-      .then(entries => setLatestLedgerEntry(entries[0] || null))
-      .catch(() => setLatestLedgerEntry(null));
+      .then(entries => {
+        if (!alive) return;
+        setLatestLedgerEntry(entries[0] || null);
+      })
+      .catch((error: unknown) => {
+        captureError(error, { operation: "wallet.get_latest_ledger", uid: user.uid });
+        if (alive) setLatestLedgerEntry(null);
+      });
+    return () => {
+      alive = false;
+    };
   }, [user, payStatus, payoutMsg]);
 
   useEffect(() => {
     if (tab !== "terms") return;
-    getNCTerms().then(setNcTerms);
+    let alive = true;
+    getNCTerms()
+      .then((terms) => {
+        if (alive) setNcTerms(terms);
+      })
+      .catch((error: unknown) => {
+        captureError(error, { operation: "wallet.get_terms" });
+      });
+    return () => {
+      alive = false;
+    };
   }, [tab]);
 
   useEffect(() => {
-    const savedUpi = ((userProfile as unknown as Record<string, unknown> | null)?.preferredUpiId as string) || "";
+    const profileRecord = userProfile as unknown as { preferredUpiId?: unknown } | null;
+    const savedUpi = typeof profileRecord?.preferredUpiId === "string" ? profileRecord.preferredUpiId : "";
     if (savedUpi) {
       setUpi(savedUpi);
     }
@@ -108,7 +143,18 @@ export default function Wallet() {
       setPendingPayout(null);
       return;
     }
-    getPendingPayoutForUser(user.uid).then(setPendingPayout).catch(() => setPendingPayout(null));
+    let alive = true;
+    getPendingPayoutForUser(user.uid)
+      .then((payout) => {
+        if (alive) setPendingPayout(payout);
+      })
+      .catch((error: unknown) => {
+        captureError(error, { operation: "wallet.get_pending_payout", uid: user.uid });
+        if (alive) setPendingPayout(null);
+      });
+    return () => {
+      alive = false;
+    };
   }, [user, isPro, tab, payoutMsg]);
 
   const handleBuy = async () => {
@@ -158,7 +204,9 @@ export default function Wallet() {
         await updateUserProfile(user.uid, { preferredUpiId: requestUpiId });
       }
       queryClient.setQueryData<number>(queryKeys.coinBalance(user.uid), Math.max(0, balance - coins));
-      queryClient.invalidateQueries({ queryKey: queryKeys.coinBalance(user.uid) }).catch(() => {});
+      queryClient.invalidateQueries({ queryKey: queryKeys.coinBalance(user.uid) }).catch((error: unknown) => {
+        captureError(error, { operation: "wallet.invalidate_balance_after_payout", uid: user.uid });
+      });
       setPC(""); setUpi("");
       setShowPayoutConfirm(false);
       setPayoutRequest(null);
@@ -176,7 +224,9 @@ export default function Wallet() {
     if (res.success) {
       setPayoutMsg({ type: "success", text: "Payout request cancelled and coins refunded to your balance." });
       queryClient.setQueryData<number>(queryKeys.coinBalance(user.uid), balance + (pendingPayout.coinsRedeemed || 0));
-      queryClient.invalidateQueries({ queryKey: queryKeys.coinBalance(user.uid) }).catch(() => {});
+      queryClient.invalidateQueries({ queryKey: queryKeys.coinBalance(user.uid) }).catch((error: unknown) => {
+        captureError(error, { operation: "wallet.invalidate_balance_after_cancel", uid: user.uid });
+      });
       setPendingPayout(null);
     } else {
       setPayoutMsg({ type: "error", text: res.reason ?? "Failed to cancel payout request." });
@@ -197,7 +247,16 @@ export default function Wallet() {
 
   const copyCode = () => {
     if (!myCode) return;
-    navigator.clipboard.writeText(myCode).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    navigator.clipboard
+      .writeText(myCode)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((error: unknown) => {
+        captureError(error, { operation: "wallet.copy_referral_code" });
+        setRefMsg({ type: "error", text: "Copy failed. Please copy manually." });
+      });
   };
 
   const TABS: { key: Tab; label: string }[] = [

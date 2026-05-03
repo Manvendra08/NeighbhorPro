@@ -11,6 +11,7 @@ import SkeletonLoader from "../components/common/SkeletonLoader";
 import FormField from "../components/common/FormField";
 import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../constants/serviceCatalog";
 import { getBrowseEmptyDescription, getBrowseFallbackNotice } from "../utils/browse";
+import { captureError } from "../lib/sentry";
 
 type BrowsePro = UserSummary & Record<string, unknown> & {
   category?: string;
@@ -38,6 +39,7 @@ export default function BrowsePros() {
   const categories = ["All", ...serviceCategories];
   const [societies, setSocieties] = useState<{id: string, name: string}[]>([]);
   const [fallbackNotice, setFallbackNotice] = useState("");
+  const loadSequenceRef = useRef(0);
 
   const getMissingBookingProfileItems = () => {
     const missing: string[] = [];
@@ -70,11 +72,13 @@ export default function BrowsePros() {
   };
 
   const loadPage = async (reset = false) => {
+    const loadSequence = ++loadSequenceRef.current;
     if (reset) { setLoading(true); cursorRef.current = null; }
     else setLoadingMore(true);
     try {
       const filters = buildServerFilters();
       const { data, nextCursor } = await listProfessionals(reset ? null : cursorRef.current, filters);
+      if (loadSequence !== loadSequenceRef.current) return;
       cursorRef.current = nextCursor;
       setHasMore(nextCursor !== null);
       // Server-side pro filter applied - only exclude self
@@ -97,30 +101,51 @@ export default function BrowsePros() {
       }
 
       setAllPros(prev => reset ? visiblePros : [...prev, ...visiblePros]);
-    } catch (err) { console.error("Browse load error:", err); }
-    setLoading(false);
-    setLoadingMore(false);
+    } catch (error: unknown) {
+      if (loadSequence === loadSequenceRef.current) {
+        captureError(error, { operation: "browse.load_page", reset, localityFilter, towerFilter });
+      }
+    }
+    if (loadSequence === loadSequenceRef.current) {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   };
 
   useEffect(() => { loadPage(true); }, []);
   useEffect(() => { loadPage(true); }, [localityFilter, towerFilter]);
+  useEffect(() => () => {
+    loadSequenceRef.current += 1;
+  }, []);
 
   useEffect(() => {
+    let alive = true;
     getPlatformSettings()
       .then((settings) => {
-        setServiceCategories(normalizeServiceCategories(settings.serviceCategories));
+        if (alive) setServiceCategories(normalizeServiceCategories(settings.serviceCategories));
       })
-      .catch(() => {
-        setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
+      .catch((error: unknown) => {
+        captureError(error, { operation: "browse.get_platform_settings" });
+        if (alive) setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
       });
       
-    getAllSocieties(100).then((res) => {
-      const list = res.data.map(s => ({
-        id: s.id as string,
-        name: s.name as string
-      })).sort((a, b) => a.name.localeCompare(b.name));
-      setSocieties(list);
-    }).catch(console.error);
+    getAllSocieties(100)
+      .then((res) => {
+        const list = res.data
+          .map(s => ({
+            id: s.id as string,
+            name: s.name as string
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (alive) setSocieties(list);
+      })
+      .catch((error: unknown) => {
+        captureError(error, { operation: "browse.get_all_societies" });
+      });
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
