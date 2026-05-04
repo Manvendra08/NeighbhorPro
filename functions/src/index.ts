@@ -4,11 +4,11 @@
  * These Cloud Functions are not used in the Spark-plan client-only deployment.
  * Keep this file for future Blaze migration only. Do not rely on it in Spark.
  *
- * Firebase Cloud Functions — NeighbourCoins × Razorpay
+ * Firebase Cloud Functions â€” NeighbourCoins Ã— Razorpay
  *
  * Exports:
- *   createRazorpayOrder  — HTTPS callable: browser calls this to get an order_id
- *   razorpayWebhook      — HTTPS endpoint: Razorpay POSTs here on payment.captured
+ *   createRazorpayOrder  â€” HTTPS callable: browser calls this to get an order_id
+ *   razorpayWebhook      â€” HTTPS endpoint: Razorpay POSTs here on payment.captured
  *
  * Environment config (set via Firebase Functions config):
  *   firebase functions:secrets:set RAZORPAY_KEY_ID
@@ -30,7 +30,7 @@ import {
 admin.initializeApp();
 const db = admin.firestore();
 
-/* ── Razorpay client (lazy-init so secrets are resolved at runtime) ── */
+/* â”€â”€ Razorpay client (lazy-init so secrets are resolved at runtime) â”€â”€ */
 function getRazorpay() {
   return new Razorpay({
     key_id:     process.env.RAZORPAY_KEY_ID!,
@@ -38,7 +38,7 @@ function getRazorpay() {
   });
 }
 
-/* ── Coin pack definitions (must match frontend COIN_PACKS) ── */
+/* â”€â”€ Coin pack definitions (must match frontend COIN_PACKS) â”€â”€ */
 const COIN_PACKS: Record<string, { priceRs: number; coins: number; bonus: number; label: string }> = {
   Trial:   { priceRs: 50,   coins: 50,   bonus: 0,   label: "Trial"   },
   Starter: { priceRs: 200,  coins: 200,  bonus: 20,  label: "Starter" },
@@ -47,11 +47,11 @@ const COIN_PACKS: Record<string, { priceRs: number; coins: number; bonus: number
   Society: { priceRs: 2500, coins: 2500, bonus: 500, label: "Society" },
 };
 
-/* ═══════════════════════════════════════════════════════
-   1. createRazorpayOrder  — callable from browser
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   1. createRazorpayOrder  â€” callable from browser
       Input:  { packLabel: string }
       Output: { orderId, amount, currency, keyId }
-═══════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export const createRazorpayOrder = functions.onCall(
   {
     secrets: ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"],
@@ -105,11 +105,11 @@ export const createRazorpayOrder = functions.onCall(
   }
 );
 
-/* ═══════════════════════════════════════════════════════
-   2. razorpayWebhook  — HTTPS endpoint for Razorpay
-      Razorpay Dashboard → Webhooks → URL: /razorpayWebhook
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   2. razorpayWebhook  â€” HTTPS endpoint for Razorpay
+      Razorpay Dashboard â†’ Webhooks â†’ URL: /razorpayWebhook
       Events to enable: payment.captured
-═══════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export const razorpayWebhook = functions.onRequest(
   {
     secrets: ["RAZORPAY_WEBHOOK_SECRET"],
@@ -146,13 +146,13 @@ export const razorpayWebhook = functions.onRequest(
 
     logger.info("Payment captured", { orderId, paymentId });
 
-    // 3. Idempotency — check if already processed
+    // 3. Idempotency â€” check if already processed
     const purchaseRef = db.collection("coinPurchases").doc(orderId);
     const purchaseSnap = await purchaseRef.get();
 
     if (!purchaseSnap.exists) {
       logger.error("Purchase doc not found", { orderId });
-      res.status(200).send("Order not found — ignored");
+      res.status(200).send("Order not found â€” ignored");
       return;
     }
 
@@ -204,7 +204,7 @@ export const razorpayWebhook = functions.onRequest(
         type:         "topup",
         amount:       coinsGranted,
         balanceAfter: newBalance,
-        description:  `${packLabel} Pack — ₹${amountPaid} → ${coinsGranted} NC`,
+        description:  `${packLabel} Pack â€” â‚¹${amountPaid} â†’ ${coinsGranted} NC`,
         refId:        orderId,
         paymentId,
         createdAt:    FieldValue.serverTimestamp(),
@@ -216,9 +216,9 @@ export const razorpayWebhook = functions.onRequest(
   }
 );
 
-/* ═══════════════════════════════════════════════════════
-   3. generateCloudinarySignature — Signed Uploads Validation
-═══════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   3. generateCloudinarySignature â€” Signed Uploads Validation
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export const generateCloudinarySignature = functions.onCall(
   {
     secrets: ["CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
@@ -247,9 +247,106 @@ export const generateCloudinarySignature = functions.onCall(
   }
 );
 
-/* ═══════════════════════════════════════════════════════
-   4. logActivityFunction — Rate-limited server-side logging
-═══════════════════════════════════════════════════════ */
+type ParsedCloudinaryProof = {
+  resourceType: "image" | "raw" | "video";
+  publicId: string;
+  format: string;
+  cloudName: string;
+};
+
+function parseCloudinaryProofUrl(url: string): ParsedCloudinaryProof | null {
+  const clean = url.split("?")[0]?.split("#")[0]?.trim();
+  if (!clean) return null;
+
+  const withVersion = clean.match(/^https?:\/\/res\.cloudinary\.com\/([^/]+)\/(image|raw|video)\/upload\/(?:[^/]+\/)*v\d+\/(.+)\.([a-zA-Z0-9]+)$/);
+  const withoutVersion = clean.match(/^https?:\/\/res\.cloudinary\.com\/([^/]+)\/(image|raw|video)\/upload\/(?:[^/]+\/)*(.+)\.([a-zA-Z0-9]+)$/);
+  const match = withVersion || withoutVersion;
+  if (!match) return null;
+
+  const cloudName = match[1];
+  const resourceType = (match[2] as "image" | "raw" | "video");
+  const publicId = decodeURIComponent(match[3]);
+  const format = match[4].toLowerCase();
+  return { cloudName, resourceType, publicId, format };
+}
+
+function signCloudinaryParams(params: Record<string, string>, apiSecret: string): string {
+  const sorted = Object.keys(params)
+    .filter((key) => params[key] !== undefined && params[key] !== null && params[key] !== "")
+    .sort()
+    .map((key) => `${key}=${params[key]}`)
+    .join("&");
+  return crypto.createHash("sha1").update(`${sorted}${apiSecret}`).digest("hex");
+}
+
+export const getResidencyProofDownloadUrl = functions.onCall(
+  {
+    secrets: ["CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
+    region: "asia-south1",
+  },
+  async (request: any) => {
+    if (!request.auth) {
+      throw new functions.HttpsError("unauthenticated", "Login required.");
+    }
+
+    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+    if (!callerDoc.exists || callerDoc.data()?.role !== "admin") {
+      throw new functions.HttpsError("permission-denied", "Admin only.");
+    }
+
+    const proofUrl = typeof request.data?.proofUrl === "string" ? request.data.proofUrl.trim() : "";
+    if (!proofUrl) {
+      throw new functions.HttpsError("invalid-argument", "proofUrl is required.");
+    }
+
+    const parsed = parseCloudinaryProofUrl(proofUrl);
+    if (!parsed) {
+      throw new functions.HttpsError("invalid-argument", "Invalid Cloudinary proof URL.");
+    }
+
+    // Only allow residency-proof assets and only PDF full-document downloads.
+    if (!parsed.publicId.startsWith("ProNeighbor/residency-proofs/")) {
+      throw new functions.HttpsError("permission-denied", "Asset not in residency-proofs folder.");
+    }
+    if (parsed.format !== "pdf") {
+      throw new functions.HttpsError("invalid-argument", "Only PDF download signing is allowed.");
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const expiresAt = timestamp + 300;
+    const paramsToSign: Record<string, string> = {
+      attachment: "true",
+      expires_at: String(expiresAt),
+      format: parsed.format,
+      public_id: parsed.publicId,
+      resource_type: parsed.resourceType,
+      timestamp: String(timestamp),
+      type: "upload",
+    };
+
+    const apiKey = process.env.CLOUDINARY_API_KEY!;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET!;
+    const signature = signCloudinaryParams(paramsToSign, apiSecret);
+
+    const query = new URLSearchParams({
+      api_key: apiKey,
+      attachment: "true",
+      expires_at: String(expiresAt),
+      format: parsed.format,
+      public_id: parsed.publicId,
+      signature,
+      timestamp: String(timestamp),
+      type: "upload",
+    });
+
+    const downloadUrl = `https://api.cloudinary.com/v1_1/${parsed.cloudName}/${parsed.resourceType}/download?${query.toString()}`;
+    return { downloadUrl };
+  }
+);
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   4. logActivityFunction â€” Rate-limited server-side logging
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 const activityRateLimitCache = new Map<string, number>();
 
 export const logActivityFunction = functions.onCall(
@@ -294,11 +391,11 @@ export const logActivityFunction = functions.onCall(
   }
 );
 
-/* ═══════════════════════════════════════════════════════
-   6. deleteUserAuth — Hard-delete Firebase Auth account
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   6. deleteUserAuth â€” Hard-delete Firebase Auth account
       Called by admin after cascade Firestore deletion.
       Admin SDK bypasses client auth restrictions.
-═══════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export const deleteUserAuth = functions.onCall(
   { region: "asia-south1" },
   async (request: any) => {
@@ -332,7 +429,7 @@ export const deleteUserAuth = functions.onCall(
     }
   }
 );
-═══════════════════════════════════════════════════════ */
+/* ------------------------------------------------------------------------- */
 export const flagSpamReviews = onDocumentCreated(
   {
     document: "reviews/{reviewId}",

@@ -82,7 +82,9 @@ const SKILL_SUGGESTIONS = [
 ];
 
 function getDeliverableProofUrl(url: unknown): string {
-  return typeof url === "string" ? url.replace(/\/raw\/upload\//i, "/image/upload/") : "";
+  return typeof url === "string" && url
+    ? url.replace(/\/raw\/upload\//i, "/image/upload/")
+    : "";
 }
 
 type ProfileProps = {
@@ -343,7 +345,9 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
 
   const targetEmail = (targetProfile?.email as string) || user?.email || "";
   const verificationStatus = (targetProfile?.residentVerificationStatus as string) || "none";
-  const proofUrl = getDeliverableProofUrl(targetProfile?.residencyProofUrl);
+  const proofUrl = getDeliverableProofUrl(
+    targetProfile?.residencyProofUrl || targetProfile?.residencyProofPreviewUrl
+  );
   const rejectionNote = typeof targetProfile?.verificationReviewNote === "string" ? targetProfile.verificationReviewNote.trim() : "";
   const hasRejectedProof = verificationStatus === "none" && Boolean(proofUrl) && Boolean(rejectionNote);
   const canDeleteProof = Boolean(proofUrl) && verificationStatus !== "verified" && !isAdminViewAs;

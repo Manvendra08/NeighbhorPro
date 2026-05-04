@@ -279,6 +279,19 @@ async function uploadToCloudinary(
   throw lastError;
 }
 
+function normalizeCloudinaryResidencyUrl(url: string): string {
+  return url.includes("/raw/upload/") ? url.replace("/raw/upload/", "/image/upload/") : url;
+}
+
+function getPdfPreviewUrl(url: string): string {
+  const normalized = normalizeCloudinaryResidencyUrl(url);
+  if (!/\.pdf($|[?#])/i.test(normalized)) return normalized;
+  const withPage = normalized.includes("/image/upload/pg_")
+    ? normalized
+    : normalized.replace("/image/upload/", "/image/upload/pg_1/");
+  return withPage.replace(/\.pdf(?=($|[?#]))/i, ".jpg");
+}
+
 export async function uploadProfilePhoto(uid: string, file: File) {
   validateUpload(file, "profilePhoto"); // throws if invalid
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -306,19 +319,16 @@ export async function uploadResidencyProof(uid: string, file: File) {
     throw new Error("Cloudinary upload preset is missing. Set VITE_CLOUDINARY_UPLOAD_PRESET or VITE_CLOUDINARY_RESIDENCY_UPLOAD_PRESET.");
   }
 
-  // Keep Cloudinary default document handling; forcing raw URLs can trigger 401 on delivery.
-  const data = await uploadToCloudinary(file, "ProNeighbor/residency-proofs", uploadPreset, cloudName, "auto");
-  let residencyProofUrl = data.secure_url;
+  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  const resourceTypeToUse: "image" | "raw" | "auto" = isPdf ? "image" : "auto";
+  const data = await uploadToCloudinary(file, "ProNeighbor/residency-proofs", uploadPreset, cloudName, resourceTypeToUse);
+  let residencyProofUrl = normalizeCloudinaryResidencyUrl(data.secure_url);
+  const residencyProofPreviewUrl = isPdf ? getPdfPreviewUrl(residencyProofUrl) : null;
   const resourceType = data.resource_type || "image";
-
-  // Backward compatibility for previously rewritten PDF URLs.
-  if (/\.pdf($|[?#])/i.test(residencyProofUrl) && residencyProofUrl.includes("/raw/upload/")) {
-    residencyProofUrl = residencyProofUrl.replace("/raw/upload/", "/image/upload/");
-  }
 
   const update = {
     residencyProofUrl,
-    residencyProofPreviewUrl: null,
+    residencyProofPreviewUrl,
     residencyProofResourceType: resourceType,
     residentVerificationStatus: "pending",
     verificationMethod: null,
@@ -337,6 +347,7 @@ export async function uploadResidencyProof(uid: string, file: File) {
   // CRITICAL FIX: Mirror to public profile so other users see verification status
   await mirrorPublicProfile(uid, {
     residencyProofUrl,
+    residencyProofPreviewUrl,
     residentVerificationStatus: "pending",
   });
   return residencyProofUrl;

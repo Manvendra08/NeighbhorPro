@@ -612,12 +612,9 @@ export default function AdminUsers() {
   };
 
   const getProofUrl = (u: UserRow) => {
-    const url = (u.residencyProofUrl as string) || "";
-    // Fix legacy URLs rewritten to raw delivery path (can 401 on some Cloudinary setups).
-    if (url && isPdfUrl(url) && url.includes("/raw/upload/")) {
-      return url.replace("/raw/upload/", "/image/upload/");
-    }
-    return url;
+    const rawUrl = ((u.residencyProofUrl as string) || (u.residencyProofPreviewUrl as string) || "").trim();
+    if (!rawUrl) return "";
+    return rawUrl.replace("/raw/upload/", "/image/upload/");
   };
   const isPdfUrl = (url: string) => /\.pdf($|[?#])/i.test(url) || url.toLowerCase().includes("application/pdf");
 
@@ -799,7 +796,7 @@ export default function AdminUsers() {
           {filtered.map((u: UserRow) => {
             const uid = u.uid as string;
             const proofUrl = getProofUrl(u);
-            const proofIsPdf = isPdfUrl(proofUrl);
+            const proofIsPdf = isPdfUrl(((u.residencyProofUrl as string) || "").trim());
             const busy = actionLoading === uid;
             return (
               <article key={uid} className="au-verify-card" style={{ opacity: busy ? 0.55 : 1 }}>
@@ -854,6 +851,11 @@ export default function AdminUsers() {
                   )}
                 </div>
                 <div className="au-verify-card__actions">
+                  {proofIsPdf && (
+                    <a className="btn btn-secondary btn-sm" href={((u.residencyProofUrl as string) || "").replace("/raw/upload/", "/image/upload/")} target="_blank" rel="noopener noreferrer">
+                      Download PDF
+                    </a>
+                  )}
                   <button className="btn btn-success btn-sm" onClick={() => handleVerifyResident(u, "verified")} disabled={busy}>Approve</button>
                   <button className="btn btn-danger btn-sm" onClick={() => handleVerifyResident(u, "none")} disabled={busy}>Reject</button>
                 </div>
