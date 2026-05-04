@@ -5,32 +5,43 @@ import { captureError } from "../lib/sentry";
 
 /**
  * Request notification permission and register FCM token for the current user.
- * Saves the token to Firestore under users/{uid}/fcmToken
+ * Saves the token to Firestore under users/{uid}.fcmToken.
+ *
+ * Uses /sw.js (the unified service worker) — NOT a separate firebase-messaging-sw.js.
+ * Both SWs registering at scope "/" would conflict; the unified SW handles both
+ * app-shell caching and FCM background messages.
  */
 export async function registerPushNotifications(uid: string): Promise<boolean> {
   try {
     const messaging = await getMessagingInstance();
     if (!messaging) {
-      console.warn("FCM not supported in this browser.");
+      console.warn("[FCM] Not supported in this browser.");
       return false;
     }
 
-    // Request permission
+    // Request permission (no-op if already granted)
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
-      console.warn("Notification permission denied.");
+      console.warn("[FCM] Notification permission denied.");
       return false;
     }
 
-    // Register service worker explicitly
-    const swRegistration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
-      scope: "/",
-    });
+    // Wait for the unified SW to be ready — it handles both caching and FCM.
+    // In dev, main.tsx unregisters SWs, so we register on-demand here.
+    let swRegistration: ServiceWorkerRegistration;
+    try {
+      swRegistration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      // Wait until the SW is active before requesting the FCM token
+      await navigator.serviceWorker.ready;
+    } catch (swErr) {
+      console.error("[FCM] Service worker registration failed:", swErr);
+      captureError(swErr, { operation: "sw_register_for_fcm", uid });
+      return false;
+    }
 
-    // Get FCM token
     const vapidKey = import.meta.env.VITE_FCM_VAPID_KEY as string | undefined;
     if (!vapidKey || vapidKey.trim() === "" || vapidKey === "YOUR_VAPID_KEY_HERE") {
-      console.warn("VITE_FCM_VAPID_KEY is not configured. Push notifications disabled.");
+      console.warn("[FCM] VITE_FCM_VAPID_KEY is not configured. Push notifications disabled.");
       return false;
     }
 
@@ -40,62 +51,80 @@ export async function registerPushNotifications(uid: string): Promise<boolean> {
     });
 
     if (!token) {
-      console.warn("Failed to get FCM token.");
+      console.warn("[FCM] Failed to get FCM token.");
       return false;
     }
 
-    // Save token to Firestore
-    const userRef = doc(db, "users", uid);
-    const updatePayload = { fcmToken: token };
-    console.log("FCM update payload:", updatePayload, "for uid:", uid, "token length:", token.length);
-    try {
-      await updateDoc(userRef, updatePayload);
-    } catch (updateError) {
-      // Fallback: if update fails (e.g., doc doesn't exist), try setDoc with merge
-      if (updateError instanceof Error && updateError.message.includes("No document to update")) {
-        console.warn("User doc not found, attempting setDoc with merge...");
-        await setDoc(userRef, updatePayload, { merge: true });
-      } else {
-        throw updateError;
-      }
-    }
+    await saveFcmToken(uid, token);
 
-    console.log("FCM token registered successfully.");
+    // FCM v9 modular SDK does not expose onTokenRefresh. Instead, call getToken()
+    // on each app load — it returns the cached token if still valid, or a new one
+    // if the previous token was rotated. The registration guard in usePushNotifications
+    // (registeredRef) ensures this only runs once per session, not on every render.
+
+    console.log("[FCM] Token registered successfully.");
     return true;
   } catch (error) {
-    console.error("Error registering push notifications:", error);
+    console.error("[FCM] Error registering push notifications:", error);
     captureError(error, { operation: "register_push_notifications", uid });
     return false;
   }
 }
 
+/** Persist FCM token to Firestore, with setDoc fallback if the doc doesn't exist yet. */
+async function saveFcmToken(uid: string, token: string): Promise<void> {
+  const userRef = doc(db, "users", uid);
+  try {
+    await updateDoc(userRef, { fcmToken: token });
+  } catch (updateError) {
+    if (
+      updateError instanceof Error &&
+      updateError.message.includes("No document to update")
+    ) {
+      await setDoc(userRef, { fcmToken: token }, { merge: true });
+    } else {
+      throw updateError;
+    }
+  }
+}
+
 /**
- * Listen for foreground messages and display them as browser notifications.
+ * Listen for foreground FCM messages.
+ * Shows a browser Notification and calls the optional onNotification callback
+ * so the in-app notification center can refresh its data.
+ *
  * Returns an unsubscribe function.
  */
-export function listenForForegroundMessages(onNotification?: (payload: any) => void): () => void {
+export function listenForForegroundMessages(
+  onNotification?: (payload: unknown) => void
+): () => void {
   let unsub: (() => void) | null = null;
 
   getMessagingInstance().then(messaging => {
     if (!messaging) return;
-    
-    unsub = onMessage(messaging, (payload) => {
-      console.log("Foreground message received:", payload);
-      
+
+    unsub = onMessage(messaging, payload => {
+      // Notify the app so it can re-fetch / update state
       if (onNotification) {
         onNotification(payload);
       }
 
-      // Show browser notification for foreground messages
-      if (Notification.permission === "granted" && payload.notification) {
-        new Notification(payload.notification.title || "ProNeighbor", {
-          body: payload.notification.body || "",
+      // Show a browser notification for foreground messages
+      // (background messages are handled by the SW's onBackgroundMessage)
+      if (
+        Notification.permission === "granted" &&
+        (payload as { notification?: { title?: string; body?: string } }).notification
+      ) {
+        const n = (payload as { notification: { title?: string; body?: string } }).notification;
+        new Notification(n.title || "ProNeighbor", {
+          body: n.body || "",
           icon: "/images/logo.png",
           badge: "/images/logo.png",
-          data: payload.data,
         });
       }
     });
+  }).catch(err => {
+    captureError(err, { operation: "listen_foreground_messages" });
   });
 
   return () => {
@@ -103,16 +132,12 @@ export function listenForForegroundMessages(onNotification?: (payload: any) => v
   };
 }
 
-/**
- * Check if notifications are supported and permission is granted.
- */
+/** Returns true if the browser supports notifications and permission is granted. */
 export function isNotificationSupported(): boolean {
   return "Notification" in window && Notification.permission === "granted";
 }
 
-/**
- * Check if notification permission is denied.
- */
+/** Returns true if the user has explicitly denied notification permission. */
 export function isNotificationDenied(): boolean {
   return "Notification" in window && Notification.permission === "denied";
 }

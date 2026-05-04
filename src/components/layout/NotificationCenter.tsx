@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { usePushNotifications } from "../../hooks/usePushNotifications";
@@ -28,7 +28,16 @@ function timeAgo(ms: number) {
 export default function NotificationCenter({ mobile = false }: NotificationCenterProps) {
     const { user, userProfile } = useAuth();
     const navigate = useNavigate();
-    const { permission, requestPermission } = usePushNotifications(user?.uid);
+
+    // Stable callback — Firestore listeners in useNotifications are already live,
+    // so a foreground FCM message doesn't need to force a re-fetch. We use this
+    // slot to show a toast or badge flash in the future if needed.
+    const onForegroundMessage = useCallback(() => {
+        // Foreground FCM message received — Firestore real-time listeners will
+        // pick up the underlying data change automatically.
+    }, []);
+
+    const { permission, requestPermission } = usePushNotifications(user?.uid, onForegroundMessage);
     const { notifications, loading, unreadCount, isRead, markRead, clearAll } = useNotifications(
         user?.uid,
         userProfile
@@ -38,6 +47,18 @@ export default function NotificationCenter({ mobile = false }: NotificationCente
     const rootRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const actionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+    // Auto-prompt once per session when the panel is first opened and permission
+    // is still "default". This surfaces the browser permission dialog without
+    // requiring the user to find the "Enable Push" button.
+    const autoPromptedRef = useRef(false);
+    useEffect(() => {
+        if (!open || autoPromptedRef.current) return;
+        if (permission === "default" && user?.uid) {
+            autoPromptedRef.current = true;
+            void requestPermission();
+        }
+    }, [open, permission, user?.uid, requestPermission]);
 
     useEffect(() => {
         const onClickOutside = (e: MouseEvent) => {

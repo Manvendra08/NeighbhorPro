@@ -20,13 +20,10 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator) {
         captureError(err, { operation: "service_worker_register" });
       });
     });
-  } else {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      registrations.forEach((registration) => {
-        void registration.unregister();
-      });
-    });
   }
+  // In dev, we intentionally skip pre-registering the SW to avoid stale cache
+  // issues during hot-reload. The SW is registered on-demand by
+  // notificationService.ts when the user enables push notifications.
 }
 
 createRoot(document.getElementById("root")!).render(
