@@ -22,6 +22,15 @@ export default function PWASplashScreen() {
     if (sessionStorage.getItem("splash-shown")) return;
     sessionStorage.setItem("splash-shown", "1");
 
+    // Redirect to dashboard/login if standalone (skip landing)
+    const path = window.location.pathname;
+    if (path === "/" || path === "/login" || path === "/register") {
+      // Check if user logged in via localStorage token presence
+      const hasAuth = Boolean(localStorage.getItem("firebase:authUser:AIzaSyDLa5-OsjK3iSTfHur4kKfRPJl9_fu8Pk0:[DEFAULT]"));
+      window.location.href = hasAuth ? "/dashboard" : "/login";
+      return;
+    }
+
     setVisible(true);
     const fadeTimer  = setTimeout(() => setFading(true),  1800);
     const hideTimer  = setTimeout(() => setVisible(false), 2300);

@@ -111,7 +111,7 @@ export default function LandingPage() {
   const serviceGroups = [
     {
       tag: "recurring",
-      heading: "Learn, grow, repeat.",
+      heading: "Business - Learn, grow, repeat.",
       subtitle: "Weekly or monthly commitments with pros in your society.",
       comingSoon: false,
       items: [
@@ -125,7 +125,7 @@ export default function LandingPage() {
     },
     {
       tag: "home",
-      heading: "Everyday needs, one flat away.",
+      heading: "Services - Everyday needs, one flat away.",
       subtitle: "On-demand help from neighbours you already trust.",
       comingSoon: false,
       items: [
@@ -140,7 +140,7 @@ export default function LandingPage() {
     },
     {
       tag: "office",
-      heading: "Your office runs better with neighbours.",
+      heading: "Office - Your office runs better with neighbours.",
       subtitle: "Freelancer, founder, or remote worker — find pros a floor away.",
       comingSoon: false,
       items: [
@@ -154,7 +154,7 @@ export default function LandingPage() {
     },
     {
       tag: "business",
-      heading: "Turn your hobby into a hustle.",
+      heading: "E-commerce - Turn your hobby into a hustle.",
       subtitle: "Society-based micro-businesses coming to your app soon.",
       comingSoon: true,
       items: [

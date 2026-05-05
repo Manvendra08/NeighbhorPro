@@ -13,6 +13,15 @@ export function ForgotPasswordPage() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
+      // Check email exists before sending reset link
+      const { fetchSignInMethodsForEmail } = await import("firebase/auth");
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      if (methods.length === 0) {
+        setError("No account found with this email.");
+        setLoading(false);
+        return;
+      }
+      
       await resetPassword(email);
       setSuccess(true);
     } catch (err: unknown) {

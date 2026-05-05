@@ -92,10 +92,14 @@ export default function App() {
 
 function PWAWrapper() {
   const auth = useAuth();
+  const navigate = useNavigate();
+  
   // Initialize push notifications for logged-in users
   usePushNotifications(auth?.user?.uid);
   
   // Only show install banner when user is logged in (inside the webapp)
-  if (!auth?.user) return null;
+  // AND not on landing page
+  const isLandingPage = window.location.pathname === "/";
+  if (!auth?.user || isLandingPage) return null;
   return <PWAInstallBanner />;
 }

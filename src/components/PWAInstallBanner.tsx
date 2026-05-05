@@ -40,6 +40,10 @@ export default function PWAInstallBanner() {
     // Check if dismissed before
     if (localStorage.getItem("pwa-banner-dismissed")) return;
 
+    // Only show on mobile
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    if (!isMobile) return;
+
     // iOS detection — no beforeinstallprompt, show manual hint instead
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !(window as unknown as { MSStream: unknown }).MSStream;
     if (ios) { setIsIOS(true); pendingIOS.current = true; return; }

@@ -13,7 +13,7 @@ import {
   uploadResidencyProof,
 } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
-import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../constants/serviceCatalog";
+import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories, CATEGORY_GROUPS } from "../constants/serviceCatalog";
 
 const SKILL_SUGGESTIONS = [
   "Tax Filing & ITR",
@@ -141,6 +141,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   const [svcQuote, setSvcQuote] = useState(false);
   const [svcDuration, setSvcDuration] = useState("30 min");
   const [svcCategory, setSvcCategory] = useState("");
+  const [svcCategoryGroup, setSvcCategoryGroup] = useState("");
   const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
 
   useEffect(() => {
@@ -318,6 +319,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     setSvcQuote(false);
     setSvcDuration("30 min");
     setSvcCategory("");
+    setSvcCategoryGroup("");
     setEditingServiceId(null);
     setShowServiceForm(false);
   };
@@ -333,7 +335,17 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     setSvcIsFree(!quote && free);
     setSvcPrice(String((service.price as number) || 0));
     setSvcDuration((service.duration as string) || "30 min");
-    setSvcCategory((service.category as string) || "");
+    const cat = (service.category as string) || "";
+    setSvcCategory(cat);
+    // Find group for this category
+    let foundGroup = "";
+    for (const [group, cats] of Object.entries(CATEGORY_GROUPS)) {
+      if (cats.includes(cat)) {
+        foundGroup = group;
+        break;
+      }
+    }
+    setSvcCategoryGroup(foundGroup);
     setShowServiceForm(true);
   };
 
@@ -704,12 +716,19 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                   </select>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Category</label>
-                  <select className="form-input" value={svcCategory} onChange={(event) => setSvcCategory(event.target.value)} id="svc-category-select">
-                    <option value="">Select...</option>
-                    {serviceCategories.map(category => <option key={category} value={category}>{category}</option>)}
+                  <label className="form-label">Category Group</label>
+                  <select className="form-input" value={svcCategoryGroup} onChange={(event) => { setSvcCategoryGroup(event.target.value); setSvcCategory(""); }} id="svc-category-group-select">
+                    <option value="">Select group...</option>
+                    {Object.keys(CATEGORY_GROUPS).map(group => <option key={group} value={group}>{group}</option>)}
                   </select>
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Service Category</label>
+                <select className="form-input" value={svcCategory} onChange={(event) => setSvcCategory(event.target.value)} id="svc-category-select" disabled={!svcCategoryGroup}>
+                  <option value="">Select category...</option>
+                  {svcCategoryGroup && CATEGORY_GROUPS[svcCategoryGroup]?.map(category => <option key={category} value={category}>{category}</option>)}
+                </select>
               </div>
               <button className="btn btn-success" onClick={handleServiceSave} disabled={!svcTitle.trim()}>
                 {editingServiceId ? "Update Service" : "Save Service"}
