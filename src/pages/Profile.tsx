@@ -4,7 +4,6 @@ import {
   createService,
   deleteService,
   getAllSocieties,
-  getPlatformSettings,
   getServicesByUser,
   updateService,
   updateUserProfile,
@@ -13,7 +12,7 @@ import {
   uploadResidencyProof,
 } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
-import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories, CATEGORY_GROUPS } from "../constants/serviceCatalog";
+import { CATEGORY_GROUPS } from "../constants/serviceCatalog";
 
 const SKILL_SUGGESTIONS = [
   "Tax Filing & ITR",
@@ -136,13 +135,11 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [svcTitle, setSvcTitle] = useState("");
   const [svcDesc, setSvcDesc] = useState("");
-  const [svcIsFree, setSvcIsFree] = useState(false);
+  const [svcFeeType, setSvcFeeType] = useState<"free" | "quote" | "hourly">("free");
   const [svcPrice, setSvcPrice] = useState("");
-  const [svcQuote, setSvcQuote] = useState(false);
   const [svcDuration, setSvcDuration] = useState("30 min");
   const [svcCategory, setSvcCategory] = useState("");
   const [svcCategoryGroup, setSvcCategoryGroup] = useState("");
-  const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
 
   useEffect(() => {
     if (!targetProfile) return;
@@ -178,16 +175,6 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     const mappedLocality = ((selected.locality as string) || (selected.city as string) || "").trim();
     setLocality(mappedLocality);
   }, [society, societies]);
-
-  useEffect(() => {
-    getPlatformSettings()
-      .then((settings) => {
-        setServiceCategories(normalizeServiceCategories(settings.serviceCategories));
-      })
-      .catch(() => {
-        setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
-      });
-  }, []);
 
   useEffect(() => {
     if (!targetUid) return;
@@ -300,9 +287,10 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       userId: targetUid,
       title: svcTitle,
       description: svcDesc,
-      price: svcQuote ? 0 : Number(svcPrice),
-      isFree: svcIsFree,
-      quoteBased: svcQuote,
+      price: svcFeeType === "hourly" ? Number(svcPrice) : 0,
+      isFree: svcFeeType === "free",
+      quoteBased: svcFeeType === "quote",
+      feeType: svcFeeType,
       duration: svcDuration,
       category: svcCategory,
     };
@@ -315,8 +303,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     setSvcTitle("");
     setSvcDesc("");
     setSvcPrice("");
-    setSvcIsFree(false);
-    setSvcQuote(false);
+    setSvcFeeType("free");
     setSvcDuration("30 min");
     setSvcCategory("");
     setSvcCategoryGroup("");
@@ -329,10 +316,14 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     setEditingServiceId(service.id as string);
     setSvcTitle((service.title as string) || "");
     setSvcDesc((service.description as string) || "");
-    const quote = Boolean(service.quoteBased);
-    const free = Boolean(service.isFree) || (Number(service.price) || 0) === 0;
-    setSvcQuote(quote);
-    setSvcIsFree(!quote && free);
+    
+    // Determine fee type from service data
+    let feeType: "free" | "quote" | "hourly" = "free";
+    if (service.quoteBased) feeType = "quote";
+    else if (Number(service.price) > 0) feeType = "hourly";
+    else if (service.isFree || (Number(service.price) || 0) === 0) feeType = "free";
+    
+    setSvcFeeType(feeType);
     setSvcPrice(String((service.price as number) || 0));
     setSvcDuration((service.duration as string) || "30 min");
     const cat = (service.category as string) || "";
@@ -694,16 +685,16 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Price (NC)</label>
-                  <input type="number" className="form-input" value={(svcIsFree || svcQuote) ? 0 : svcPrice} onChange={(event) => setSvcPrice(event.target.value)} min={0} disabled={svcIsFree || svcQuote} id="svc-price-input" />
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: "normal", fontSize: "0.75rem", color: "var(--muted)", marginTop: 6 }}>
-                    <input type="checkbox" checked={svcIsFree} onChange={(event) => { setSvcIsFree(event.target.checked); if (event.target.checked) setSvcQuote(false); }} />
-                    Free
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: "normal", fontSize: "0.75rem", color: "var(--muted)", marginTop: 6 }}>
-                    <input type="checkbox" checked={svcQuote} onChange={(event) => { setSvcQuote(event.target.checked); if (event.target.checked) setSvcIsFree(false); }} />
-                    Quote-based
-                  </label>
+                  <label className="form-label">Fee Type</label>
+                  <select className="form-input" value={svcFeeType} onChange={(event) => setSvcFeeType(event.target.value as "free" | "quote" | "hourly")} id="svc-fee-type-select">
+                    <option value="free">Free</option>
+                    <option value="quote">Quote-based</option>
+                    <option value="hourly">Hourly Fee</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Amount (NC)</label>
+                  <input type="number" className="form-input" value={svcPrice} onChange={(event) => setSvcPrice(event.target.value)} min={0} disabled={svcFeeType !== "hourly"} id="svc-price-input" placeholder={svcFeeType === "hourly" ? "Enter amount" : "N/A"} />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Duration</label>
@@ -715,6 +706,8 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                     <option>2 hours</option>
                   </select>
                 </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Category Group</label>
                   <select className="form-input" value={svcCategoryGroup} onChange={(event) => { setSvcCategoryGroup(event.target.value); setSvcCategory(""); }} id="svc-category-group-select">
@@ -722,13 +715,13 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                     {Object.keys(CATEGORY_GROUPS).map(group => <option key={group} value={group}>{group}</option>)}
                   </select>
                 </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Service Category</label>
-                <select className="form-input" value={svcCategory} onChange={(event) => setSvcCategory(event.target.value)} id="svc-category-select" disabled={!svcCategoryGroup}>
-                  <option value="">Select category...</option>
-                  {svcCategoryGroup && CATEGORY_GROUPS[svcCategoryGroup]?.map(category => <option key={category} value={category}>{category}</option>)}
-                </select>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Service Category</label>
+                  <select className="form-input" value={svcCategory} onChange={(event) => setSvcCategory(event.target.value)} id="svc-category-select" disabled={!svcCategoryGroup}>
+                    <option value="">Select category...</option>
+                    {svcCategoryGroup && CATEGORY_GROUPS[svcCategoryGroup]?.map(category => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                </div>
               </div>
               <button className="btn btn-success" onClick={handleServiceSave} disabled={!svcTitle.trim()}>
                 {editingServiceId ? "Update Service" : "Save Service"}
@@ -745,7 +738,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                   <div>
                     <div style={{ fontWeight: 600 }}>{service.title as string}</div>
                     <div className="text-muted text-sm">
-                      {service.quoteBased ? "Quote-based" : (service.isFree || (service.price as number) === 0) ? "Free" : `${service.price} NC`} | {service.duration as string}
+                      {service.quoteBased ? "Quote-based" : (service.isFree || (service.price as number) === 0) ? "Free" : `${service.price} NC/hr`} | {service.duration as string}
                       {service.category ? <span style={{ marginLeft: 8 }} className="badge badge-muted">{service.category as string}</span> : null}
                     </div>
                   </div>
