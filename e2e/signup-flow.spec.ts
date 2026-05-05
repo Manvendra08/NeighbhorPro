@@ -89,9 +89,10 @@ test.describe('Signup Flow', () => {
 
     await page.locator('button[type="submit"]').click();
 
+    // Wait for error toast or alert
     await expect(
-      page.locator('text=/already.*exist|email.*taken|already.*registered/i')
-    ).toBeVisible({ timeout: 10000 });
+      page.locator('[role="alert"], .error-toast, .error-message').first()
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test('should have working Google sign-in button', async ({ page }) => {

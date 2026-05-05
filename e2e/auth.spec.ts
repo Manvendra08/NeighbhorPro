@@ -75,8 +75,10 @@ test.describe("Authentication Flow", () => {
   test("navigation from login to signup works", async ({ loginPage, page }) => {
     await loginPage.goto();
     
-    await expect(loginPage.signUpLink).toBeVisible({ timeout: 15000 });
-    await loginPage.clickSignUp();
+    // Use getByRole to find signup link more reliably
+    const signupLink = page.getByRole('link', { name: /sign up|register|create/i }).first();
+    await expect(signupLink).toBeVisible({ timeout: 15000 });
+    await signupLink.click();
     
     // Should navigate to signup page
     await expect(page).toHaveURL(/signup|register|auth\/sign-up/, { timeout: 15000 });

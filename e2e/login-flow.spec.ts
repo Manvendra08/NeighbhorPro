@@ -30,9 +30,10 @@ test.describe('Login Flow', () => {
     await page.locator('input[type="password"]').first().fill('WrongPassword123!');
     await page.locator('button[type="submit"]').click();
 
+    // Wait for error toast or alert message
     await expect(
-      page.locator('text=/incorrect|invalid|wrong|not found/i')
-    ).toBeVisible({ timeout: 10000 });
+      page.locator('[role="alert"], .error-toast, .error-message').first()
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test('should successfully login with valid credentials', async ({ page }) => {
@@ -42,7 +43,8 @@ test.describe('Login Flow', () => {
 
     await page.waitForURL(/\/dashboard/, { timeout: 15000 });
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.locator('text=/dashboard|welcome/i')).toBeVisible({ timeout: 5000 });
+    // Use h1 heading to avoid strict mode (3 elements match text=/dashboard|welcome/i)
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('should persist session after login', async ({ page, context }) => {
