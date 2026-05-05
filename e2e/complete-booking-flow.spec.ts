@@ -10,7 +10,7 @@ test.describe('Complete Booking Flow', () => {
   const testPassword = 'TestPassword123!';
 
   // Helper function to login
-  async function login(page) {
+  async function login(page: any) {
     await page.goto('/login');
     await page.locator('input[type="email"]').fill(testEmail);
     await page.locator('input[type="password"]').fill(testPassword);
@@ -297,7 +297,7 @@ test.describe('Complete Booking Flow - Mobile', () => {
   const testEmail = 'test@proneighbor.test';
   const testPassword = 'TestPassword123!';
 
-  async function login(page) {
+  async function login(page: any) {
     await page.goto('/login');
     await page.locator('input[type="email"]').fill(testEmail);
     await page.locator('input[type="password"]').fill(testPassword);

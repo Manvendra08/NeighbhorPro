@@ -60,7 +60,7 @@ test.describe("Authentication Flow", () => {
     await expect(dashboardPage.walletBalance).toBeVisible();
   });
 
-  test("forgot password flow is accessible", async ({ loginPage }) => {
+  test("forgot password flow is accessible", async ({ loginPage, page }) => {
     await loginPage.goto();
     
     await expect(loginPage.forgotPasswordLink).toBeVisible();
