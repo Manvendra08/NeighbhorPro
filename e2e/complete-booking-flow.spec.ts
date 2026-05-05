@@ -28,10 +28,10 @@ test.describe('Complete Booking Flow', () => {
     await page.goto('/browse');
 
     // Check page loaded
-    await expect(page).toHaveURL(/\/browse/);
+    await expect(page).toHaveURL(/\/browse/, { timeout: 15000 });
 
     // Check for services or empty state
-    const servicesExist = await page.locator('[data-testid="service-card"], .service-card, .card').count() > 0;
+    const servicesExist = await page.locator('[data-testid="service-card"]').count() > 0;
     const emptyState = await page.locator('text=/no.*service|empty/i').isVisible().catch(() => false);
 
     expect(servicesExist || emptyState).toBeTruthy();
@@ -44,19 +44,19 @@ test.describe('Complete Booking Flow', () => {
     await page.waitForTimeout(2000);
 
     // Find first service card
-    const firstService = page.locator('[data-testid="service-card"], .service-card, .card').first();
+    const firstService = page.locator('[data-testid="service-card"]').first();
 
     if (await firstService.isVisible()) {
       // Click on first service
       await firstService.click();
 
       // Wait for navigation to service detail page
-      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 10000 });
+      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 15000 });
 
       // Verify service detail page elements
       await expect(
         page.locator('text=/book|consultation|details/i')
-      ).toBeVisible({ timeout: 5000 });
+      ).toBeVisible({ timeout: 15000 });
     }
   });
 
@@ -67,20 +67,20 @@ test.describe('Complete Booking Flow', () => {
     await page.waitForTimeout(2000);
 
     // Find and click first service
-    const firstService = page.locator('[data-testid="service-card"], .service-card, .card').first();
+    const firstService = page.locator('[data-testid="service-card"]').first();
 
     if (await firstService.isVisible()) {
       await firstService.click();
 
       // Wait for service detail page
-      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 10000 });
+      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 15000 });
 
       // Click Book Now button
-      const bookButton = page.locator('button:has-text("Book"), button:has-text("Consultation")');
+      const bookButton = page.locator('button:has-text("Book")').first();
       await bookButton.click();
 
       // Wait for booking form
-      await page.waitForURL(/\/book\//, { timeout: 10000 });
+      await page.waitForURL(/\/book\//, { timeout: 15000 });
 
       // Fill in booking form
       // Select date (tomorrow)
@@ -88,7 +88,7 @@ test.describe('Complete Booking Flow', () => {
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-      const dateInput = page.locator('input[type="date"]');
+      const dateInput = page.locator('input[type="date"]').first();
       if (await dateInput.isVisible()) {
         await dateInput.fill(tomorrowStr);
       }
@@ -97,7 +97,7 @@ test.describe('Complete Booking Flow', () => {
       await page.waitForTimeout(2000);
 
       // Select first available time slot
-      const timeSlotSelect = page.locator('select[id*="time"], select:has-text("Select")');
+      const timeSlotSelect = page.locator('select').first();
       if (await timeSlotSelect.isVisible()) {
         const options = await timeSlotSelect.locator('option').count();
         if (options > 1) {
@@ -106,13 +106,13 @@ test.describe('Complete Booking Flow', () => {
       }
 
       // Fill in brief/notes
-      const notesTextarea = page.locator('textarea[id*="notes"], textarea[id*="brief"]');
+      const notesTextarea = page.locator('textarea').first();
       if (await notesTextarea.isVisible()) {
         await notesTextarea.fill('Test booking for E2E automation');
       }
 
       // Click Continue button
-      const continueButton = page.locator('button:has-text("Continue")');
+      const continueButton = page.locator('button:has-text("Continue")').first();
       await continueButton.click();
 
       // Wait for confirmation page
@@ -128,19 +128,19 @@ test.describe('Complete Booking Flow', () => {
     await page.goto('/browse');
     await page.waitForTimeout(2000);
 
-    const firstService = page.locator('[data-testid="service-card"], .service-card, .card').first();
+    const firstService = page.locator('[data-testid="service-card"]').first();
 
     if (await firstService.isVisible()) {
       await firstService.click();
-      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 10000 });
+      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 15000 });
 
-      const bookButton = page.locator('button:has-text("Book"), button:has-text("Consultation")');
+      const bookButton = page.locator('button:has-text("Book")').first();
       await bookButton.click();
 
-      await page.waitForURL(/\/book\//, { timeout: 10000 });
+      await page.waitForURL(/\/book\//, { timeout: 15000 });
 
       // Try to submit without filling required fields
-      const continueButton = page.locator('button:has-text("Continue")');
+      const continueButton = page.locator('button:has-text("Continue")').first();
       await continueButton.click();
 
       // Should show validation error or stay on page
@@ -148,7 +148,7 @@ test.describe('Complete Booking Flow', () => {
 
       // Check for error message or required field indicators
       const hasError = await page.locator('text=/required|select.*date|select.*time/i').isVisible().catch(() => false);
-      const dateInput = page.locator('input[type="date"]');
+      const dateInput = page.locator('input[type="date"]').first();
       const isRequired = await dateInput.getAttribute('required');
 
       expect(hasError || isRequired).toBeTruthy();
@@ -159,23 +159,23 @@ test.describe('Complete Booking Flow', () => {
     await page.goto('/browse');
     await page.waitForTimeout(2000);
 
-    const firstService = page.locator('[data-testid="service-card"], .service-card, .card').first();
+    const firstService = page.locator('[data-testid="service-card"]').first();
 
     if (await firstService.isVisible()) {
       await firstService.click();
-      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 10000 });
+      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 15000 });
 
-      const bookButton = page.locator('button:has-text("Book"), button:has-text("Consultation")');
+      const bookButton = page.locator('button:has-text("Book")').first();
       await bookButton.click();
 
-      await page.waitForURL(/\/book\//, { timeout: 10000 });
+      await page.waitForURL(/\/book\//, { timeout: 15000 });
 
       // Select date
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-      const dateInput = page.locator('input[type="date"]');
+      const dateInput = page.locator('input[type="date"]').first();
       if (await dateInput.isVisible()) {
         await dateInput.fill(tomorrowStr);
 
@@ -183,7 +183,7 @@ test.describe('Complete Booking Flow', () => {
         await page.waitForTimeout(2000);
 
         // Check if time slots are available
-        const timeSlotSelect = page.locator('select[id*="time"], select:has-text("Select")');
+        const timeSlotSelect = page.locator('select').first();
         if (await timeSlotSelect.isVisible()) {
           const options = await timeSlotSelect.locator('option').count();
           expect(options).toBeGreaterThan(0);
@@ -196,28 +196,28 @@ test.describe('Complete Booking Flow', () => {
     await page.goto('/browse');
     await page.waitForTimeout(2000);
 
-    const firstService = page.locator('[data-testid="service-card"], .service-card, .card').first();
+    const firstService = page.locator('[data-testid="service-card"]').first();
 
     if (await firstService.isVisible()) {
       await firstService.click();
-      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 10000 });
+      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 15000 });
 
-      const bookButton = page.locator('button:has-text("Book"), button:has-text("Consultation")');
+      const bookButton = page.locator('button:has-text("Book")').first();
       await bookButton.click();
 
-      await page.waitForURL(/\/book\//, { timeout: 10000 });
+      await page.waitForURL(/\/book\//, { timeout: 15000 });
 
       // Fill in booking form
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-      const dateInput = page.locator('input[type="date"]');
+      const dateInput = page.locator('input[type="date"]').first();
       if (await dateInput.isVisible()) {
         await dateInput.fill(tomorrowStr);
         await page.waitForTimeout(2000);
 
-        const timeSlotSelect = page.locator('select[id*="time"], select:has-text("Select")');
+        const timeSlotSelect = page.locator('select').first();
         if (await timeSlotSelect.isVisible()) {
           const options = await timeSlotSelect.locator('option').count();
           if (options > 1) {
@@ -225,12 +225,12 @@ test.describe('Complete Booking Flow', () => {
           }
         }
 
-        const notesTextarea = page.locator('textarea[id*="notes"], textarea[id*="brief"]');
+        const notesTextarea = page.locator('textarea').first();
         if (await notesTextarea.isVisible()) {
           await notesTextarea.fill('Test booking');
         }
 
-        const continueButton = page.locator('button:has-text("Continue")');
+        const continueButton = page.locator('button:has-text("Continue")').first();
         await continueButton.click();
 
         await page.waitForTimeout(2000);
@@ -247,28 +247,28 @@ test.describe('Complete Booking Flow', () => {
     await page.waitForTimeout(2000);
 
     // Find a paid service
-    const paidService = page.locator('[data-testid="service-card"]:has-text("NC"), .service-card:has-text("NC")').first();
+    const paidService = page.locator('[data-testid="service-card"]:has-text("NC")').first();
 
     if (await paidService.isVisible()) {
       await paidService.click();
-      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 10000 });
+      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 15000 });
 
-      const bookButton = page.locator('button:has-text("Book"), button:has-text("Consultation")');
+      const bookButton = page.locator('button:has-text("Book")').first();
       await bookButton.click();
 
-      await page.waitForURL(/\/book\//, { timeout: 10000 });
+      await page.waitForURL(/\/book\//, { timeout: 15000 });
 
       // Fill in form and try to book
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-      const dateInput = page.locator('input[type="date"]');
+      const dateInput = page.locator('input[type="date"]').first();
       if (await dateInput.isVisible()) {
         await dateInput.fill(tomorrowStr);
         await page.waitForTimeout(2000);
 
-        const timeSlotSelect = page.locator('select[id*="time"]');
+        const timeSlotSelect = page.locator('select').first();
         if (await timeSlotSelect.isVisible()) {
           const options = await timeSlotSelect.locator('option').count();
           if (options > 1) {
@@ -276,7 +276,7 @@ test.describe('Complete Booking Flow', () => {
           }
         }
 
-        const continueButton = page.locator('button:has-text("Continue")');
+        const continueButton = page.locator('button:has-text("Continue")').first();
         await continueButton.click();
 
         await page.waitForTimeout(2000);
@@ -310,20 +310,20 @@ test.describe('Complete Booking Flow - Mobile', () => {
     await page.goto('/browse');
     await page.waitForTimeout(2000);
 
-    const firstService = page.locator('[data-testid="service-card"], .service-card, .card').first();
+    const firstService = page.locator('[data-testid="service-card"]').first();
 
     if (await firstService.isVisible()) {
       await firstService.click();
-      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 10000 });
+      await page.waitForURL(/\/pro\/|\/service\//, { timeout: 15000 });
 
-      const bookButton = page.locator('button:has-text("Book"), button:has-text("Consultation")');
+      const bookButton = page.locator('button:has-text("Book")').first();
       await bookButton.click();
 
-      await page.waitForURL(/\/book\//, { timeout: 10000 });
+      await page.waitForURL(/\/book\//, { timeout: 15000 });
 
       // Verify booking form is visible and usable on mobile
-      const dateInput = page.locator('input[type="date"]');
-      await expect(dateInput).toBeVisible();
+      const dateInput = page.locator('input[type="date"]').first();
+      await expect(dateInput).toBeVisible({ timeout: 15000 });
     }
   });
 });

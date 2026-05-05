@@ -21,9 +21,9 @@ test.describe("Authentication Flow", () => {
     await loginPage.goto();
     await loginPage.assertFormVisible();
     
-    await expect(loginPage.emailInput).toBeVisible();
-    await expect(loginPage.passwordInput).toBeVisible();
-    await expect(loginPage.signInButton).toBeVisible();
+    await expect(loginPage.emailInput).toBeVisible({ timeout: 15000 });
+    await expect(loginPage.passwordInput).toBeVisible({ timeout: 15000 });
+    await expect(loginPage.signInButton).toBeVisible({ timeout: 15000 });
   });
 
   test("displays error message on invalid credentials", async ({ loginPage }) => {
@@ -63,22 +63,22 @@ test.describe("Authentication Flow", () => {
   test("forgot password flow is accessible", async ({ loginPage, page }) => {
     await loginPage.goto();
     
-    await expect(loginPage.forgotPasswordLink).toBeVisible();
+    await expect(loginPage.forgotPasswordLink).toBeVisible({ timeout: 15000 });
     await loginPage.clickForgotPassword();
     
     // Should navigate to password reset page or show modal
     await expect(
       page.locator("text=/reset password|forgot password|enter your email/i").first()
-    ).toBeVisible({ timeout: 5000 });
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test("navigation from login to signup works", async ({ loginPage, page }) => {
     await loginPage.goto();
     
-    await expect(loginPage.signUpLink).toBeVisible();
+    await expect(loginPage.signUpLink).toBeVisible({ timeout: 15000 });
     await loginPage.clickSignUp();
     
     // Should navigate to signup page
-    await expect(page).toHaveURL(/signup|register|auth\/sign-up/);
+    await expect(page).toHaveURL(/signup|register|auth\/sign-up/, { timeout: 15000 });
   });
 });

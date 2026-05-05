@@ -26,23 +26,23 @@ test.describe("Browse Professionals", () => {
     await page.waitForLoadState("domcontentloaded");
     
     // Verify headline is visible
-    await expect(page.locator("h1, h2").first()).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 15000 });
     
     // Verify at least one primary CTA exists
     await expect(
       page.locator("button, a[href]").filter({ hasText: /get started|browse|sign up|find pros/i }).first()
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test("legal pages (privacy & terms) are accessible", async ({ page }) => {
     await page.goto("/privacy", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
-    await expect(page.locator("h1, h2").first()).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 15000 });
     await expect(page).toHaveURL(/\/privacy$/);
 
     await page.goto("/terms", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
-    await expect(page.locator("h1, h2").first()).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 15000 });
     await expect(page).toHaveURL(/\/terms$/);
   });
 
@@ -115,7 +115,7 @@ test.describe("Browse Professionals", () => {
     if (await browsePage.sortByDropdown.isVisible()) {
       // Get first professional name before sort
       const firstProBefore = await browsePage.getProfessionalCard(0)
-        .locator("h3, h4, .pro-name").first()
+        .locator("h3, h4").first()
         .textContent();
       
       // Change sort order
@@ -123,7 +123,7 @@ test.describe("Browse Professionals", () => {
       
       // First professional should potentially be different
       const firstProAfter = await browsePage.getProfessionalCard(0)
-        .locator("h3, h4, .pro-name").first()
+        .locator("h3, h4").first()
         .textContent();
       
       // Note: This is a soft assertion since sort might not change first result

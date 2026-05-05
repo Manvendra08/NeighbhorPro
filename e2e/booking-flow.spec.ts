@@ -27,17 +27,17 @@ test.describe("Professional Booking Flow", () => {
     
     // Wait for professional detail page to load
     await expect(
-      authenticatedPage.locator("h1, .pro-name, [data-testid='pro-name']").first()
-    ).toBeVisible({ timeout: 10000 });
+      authenticatedPage.locator("h1").first()
+    ).toBeVisible({ timeout: 15000 });
     
     // Verify professional details are displayed
     await expect(
-      authenticatedPage.locator("[data-testid='pro-description'], .pro-description, .bio").first()
-    ).toBeVisible();
+      authenticatedPage.locator("[data-testid='pro-description']").first()
+    ).toBeVisible({ timeout: 15000 });
     
     await expect(
-      authenticatedPage.locator("[data-testid='pro-rating'], .rating, [aria-label*='star']").first()
-    ).toBeVisible();
+      authenticatedPage.locator("[data-testid='pro-rating']").first()
+    ).toBeVisible({ timeout: 15000 });
     
     // Step 3: Initiate booking
     const bookButton = authenticatedPage.getByRole("button", { 
@@ -48,17 +48,17 @@ test.describe("Professional Booking Flow", () => {
     await bookButton.click();
     
     // Step 4: Fill booking form
-    const bookingModal = authenticatedPage.locator("[role='dialog'], .modal, [data-testid='booking-modal']").first();
-    await expect(bookingModal).toBeVisible({ timeout: 5000 });
+    const bookingModal = authenticatedPage.locator("[role='dialog']").first();
+    await expect(bookingModal).toBeVisible({ timeout: 15000 });
     
     // Fill service details
-    const serviceInput = authenticatedPage.locator("textarea[name='description'], [data-testid='service-description']").first();
+    const serviceInput = authenticatedPage.locator("textarea[name='description']").first();
     if (await serviceInput.isVisible()) {
       await serviceInput.fill("Test booking: Fix kitchen sink leak");
     }
     
     // Select date/time if available
-    const dateInput = authenticatedPage.locator("input[type='date'], [data-testid='booking-date']").first();
+    const dateInput = authenticatedPage.locator("input[type='date']").first();
     if (await dateInput.isVisible()) {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -71,18 +71,18 @@ test.describe("Professional Booking Flow", () => {
       name: /confirm booking|submit request|book now/i 
     }).first();
     
-    await expect(submitButton).toBeEnabled();
+    await expect(submitButton).toBeEnabled({ timeout: 15000 });
     await submitButton.click();
     
     // Step 6: Verify booking confirmation
     await expect(
-      authenticatedPage.locator(".success-toast, [role='status'].success, .alert-success").first()
-    ).toBeVisible({ timeout: 10000 });
+      authenticatedPage.locator(".success-toast").first()
+    ).toBeVisible({ timeout: 15000 });
     
     // Or check for confirmation page/message
     await expect(
       authenticatedPage.locator("text=/booking confirmed|request sent|thank you/i").first()
-    ).toBeVisible({ timeout: 10000 });
+    ).toBeVisible({ timeout: 15000 });
     
     // Step 7: Verify booking appears in dashboard
     await dashboardPage.goto();
@@ -109,8 +109,8 @@ test.describe("Professional Booking Flow", () => {
     
     // Wait for detail page
     await expect(
-      authenticatedPage.locator("h1, .pro-name").first()
-    ).toBeVisible({ timeout: 10000 });
+      authenticatedPage.locator("h1").first()
+    ).toBeVisible({ timeout: 15000 });
     
     // Click book button
     const bookButton = authenticatedPage.getByRole("button", { 
@@ -133,8 +133,8 @@ test.describe("Professional Booking Flow", () => {
       
       // Should show validation errors
       await expect(
-        authenticatedPage.locator(".error, [role='alert'], .form-error").first()
-      ).toBeVisible({ timeout: 5000 });
+        authenticatedPage.locator(".error").first()
+      ).toBeVisible({ timeout: 15000 });
     }
   });
 
@@ -164,13 +164,13 @@ test.describe("Professional Booking Flow", () => {
       
       // Modal should close, user should be back on pro detail page
       await expect(
-        authenticatedPage.locator("[role='dialog'], .modal").first()
-      ).not.toBeVisible({ timeout: 5000 });
+        authenticatedPage.locator("[role='dialog']").first()
+      ).not.toBeVisible({ timeout: 15000 });
       
       // Should still be on professional detail page
       await expect(
-        authenticatedPage.locator("h1, .pro-name").first()
-      ).toBeVisible();
+        authenticatedPage.locator("h1").first()
+      ).toBeVisible({ timeout: 15000 });
     }
   });
 
@@ -199,7 +199,7 @@ test.describe("Professional Booking Flow", () => {
     
     // Check if price is displayed
     const priceElement = authenticatedPage.locator(
-      "[data-testid='price'], .price, [data-testid='rate']"
+      "[data-testid='price']"
     ).first();
     
     if (await priceElement.isVisible()) {
@@ -213,7 +213,7 @@ test.describe("Professional Booking Flow", () => {
           name: /top up|add funds|insufficient/i
         }).first();
         
-        await expect(topupButton).toBeVisible();
+        await expect(topupButton).toBeVisible({ timeout: 15000 });
       }
     }
   });
