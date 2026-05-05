@@ -24,8 +24,8 @@ test.describe('Signup Flow', () => {
     await expect(page.locator('input[type="password"]')).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
 
-    // Check for logo
-    await expect(page.locator('img[alt*="Logo"]')).toBeVisible();
+    // Check for logo (use specific selector to avoid strict mode violation)
+    await expect(page.locator('img[alt="Logo"][src*="logo.png"]')).toBeVisible();
   });
 
   test('should show validation errors for empty form', async ({ page }) => {
@@ -69,20 +69,22 @@ test.describe('Signup Flow', () => {
 
   test('should successfully register a new user', async ({ page }) => {
     // Fill in registration form
+    await page.locator('input[type="text"]').fill('Test User');
     await page.locator('input[type="email"]').fill(testEmail);
     
     const passwordInputs = page.locator('input[type="password"]');
     await passwordInputs.first().fill(testPassword);
     await passwordInputs.last().fill(testPassword);
 
-    // Check terms checkbox if present
-    const termsCheckbox = page.locator('input[type="checkbox"]');
-    if (await termsCheckbox.isVisible()) {
-      await termsCheckbox.check();
-    }
+    // Check terms checkbox (required for submit button to enable)
+    await page.locator('input#terms').check();
+
+    // Wait for submit button to be enabled
+    const submitButton = page.locator('button[type="submit"]');
+    await expect(submitButton).toBeEnabled({ timeout: 5000 });
 
     // Submit form
-    await page.locator('button[type="submit"]').click();
+    await submitButton.click();
 
     // Wait for navigation or success message
     await page.waitForURL(/\/(email-verified|dashboard|login)/, { timeout: 10000 });
@@ -162,11 +164,15 @@ test.describe('Signup Flow - Mobile', () => {
     await page.goto('/register');
 
     // Fill in form
+    await page.locator('input[type="text"]').fill('Mobile Test User');
     await page.locator('input[type="email"]').fill(testEmail);
     
     const passwordInputs = page.locator('input[type="password"]');
     await passwordInputs.first().fill(testPassword);
     await passwordInputs.last().fill(testPassword);
+
+    // Check terms checkbox (required for submit button to enable)
+    await page.locator('input#terms').check();
 
     // Submit form
     await page.locator('button[type="submit"]').click();

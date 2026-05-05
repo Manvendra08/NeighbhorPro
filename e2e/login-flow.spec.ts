@@ -23,8 +23,8 @@ test.describe('Login Flow', () => {
     await expect(page.locator('input[type="password"]')).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
 
-    // Check for logo
-    await expect(page.locator('img[alt*="Logo"]')).toBeVisible();
+    // Check for logo (use specific selector to avoid strict mode violation)
+    await expect(page.locator('img[alt="Logo"][src*="logo_new"]')).toBeVisible();
   });
 
   test('should show validation errors for empty form', async ({ page }) => {
