@@ -1,19 +1,5 @@
 import { test, expect } from "./fixtures/test-fixtures";
 
-async function ensureAuthenticated(loginPage: { login: (email: string, password: string) => Promise<void>; assertLoginSuccess: () => Promise<void> }): Promise<boolean> {
-  const email = process.env.TEST_RESIDENT_EMAIL;
-  const password = process.env.TEST_RESIDENT_PASSWORD;
-  if (!email || !password) return false;
-
-  try {
-    await loginPage.login(email, password);
-    await loginPage.assertLoginSuccess();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 test.describe("Browse Professionals", () => {
   test("browse route is protected for unauthenticated users", async ({ page }) => {
     await page.goto("/browse", { waitUntil: "domcontentloaded" });
@@ -46,9 +32,8 @@ test.describe("Browse Professionals", () => {
     await expect(page).toHaveURL(/\/terms$/);
   });
 
-  test("search functionality filters professionals", async ({ loginPage, browsePage }) => {
-    const authenticated = await ensureAuthenticated(loginPage);
-    test.skip(!authenticated, "Browse interaction tests require valid TEST_RESIDENT_EMAIL and TEST_RESIDENT_PASSWORD.");
+  test("search functionality filters professionals", async ({ authenticatedPage, browsePage }) => {
+    test.skip(!process.env.TEST_RESIDENT_EMAIL, "Browse interaction tests require TEST_RESIDENT_EMAIL env var");
 
     await browsePage.goto();
     await browsePage.assertLoaded();
@@ -64,9 +49,8 @@ test.describe("Browse Professionals", () => {
     expect(filteredCount).toBeLessThanOrEqual(initialCount);
   });
 
-  test("category filters update professional listings", async ({ loginPage, browsePage }) => {
-    const authenticated = await ensureAuthenticated(loginPage);
-    test.skip(!authenticated, "Browse interaction tests require valid TEST_RESIDENT_EMAIL and TEST_RESIDENT_PASSWORD.");
+  test("category filters update professional listings", async ({ authenticatedPage, browsePage }) => {
+    test.skip(!process.env.TEST_RESIDENT_EMAIL, "Browse interaction tests require TEST_RESIDENT_EMAIL env var");
 
     await browsePage.goto();
     
@@ -87,9 +71,8 @@ test.describe("Browse Professionals", () => {
     }
   });
 
-  test("professional cards display required information", async ({ loginPage, browsePage }) => {
-    const authenticated = await ensureAuthenticated(loginPage);
-    test.skip(!authenticated, "Browse interaction tests require valid TEST_RESIDENT_EMAIL and TEST_RESIDENT_PASSWORD.");
+  test("professional cards display required information", async ({ authenticatedPage, browsePage }) => {
+    test.skip(!process.env.TEST_RESIDENT_EMAIL, "Browse interaction tests require TEST_RESIDENT_EMAIL env var");
 
     await browsePage.goto();
     await browsePage.assertLoaded();
@@ -104,9 +87,8 @@ test.describe("Browse Professionals", () => {
     expect(cardText.trim().length).toBeGreaterThan(0);
   });
 
-  test("sorting options change result order", async ({ loginPage, browsePage }) => {
-    const authenticated = await ensureAuthenticated(loginPage);
-    test.skip(!authenticated, "Browse interaction tests require valid TEST_RESIDENT_EMAIL and TEST_RESIDENT_PASSWORD.");
+  test("sorting options change result order", async ({ authenticatedPage, browsePage }) => {
+    test.skip(!process.env.TEST_RESIDENT_EMAIL, "Browse interaction tests require TEST_RESIDENT_EMAIL env var");
 
     await browsePage.goto();
     await browsePage.assertLoaded();
@@ -131,9 +113,8 @@ test.describe("Browse Professionals", () => {
     }
   });
 
-  test("clear filters resets to default view", async ({ loginPage, browsePage }) => {
-    const authenticated = await ensureAuthenticated(loginPage);
-    test.skip(!authenticated, "Browse interaction tests require valid TEST_RESIDENT_EMAIL and TEST_RESIDENT_PASSWORD.");
+  test("clear filters resets to default view", async ({ authenticatedPage, browsePage }) => {
+    test.skip(!process.env.TEST_RESIDENT_EMAIL, "Browse interaction tests require TEST_RESIDENT_EMAIL env var");
 
     await browsePage.goto();
     await browsePage.assertLoaded();
