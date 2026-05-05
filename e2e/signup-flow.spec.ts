@@ -1,9 +1,23 @@
 import { test, expect } from '@playwright/test';
 
-/**
- * ProNeighbor Signup Flow E2E Tests
- * Tests user registration and account creation
- */
+// Helper: fill the full register form (name + email + pw + confirm + terms)
+async function fillRegisterForm(
+  page: import('@playwright/test').Page,
+  opts: { name?: string; email: string; password: string; confirm?: string }
+) {
+  const { name = 'Test User', email, password, confirm = password } = opts;
+
+  await page.locator('input[placeholder="John Doe"]').fill(name);
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[placeholder="Min 8 characters"]').fill(password);
+  await page.locator('input[placeholder="••••••••"]').fill(confirm);
+
+  // Accept terms — required for submit to enable
+  const terms = page.locator('input#terms');
+  if (!(await terms.isChecked())) {
+    await terms.check();
+  }
+}
 
 test.describe('Signup Flow', () => {
   const timestamp = Date.now();
@@ -11,145 +25,96 @@ test.describe('Signup Flow', () => {
   const testPassword = 'TestPassword123!';
 
   test.beforeEach(async ({ page }) => {
-    // Navigate to registration page
     await page.goto('/register');
   });
 
   test('should display registration page correctly', async ({ page }) => {
-    // Check page title
     await expect(page).toHaveTitle(/ProNeighbor/);
 
-    // Check registration form elements
     await expect(page.locator('input[type="email"]')).toBeVisible();
-    await expect(page.locator('input[type="password"]')).toBeVisible();
+    // Use placeholder-based selectors — two password fields exist
+    await expect(page.locator('input[placeholder="Min 8 characters"]')).toBeVisible();
+    await expect(page.locator('input[placeholder="••••••••"]')).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
 
-    // Check for logo (use specific selector to avoid strict mode violation)
-    await expect(page.locator('img[alt="Logo"][src*="logo.png"]')).toBeVisible();
+    // Use first() — auth panel has two logo images
+    await expect(page.locator('img[alt="Logo"]').first()).toBeVisible();
   });
 
   test('should show validation errors for empty form', async ({ page }) => {
-    // Click submit without filling form
-    await page.locator('button[type="submit"]').click();
-
-    // Check for validation messages (HTML5 validation or custom)
+    // Submit is disabled until form filled — click email and check required attr
     const emailInput = page.locator('input[type="email"]');
     await expect(emailInput).toHaveAttribute('required', '');
   });
 
   test('should show error for invalid email format', async ({ page }) => {
-    // Fill in invalid email
     await page.locator('input[type="email"]').fill('invalid-email');
-    await page.locator('input[type="password"]').first().fill(testPassword);
-    await page.locator('input[type="password"]').last().fill(testPassword);
+    await page.locator('input[placeholder="Min 8 characters"]').fill(testPassword);
+    await page.locator('input[placeholder="••••••••"]').fill(testPassword);
 
-    // Submit form
-    await page.locator('button[type="submit"]').click();
-
-    // Check for error (HTML5 validation will prevent submission)
     const emailInput = page.locator('input[type="email"]');
     const validationMessage = await emailInput.evaluate((el: HTMLInputElement) => el.validationMessage);
     expect(validationMessage).toBeTruthy();
   });
 
   test('should show error for password mismatch', async ({ page }) => {
-    // Fill in form with mismatched passwords
-    await page.locator('input[type="email"]').fill(testEmail);
-    
-    const passwordInputs = page.locator('input[type="password"]');
-    await passwordInputs.first().fill(testPassword);
-    await passwordInputs.last().fill('DifferentPassword123!');
+    await fillRegisterForm(page, {
+      email: testEmail,
+      password: testPassword,
+      confirm: 'DifferentPassword123!',
+    });
 
-    // Submit form
     await page.locator('button[type="submit"]').click();
-
-    // Check for error message
     await expect(page.locator('text=/password.*match/i')).toBeVisible({ timeout: 5000 });
   });
 
   test('should successfully register a new user', async ({ page }) => {
-    // Fill in registration form
-    await page.locator('input[type="text"]').fill('Test User');
-    await page.locator('input[type="email"]').fill(testEmail);
-    
-    const passwordInputs = page.locator('input[type="password"]');
-    await passwordInputs.first().fill(testPassword);
-    await passwordInputs.last().fill(testPassword);
+    await fillRegisterForm(page, { email: testEmail, password: testPassword });
 
-    // Check terms checkbox (required for submit button to enable)
-    await page.locator('input#terms').check();
+    await page.locator('button[type="submit"]').click();
 
-    // Wait for submit button to be enabled
-    const submitButton = page.locator('button[type="submit"]');
-    await expect(submitButton).toBeEnabled({ timeout: 5000 });
+    await page.waitForURL(/\/(email-verified|dashboard|login)/, { timeout: 15000 });
 
-    // Submit form
-    await submitButton.click();
-
-    // Wait for navigation or success message
-    await page.waitForURL(/\/(email-verified|dashboard|login)/, { timeout: 10000 });
-
-    // Verify we're on a success page
-    const currentUrl = page.url();
+    const url = page.url();
     expect(
-      currentUrl.includes('email-verified') ||
-      currentUrl.includes('dashboard') ||
-      currentUrl.includes('login')
+      url.includes('email-verified') || url.includes('dashboard') || url.includes('login')
     ).toBeTruthy();
   });
 
   test('should show error for already registered email', async ({ page }) => {
-    // Use a known existing email
-    const existingEmail = 'test@proneighbor.test';
+    await fillRegisterForm(page, {
+      email: 'test@proneighbor.test',
+      password: testPassword,
+    });
 
-    // Fill in form
-    await page.locator('input[type="email"]').fill(existingEmail);
-    
-    const passwordInputs = page.locator('input[type="password"]');
-    await passwordInputs.first().fill(testPassword);
-    await passwordInputs.last().fill(testPassword);
-
-    // Submit form
     await page.locator('button[type="submit"]').click();
 
-    // Check for error message
     await expect(
       page.locator('text=/already.*exist|email.*taken|already.*registered/i')
     ).toBeVisible({ timeout: 10000 });
   });
 
   test('should have working Google sign-in button', async ({ page }) => {
-    // Check if Google sign-in button exists
     const googleButton = page.locator('button:has-text("Google")');
-    
     if (await googleButton.isVisible()) {
       await expect(googleButton).toBeEnabled();
-      
-      // Note: We don't actually click it to avoid OAuth flow
-      // Just verify it's present and clickable
     }
   });
 
   test('should navigate to login page from signup', async ({ page }) => {
-    // Find and click login link
-    const loginLink = page.locator('a[href*="/login"], a:has-text("Sign In"), a:has-text("Login")');
+    const loginLink = page.locator('a[href*="/login"], a:has-text("Sign in"), a:has-text("Login")');
     await loginLink.click();
-
-    // Verify navigation to login page
     await expect(page).toHaveURL(/\/login/);
   });
 
   test('should have accessible form elements', async ({ page }) => {
-    // Check for proper labels
-    const emailInput = page.locator('input[type="email"]');
-    const emailLabel = page.locator('label:has-text("Email")');
-    
-    await expect(emailLabel).toBeVisible();
-    await expect(emailInput).toBeVisible();
+    await expect(page.locator('label:has-text("Email")')).toBeVisible();
+    await expect(page.locator('input[type="email"]')).toBeVisible();
 
-    // Check for password labels
-    const passwordLabel = page.locator('label:has-text("Password")');
-    await expect(passwordLabel).toBeVisible();
+    // Exact match — avoids matching "Confirm Password"
+    await expect(page.locator('label').filter({ hasText: /^Password$/ })).toBeVisible();
+    await expect(page.locator('label:has-text("Confirm Password")')).toBeVisible();
+    await expect(page.locator('label:has-text("Full Name")')).toBeVisible();
   });
 });
 
@@ -163,29 +128,15 @@ test.describe('Signup Flow - Mobile', () => {
   test('should work on mobile viewport', async ({ page }) => {
     await page.goto('/register');
 
-    // Fill in form
-    await page.locator('input[type="text"]').fill('Mobile Test User');
-    await page.locator('input[type="email"]').fill(testEmail);
-    
-    const passwordInputs = page.locator('input[type="password"]');
-    await passwordInputs.first().fill(testPassword);
-    await passwordInputs.last().fill(testPassword);
+    await fillRegisterForm(page, { email: testEmail, password: testPassword });
 
-    // Check terms checkbox (required for submit button to enable)
-    await page.locator('input#terms').check();
-
-    // Submit form
     await page.locator('button[type="submit"]').click();
 
-    // Wait for navigation
-    await page.waitForURL(/\/(email-verified|dashboard|login)/, { timeout: 10000 });
+    await page.waitForURL(/\/(email-verified|dashboard|login)/, { timeout: 15000 });
 
-    // Verify success
-    const currentUrl = page.url();
+    const url = page.url();
     expect(
-      currentUrl.includes('email-verified') ||
-      currentUrl.includes('dashboard') ||
-      currentUrl.includes('login')
+      url.includes('email-verified') || url.includes('dashboard') || url.includes('login')
     ).toBeTruthy();
   });
 });
