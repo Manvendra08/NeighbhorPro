@@ -557,7 +557,6 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                capture="environment"
                 style={{ display: "none" }}
                 disabled={uploadingProof || isAdminViewAs}
                 onChange={async (event) => {
@@ -673,16 +672,16 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
             <div style={{ marginBottom: 20, padding: 16, background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Category Group</label>
+                  <label className="form-label">Service Category</label>
                   <select className="form-input" value={svcCategoryGroup} onChange={(event) => { setSvcCategoryGroup(event.target.value); setSvcCategory(""); }} id="svc-category-group-select">
-                    <option value="">Select group...</option>
+                    <option value="">Select category...</option>
                     {Object.keys(CATEGORY_GROUPS).map(group => <option key={group} value={group}>{group}</option>)}
                   </select>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Service Category</label>
+                  <label className="form-label">Service Name</label>
                   <select className="form-input" value={svcCategory} onChange={(event) => setSvcCategory(event.target.value)} id="svc-category-select" disabled={!svcCategoryGroup}>
-                    <option value="">Select category...</option>
+                    <option value="">Select a service...</option>
                     {svcCategoryGroup && CATEGORY_GROUPS[svcCategoryGroup]?.map(category => <option key={category} value={category}>{category}</option>)}
                   </select>
                 </div>
