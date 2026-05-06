@@ -207,7 +207,12 @@ service cloud.firestore {
         && request.resource.data.title.size() <= 100
         && request.resource.data.category is string
         && request.resource.data.description is string
-        && (!('status' in request.resource.data) || request.resource.data.status == 'pending');
+        && (!('status' in request.resource.data) || request.resource.data.status == 'pending')
+        && (!(request.resource.data.category in ['Tuition & Coaching', 'Yoga & Fitness', 'Music & Dance', 'Language Classes', 'Nutrition & Diet']) 
+            || (
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.status in ['active','renewing','past_due','grace','comped']
+              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.currentPeriodEnd > request.time
+            ));
       allow update: if isSignedIn() && (
         isAdmin() ||
         (resource.data.userId == request.auth.uid && ownerServiceUpdateAllowed())
@@ -290,6 +295,19 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /subscriptions/{subId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isAdmin(); // server-only client writes via callable
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /subscriptionInvoices/{invId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // ── NeighbourCoins ──────────────────────────────────
     // FIX 1 (Path A — Spark plan): Client writes allowed with field-level validation.
     // Upgrade to Cloud Functions (Blaze) to lock this down further.
@@ -304,7 +322,7 @@ service cloud.firestore {
           'booking_debit', 'booking_refund', 'booking_escrow',
           'booking_escrow_release', 'payout', 'payout_cancelled',
           'earn_signup_bonus', 'earn_profile', 'earn_referral',
-          'earn_review', 'earn_free_consult'
+          'earn_review', 'earn_free_consult', 'subscription_debit'
         ]
         // Allow admins to post manual wallet adjustment entries for any user.
         || (

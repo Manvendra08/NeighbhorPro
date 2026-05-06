@@ -1,5 +1,12 @@
 export const DEFAULT_SERVICE_CATEGORIES: string[] = [
-  // Business (recurring services)
+  // Business
+  "Tuition & Coaching",
+  "Yoga & Fitness",
+  "Music & Dance",
+  "Language Classes",
+  "Nutrition & Diet",
+  
+  // Services
   "Tax & CA",
   "Legal Advisory",
   "Accounting & GST",
@@ -7,22 +14,12 @@ export const DEFAULT_SERVICE_CATEGORIES: string[] = [
   "Career Coaching",
   "Digital Marketing",
   "Resume & LinkedIn",
-  
-  // Services (one-time)
-  "Tuition & Coaching",
-  "Yoga & Fitness",
-  "Music & Dance",
-  "Language Classes",
-  "Nutrition & Diet",
-  "Doctor Consults",
+  "Homeopathy Doctor",
   "Beauty & Grooming",
-  "Pet Care",
-  "Event Planning",
-  "Interior Design",
   "Professional Services",
   "Design & Branding",
   
-  // E-Commerce (selling goods)
+  // E-Commerce
   "Food & Catering",
   "Apparels & Fashion",
   "Fashion Jewellery",
@@ -34,6 +31,13 @@ export const DEFAULT_SERVICE_CATEGORIES: string[] = [
 
 export const CATEGORY_GROUPS: Record<string, string[]> = {
   "Business": [
+    "Tuition & Coaching",
+    "Yoga & Fitness",
+    "Music & Dance",
+    "Language Classes",
+    "Nutrition & Diet",
+  ],
+  "Services": [
     "Tax & CA",
     "Legal Advisory",
     "Accounting & GST",
@@ -41,18 +45,8 @@ export const CATEGORY_GROUPS: Record<string, string[]> = {
     "Career Coaching",
     "Digital Marketing",
     "Resume & LinkedIn",
-  ],
-  "Services": [
-    "Tuition & Coaching",
-    "Yoga & Fitness",
-    "Music & Dance",
-    "Language Classes",
-    "Nutrition & Diet",
-    "Doctor Consults",
+    "Homeopathy Doctor",
     "Beauty & Grooming",
-    "Pet Care",
-    "Event Planning",
-    "Interior Design",
     "Professional Services",
     "Design & Branding",
   ],
@@ -109,4 +103,8 @@ export function getCategoryGroup(category: string): string {
     if (categories.includes(category)) return group;
   }
   return "Services"; // default
+}
+
+export function isBusinessCategory(category: string): boolean {
+  return getCategoryGroup(category) === "Business";
 }

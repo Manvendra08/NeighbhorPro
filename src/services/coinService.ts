@@ -11,7 +11,25 @@ export type LedgerType =
   | "booking_escrow_release" | "payout" | "payout_cancelled"
   | "earn_review" | "earn_referral" | "earn_free_consult" | "earn_profile"
   | "earn_milestone" | "earn_groupsession" | "earn_ondemand" | "earn_signup_bonus"
-  | "admin_credit" | "admin_debit";
+  | "admin_credit" | "admin_debit" | "subscription_debit";
+
+export const CASHABLE_LEDGER_TYPES: LedgerType[] = [
+  "topup",
+  "booking_escrow_release",
+  "booking_refund"
+];
+
+export const PROMO_LEDGER_TYPES: LedgerType[] = [
+  "earn_signup_bonus",
+  "earn_profile",
+  "earn_referral",
+  "earn_review",
+  "earn_free_consult",
+  "earn_milestone",
+  "earn_groupsession",
+  "earn_ondemand",
+  "admin_credit"
+];
 
 export interface LedgerEntry {
   id?: string;
@@ -334,6 +352,11 @@ export async function rewardReferral(newUserUid: string, bookingId: string): Pro
 export async function getCoinBalance(uid: string): Promise<number> {
   const snap = await getDoc(doc(db, "users", uid));
   return (snap.data()?.coinBalance as number) ?? 0;
+}
+
+export async function getCashableBalance(uid: string): Promise<number> {
+  const snap = await getDoc(doc(db, "users", uid));
+  return (snap.data()?.cashableBalance as number) ?? 0;
 }
 
 export async function getLedger(uid: string, pageLimit = 50): Promise<LedgerEntry[]> {

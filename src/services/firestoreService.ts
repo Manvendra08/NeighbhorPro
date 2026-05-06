@@ -616,10 +616,21 @@ export async function getAllUserRows(limit_ = 50): Promise<Record<string, unknow
 /* ═══════════════════════════════════════════
    SERVICES
 ═══════════════════════════════════════════ */
+import { isBusinessCategory } from "../constants/serviceCatalog";
+
 export async function createService(data: Record<string, unknown>) {
+  if (isBusinessCategory(data.category as string)) {
+    const userDoc = await getDoc(doc(db, "users", data.userId as string));
+    const sub = userDoc.data()?.subscription;
+    if (!sub || !["active", "renewing", "past_due", "grace", "comped"].includes(sub.status) || (sub.currentPeriodEnd?.toMillis() ?? 0) <= Date.now()) {
+      throw new Error("Business category requires an active subscription");
+    }
+  }
+
   const ref = await addDoc(collection(db, "services"), { ...data, createdAt: serverTimestamp() });
   return ref.id;
 }
+
 export async function getServicesByUser(userId: string) {
   const constraints: QueryConstraint[] = [where("userId", "==", userId)];
   const isOwnerView = auth.currentUser?.uid === userId;
@@ -628,7 +639,8 @@ export async function getServicesByUser(userId: string) {
   }
   const q = query(collection(db, "services"), ...constraints);
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+  return isOwnerView ? docs : docs.filter((d: any) => d.subStatus !== "paused_subscription");
 }
 export async function getAllServices(
   limit_ = 50,
