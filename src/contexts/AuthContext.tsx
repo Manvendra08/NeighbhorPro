@@ -130,6 +130,9 @@ function toUserProfile(raw: Record<string, unknown>): UserProfile {
     deleted: toBoolean(raw.deleted),
     disabled: toBoolean(raw.disabled),
     fcmToken: toOptionalString(raw.fcmToken),
+    subscription: raw.subscription != null && typeof raw.subscription === "object"
+      ? (raw.subscription as UserProfile["subscription"])
+      : undefined,
     createdAt: toFirestoreTimestamp(raw.createdAt),
   };
 }
