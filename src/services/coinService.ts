@@ -104,8 +104,7 @@ export const EARN_RULES: Record<LedgerType, { coins: number; label: string }> = 
   payout: { coins: 0, label: "Payout processed" },
   payout_cancelled: { coins: 0, label: "Payout cancelled" },
   admin_credit: { coins: 0, label: "Admin credit" },
-  admin_debit: { coins: 0, label: "Admin debit" },
-};
+  admin_debit: { coins: 0, label: "Admin debit" },  subscription_debit: { coins: 0, label: "Subscription Debit" },};
 
 // ── NC Terms (read from appSettings, fallback defaults) ──────────────────
 export interface NCTerms {

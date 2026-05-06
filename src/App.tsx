@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { LoginPage, RegisterPage, ForgotPasswordPage } from "./components/auth/AuthPages";
 import { EmailVerifiedPage } from "./components/auth/EmailVerifiedPage";
@@ -21,6 +21,7 @@ import Messages       from "./pages/Messages";
 import Support        from "./pages/Support";
 import MyAccount      from "./pages/MyAccount";
 import Wallet         from "./pages/Wallet";
+import SubscriptionManage from "./pages/SubscriptionManage";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy  from "./pages/PrivacyPolicy";
 import BookingDetail  from "./pages/BookingDetail";
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/bookings"         element={<ProtectedRoute userOnly><MyBookings /></ProtectedRoute>} />
             <Route path="/bookings/:id"     element={<ProtectedRoute userOnly><BookingDetail /></ProtectedRoute>} />
             <Route path="/wallet"           element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+            <Route path="/profile/subscription" element={<ProtectedRoute><SubscriptionManage /></ProtectedRoute>} />
             <Route path="/profile"          element={<Navigate to="/account" replace />} />
             <Route path="/account"          element={<ProtectedRoute><MyAccount /></ProtectedRoute>} />
             <Route path="/messages"         element={<ProtectedRoute><Messages /></ProtectedRoute>} />
@@ -92,7 +94,6 @@ export default function App() {
 
 function PWAWrapper() {
   const auth = useAuth();
-  const navigate = useNavigate();
   
   // Initialize push notifications for logged-in users
   usePushNotifications(auth?.user?.uid);
