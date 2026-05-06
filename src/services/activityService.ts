@@ -21,6 +21,12 @@ export type ActivityEvent =
   | "verification.submitted"
   | "verification.deleted"
   | "verification.approved"
+  | "subscription.purchased"
+  | "subscription.renewed"
+  | "subscription.cancelled"
+  | "subscription.expired"
+  | "subscription.paused"
+  | "subscription.comp_granted"
   | "admin.action";
 
 export interface ActivityLog {

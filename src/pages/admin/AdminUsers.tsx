@@ -873,6 +873,7 @@ export default function AdminUsers() {
                 <th className="au-col-locality">Locality</th>
                 <th className="au-col-role">Role</th>
                 <th className="au-col-pro">Pro</th>
+                <th className="au-col-subscription">Subscription</th>
                 <th className="au-col-resident">Resident</th>
                 <th className="au-col-status">Status</th>
                 <th className="au-col-actions">Actions</th>
@@ -906,6 +907,26 @@ export default function AdminUsers() {
                     </td>
                     <td><span className={`badge ${u.role === "admin" ? "badge-warning" : "badge-muted"}`}>{u.role === "admin" ? "Admin" : "User"}</span></td>
                     <td>{u.isServiceProvider ? <span className="badge badge-accent">Pro</span> : <span className="text-muted">—</span>}</td>
+                    <td>
+                      {u.subscription && (u.subscription as { status?: string }).status ? (
+                        <div style={{ fontSize: "0.82rem" }}>
+                          <div>
+                            {(u.subscription as { status?: string }).status === "active" ? "✅ Active" :
+                             (u.subscription as { status?: string }).status === "past_due" ? "⚠️ Due" :
+                             (u.subscription as { status?: string }).status === "expired" ? "❌ Expired" :
+                             (u.subscription as { status?: string }).status === "comped" ? "🎁 Comp" :
+                             (u.subscription as { status?: string }).status || "—"}
+                          </div>
+                          {(u.subscription as { currentPeriodEnd?: { seconds: number } }).currentPeriodEnd && (
+                            <div className="text-muted" style={{ fontSize: "0.75rem" }}>
+                              {Math.ceil(((u.subscription as { currentPeriodEnd: { seconds: number } }).currentPeriodEnd.seconds * 1000 - Date.now()) / (1000 * 60 * 60 * 24))}d left
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
                     <td>
                       {u.residentVerificationStatus === "verified" ? (
                         <div className="au-status-pill">

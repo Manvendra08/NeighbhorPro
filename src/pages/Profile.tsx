@@ -12,7 +12,7 @@ import {
   uploadResidencyProof,
 } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
-import { CATEGORY_GROUPS } from "../constants/serviceCatalog";
+import { CATEGORY_GROUPS, isBusinessCategory } from "../constants/serviceCatalog";
 
 const SKILL_SUGGESTIONS = [
   "Tax Filing & ITR",
@@ -282,6 +282,20 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       return;
     }
 
+    // Check if Business category requires active subscription
+    if (isBusinessCategory(svcCategory)) {
+      const subscription = targetProfile?.subscription as { status?: string; currentPeriodEnd?: { seconds: number } } | undefined;
+      const hasActiveSub = subscription && 
+        ['active', 'renewing', 'past_due', 'grace', 'comped'].includes(subscription.status || '') &&
+        subscription.currentPeriodEnd &&
+        subscription.currentPeriodEnd.seconds * 1000 > Date.now();
+      
+      if (!hasActiveSub) {
+        alert("Business category listings require an active subscription. Please subscribe first from your Wallet or Profile page.");
+        return;
+      }
+    }
+
     const payload = {
       userId: targetUid,
       title: svcTitle,
@@ -293,8 +307,16 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       category: svcCategory,
     };
 
-    if (editingServiceId) await updateService(editingServiceId, payload);
-    else await createService(payload);
+    if (editingServiceId) {
+      await updateService(editingServiceId, payload);
+    } else {
+      try {
+        await createService(payload);
+      } catch (err: any) {
+        alert(err.message || "Failed to create service.");
+        return;
+      }
+    }
 
     const updated = await getServicesByUser(targetUid);
     setServices(updated);
@@ -670,6 +692,22 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
 
           {showServiceForm && !isAdminViewAs && (
             <div style={{ marginBottom: 20, padding: 16, background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
+              {svcCategory && isBusinessCategory(svcCategory) && (
+                <div style={{ 
+                  marginBottom: 16, 
+                  padding: "12px 16px", 
+                  background: "rgba(27,107,138,0.1)", 
+                  border: "1px solid rgba(27,107,138,0.3)", 
+                  borderRadius: "var(--radius-sm)", 
+                  fontSize: "0.88rem",
+                  color: "#1B6B8A"
+                }}>
+                  <strong>💳 Subscription Required:</strong> Business category listings require an active monthly subscription.
+                  {!targetProfile?.subscription || !['active', 'renewing', 'past_due', 'grace', 'comped'].includes((targetProfile.subscription as { status?: string })?.status || '') ? (
+                    <span> <a href="/wallet" style={{ color: "#1B6B8A", textDecoration: "underline" }}>Subscribe now</a> to activate your listing.</span>
+                  ) : null}
+                </div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Service Category</label>

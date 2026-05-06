@@ -348,6 +348,32 @@ export default function Wallet() {
               ))}
             </div>
           </div>
+          {isPro && userProfile?.subscription && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <h3 className="card-title" style={{ marginBottom: 16 }}>📋 Business Subscription</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                    {userProfile.subscription.status === "active" ? "✅ Active" : 
+                     userProfile.subscription.status === "past_due" ? "⚠️ Payment Due" :
+                     userProfile.subscription.status === "expired" ? "❌ Expired" :
+                     userProfile.subscription.status === "comped" ? "🎁 Complimentary" : "Status Unknown"}
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+                    {userProfile.subscription.currentPeriodEnd && typeof (userProfile.subscription.currentPeriodEnd as any).seconds === 'number' ? 
+                      `Renews ${new Date((userProfile.subscription.currentPeriodEnd as any).seconds * 1000).toLocaleDateString("en-IN")}` :
+                      "No renewal date"}
+                  </div>
+                </div>
+                <button className="btn btn-secondary btn-sm" onClick={() => navigate("/profile/subscription")}>
+                  Manage
+                </button>
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6 }}>
+                Your Business category listings require an active subscription. Manage your subscription, payment method, and view invoices.
+              </div>
+            </div>
+          )}
           <div className="grid grid-2">
             <button
               className="btn btn-primary btn-lg"

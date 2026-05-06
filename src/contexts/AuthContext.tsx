@@ -48,6 +48,12 @@ export interface UserProfile {
   deleted?: boolean;
   disabled?: boolean;
   fcmToken?: string;
+  subscription?: {
+    status?: string;
+    currentPeriodEnd?: FirestoreTimestamp;
+    plan?: string;
+    autoRenewCoins?: boolean;
+  };
   createdAt: FirestoreTimestamp;
 }
 

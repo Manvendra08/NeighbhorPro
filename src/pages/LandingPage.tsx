@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./LandingPage.css";
 import { getPlatformSettings } from "../services/firestoreService";
-import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../constants/serviceCatalog";
+import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories, CATEGORY_GROUPS, SERVICE_CATEGORY_ICONS } from "../constants/serviceCatalog";
 
 function useIsMobile() {
   const [m, setM] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 768 : false));
@@ -108,67 +108,41 @@ export default function LandingPage() {
   const px = isMobile ? "5%" : "6%";
   const navLinks: [string, string][] = [["How It Works", "how"], ["Features", "features"], ["Services", "categories"], ["Early Access", "early"]];
 
-  const serviceGroups = [
-    {
-      tag: "recurring",
+  // Generate service groups from CATEGORY_GROUPS
+  const groupHeadings: Record<string, { heading: string; subtitle: string; comingSoon: boolean }> = {
+    "Business": {
       heading: "Business - Learn, grow, repeat.",
       subtitle: "Weekly or monthly commitments with pros in your society.",
       comingSoon: false,
-      items: [
-        { icon: "📚", label: "Tuition & Coaching" },
-        { icon: "🧘", label: "Yoga & Fitness" },
-        { icon: "🎵", label: "Music & Dance" },
-        { icon: "🗣️", label: "Language Classes" },
-        { icon: "🥗", label: "Nutrition & Diet" },
-        { icon: "💼", label: "Career Coaching" },
-      ],
     },
-    {
-      tag: "home",
+    "Services": {
       heading: "Services - Everyday needs, one flat away.",
       subtitle: "On-demand help from neighbours you already trust.",
       comingSoon: false,
-      items: [
-        { icon: "📊", label: "Tax & CA" },
-        { icon: "⚖️", label: "Legal Advisory" },
-        { icon: "🏥", label: "Doctor Consults" },
-        { icon: "✨", label: "Beauty & Grooming" },
-        { icon: "🐾", label: "Pet Care" },
-        { icon: "🎉", label: "Event Planning" },
-        { icon: "🏠", label: "Interior Design" },
-      ],
     },
-    {
-      tag: "office",
-      heading: "Office - Your office runs better with neighbours.",
-      subtitle: "Freelancer, founder, or remote worker — find pros a floor away.",
-      comingSoon: false,
-      items: [
-        { icon: "💼", label: "Professional Services" },
-        { icon: "🎨", label: "Design & Branding" },
-        { icon: "📱", label: "Digital Marketing" },
-        { icon: "📝", label: "Resume & LinkedIn" },
-        { icon: "💹", label: "Accounting & GST" },
-        { icon: "📈", label: "Investment Planning" },
-      ],
-    },
-    {
-      tag: "business",
-      heading: "E-commerce - Turn your hobby into a hustle.",
+    "E-Commerce": {
+      heading: "E-Commerce - Turn your hobby into a hustle.",
       subtitle: "Society-based micro-businesses coming to your app soon.",
       comingSoon: true,
-      items: [
-        { icon: "🍱", label: "Food & Catering" },
-        { icon: "👗", label: "Apparels & Fashion" },
-        { icon: "💍", label: "Fashion Jewellery" },
-        { icon: "👜", label: "Customized Bags" },
-        { icon: "🏡", label: "Home Decor & Crafts" },
-        { icon: "🎁", label: "Handmade Gifts" },
-        { icon: "🎂", label: "Baking & Desserts" },
-      ],
     },
-  ];
-  const groupTagIcons: Record<string, string> = { recurring: "🔄", home: "🏠", office: "💼", business: "🛍️" };
+  };
+
+  const groupTagIcons: Record<string, string> = {
+    "Business": "🔄",
+    "Services": "🏠",
+    "E-Commerce": "🛍️",
+  };
+
+  const serviceGroups = Object.entries(CATEGORY_GROUPS).map(([groupName, categories]) => ({
+    tag: groupName.toLowerCase(),
+    heading: groupHeadings[groupName]?.heading || groupName,
+    subtitle: groupHeadings[groupName]?.subtitle || "",
+    comingSoon: groupHeadings[groupName]?.comingSoon || false,
+    items: categories.map((cat) => ({
+      icon: SERVICE_CATEGORY_ICONS[cat] || "✨",
+      label: cat,
+    })),
+  }));
 
   const residentSteps = [
     ["01", "🏠", "Join Your Society", "Sign up with your society code. Only genuine residents and pros get in."],

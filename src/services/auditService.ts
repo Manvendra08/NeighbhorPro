@@ -35,6 +35,34 @@ export const AUDIT_SCHEMA = {
     required: ["action", "adminId", "adminName", "details", "targetId"],
     metadata_fields: ["targetName", "userEmail"],
   },
+  subscription_purchased: {
+    required: ['action','adminId','adminName','details','targetId'],
+    metadata_fields: ['plan','periodEnd','source','amount','currency']
+  },
+  subscription_cancelled: {
+    required: ['action','adminId','adminName','details','targetId'],
+    metadata_fields: ['reason']
+  },
+  subscription_paused: {
+    required: ['action','adminId','adminName','details','targetId'],
+    metadata_fields: ['reason']
+  },
+  subscription_resumed: {
+    required: ['action','adminId','adminName','details','targetId'],
+    metadata_fields: []
+  },
+  subscription_refunded: {
+    required: ['action','adminId','adminName','details','targetId'],
+    metadata_fields: ['amount','currency','refundMethod']
+  },
+  subscription_comp_granted: {
+    required: ['action','adminId','adminName','details','targetId'],
+    metadata_fields: ['months','reason']
+  },
+  subscription_force_cancelled: {
+    required: ['action','adminId','adminName','details','targetId'],
+    metadata_fields: ['reason']
+  },
 };
 
 /**

@@ -175,15 +175,47 @@ Backend logic in `functions/`. Deployed via `firebase deploy --only functions`.
 - Return structured errors with HTTP status codes
 - Log to Firestore via `activityService` for audit trails
 
+## Service Categories
+
+Service categories are organized into 3 groups in `src/constants/serviceCatalog.ts`:
+
+- **Business:** Tuition & Coaching, Yoga & Fitness, Music & Dance, Language Classes, Nutrition & Diet
+- **Services:** Tax & CA, Legal Advisory, Accounting & GST, Investment Planning, Career Coaching, Digital Marketing, Resume & LinkedIn, Homeopathy Doctor, Beauty & Grooming, Professional Services, Design & Branding
+- **E-Commerce:** Food & Catering, Apparels & Fashion, Fashion Jewellery, Customized Bags, Home Decor & Crafts, Handmade Gifts, Baking & Desserts
+
+Use `CATEGORY_GROUPS` constant for category dropdowns and filtering. Use `getCategoryGroup(category)` helper to determine which group a category belongs to. Use `SERVICE_CATEGORY_ICONS` for emoji icons in UI.
+
 ## Landing Page & Pre-Launch
 
-`src/pages/LandingPage.tsx` + `src/pages/LandingPage.css` is the public landing page (launched May 2026, Park Street Wakad). Update copy/links here before site launch. No dynamic data — static HTML for speed.
+`src/pages/LandingPage.tsx` + `src/pages/LandingPage.css` is the public landing page (launched May 2026, Park Street Wakad). Update copy/links here before site launch. No dynamic data — static HTML for speed. Service categories section dynamically renders from `CATEGORY_GROUPS` constant.
 
 ## Firebase Setup
 
 **Firestore Security Rules:** `firestore.rules` (deployed via CLI)
 **Firestore Indexes:** `firestore.indexes.json` (auto-deployed for complex queries)
 **Emulator (optional):** Run `firebase emulators:start` for local testing (requires service account key in `functions/`)
+
+## Push Notifications
+
+Browser-based push notifications are enabled for all users (Resident, Pro, Admin) via Firebase Cloud Messaging (FCM).
+
+**Architecture:**
+- Unified service worker at `public/sw.js` handles both app-shell caching (network-first for HTML, cache-first for static assets) and FCM background message delivery
+- `src/services/notificationService.ts` manages FCM token registration and permission state
+- `src/hooks/usePushNotifications.ts` provides permission sync logic (listens to `visibilitychange` and `focus` events to catch permission grants via browser settings)
+- `src/components/layout/NotificationCenter.tsx` displays notification UI and handles foreground message callbacks
+
+**Key Implementation Details:**
+- Only one service worker can be active per scope (`/`). The unified `sw.js` prevents conflicts between app-shell and FCM handlers.
+- FCM token is stored in Firestore `users/{userId}/fcmTokens` collection for server-side message targeting
+- Permission state is synced on component mount, visibility change, and focus events
+- Auto-prompt on first notification panel open surfaces browser permission dialog proactively
+- Foreground messages trigger toast notifications via `NotificationCenter` callback
+
+**Testing:**
+- Use `npm run dev` to test locally. FCM requires HTTPS in production but works on `localhost` in dev.
+- Test permission grant/deny flows via browser settings (Settings > Notifications > localhost)
+- Verify token registration in Firestore `users/{userId}/fcmTokens` after permission grant
 
 ## Debugging & Monitoring
 
