@@ -28,7 +28,7 @@ export async function subscribeWithNC(uid: string) {
     
     cashableBalance -= price;
     
-    const subId = "sub__";
+    const subId = `sub_${uid}_${monthKey}`;
     const subRef = doc(db, "subscriptions", subId);
     const now = new Date();
     const end = new Date(now.getTime() + 30*24*60*60*1000);
