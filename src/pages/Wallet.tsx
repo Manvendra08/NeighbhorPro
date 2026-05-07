@@ -14,7 +14,7 @@ import { formatTimestamp, updateUserProfile } from "../services/firestoreService
 import { queryClient, queryKeys, useCoinBalanceQuery } from "../lib/queryClient";
 import { captureError } from "../lib/sentry";
 
-type Tab = "overview" | "buy" | "earn" | "referral" | "payout" | "history" | "terms";
+type Tab = "overview" | "buy" | "earn" | "referral" | "payout" | "history" | "subscription" | "terms";
 
 const STATUS_UI: Partial<Record<PaymentStatus, { text: string; color: string }>> = {
   awaiting_payment: { text: "⏳ Complete payment in the Razorpay popup…", color: "#1B6B8A" },
@@ -265,6 +265,7 @@ export default function Wallet() {
     { key: "earn",     label: "Earn" },
     { key: "referral", label: "Refer & Earn" },
     ...(isPro ? [{ key: "payout" as Tab, label: "Cash Out" }] : []),
+    { key: "subscription", label: "Subscriptions" },
     { key: "history",  label: "History" },
     { key: "terms",    label: "NC Terms" },
   ];
@@ -652,6 +653,16 @@ export default function Wallet() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === "subscription" && (
+        <div style={{ maxWidth: 640 }}>
+          <div className="card">
+            <h3 className="card-title">Business Subscription</h3>
+            <p>₹500/month or 500 NC</p>
+            <p style={{ fontSize: "0.9rem", marginTop: 12 }}>Active subscriptions will appear here.</p>
+          </div>
         </div>
       )}
 
