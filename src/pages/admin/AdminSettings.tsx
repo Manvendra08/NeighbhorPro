@@ -264,7 +264,7 @@ export default function AdminSettings() {
                 type="number" 
                 min={0} 
                 max={10000}
-                value={settings.subscriptionMonthlyPriceINR || 299} 
+                value={settings.subscriptionMonthlyPriceINR ?? 299} 
                 onChange={e => set("subscriptionMonthlyPriceINR" as keyof Settings, +e.target.value as never)} 
               />
               <span className="form-hint">Price for Razorpay payment (₹)</span>
@@ -277,7 +277,7 @@ export default function AdminSettings() {
                 type="number" 
                 min={0} 
                 max={10000}
-                value={settings.subscriptionMonthlyPriceNC || 500} 
+                value={settings.subscriptionMonthlyPriceNC ?? 500} 
                 onChange={e => set("subscriptionMonthlyPriceNC" as keyof Settings, +e.target.value as never)} 
               />
               <span className="form-hint">Price for NeighbourCoins payment</span>
@@ -291,7 +291,7 @@ export default function AdminSettings() {
                   type="number" 
                   min={0} 
                   max={30}
-                  value={settings.subscriptionGracePeriodDays || 5} 
+                  value={settings.subscriptionGracePeriodDays ?? 5} 
                   onChange={e => set("subscriptionGracePeriodDays" as keyof Settings, +e.target.value as never)} 
                 />
               </div>
@@ -303,7 +303,7 @@ export default function AdminSettings() {
                   type="number" 
                   min={0} 
                   max={1000}
-                  value={settings.subscriptionFounderPromoCap || 50} 
+                  value={settings.subscriptionFounderPromoCap ?? 50} 
                   onChange={e => set("subscriptionFounderPromoCap" as keyof Settings, +e.target.value as never)} 
                 />
               </div>

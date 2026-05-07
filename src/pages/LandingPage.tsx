@@ -128,9 +128,9 @@ export default function LandingPage() {
   };
 
   const groupTagIcons: Record<string, string> = {
-    "Business": "🔄",
-    "Services": "🏠",
-    "E-Commerce": "🛍️",
+    "business": "🔄",
+    "services": "🏠",
+    "e-commerce": "🛍️",
   };
 
   const serviceGroups = Object.entries(CATEGORY_GROUPS).map(([groupName, categories]) => ({

@@ -919,7 +919,7 @@ export default function AdminUsers() {
                           </div>
                           {(u.subscription as { currentPeriodEnd?: { seconds: number } }).currentPeriodEnd && (
                             <div className="text-muted" style={{ fontSize: "0.75rem" }}>
-                              {Math.ceil(((u.subscription as { currentPeriodEnd: { seconds: number } }).currentPeriodEnd.seconds * 1000 - Date.now()) / (1000 * 60 * 60 * 24))}d left
+                              {Math.max(0, Math.ceil(((u.subscription as { currentPeriodEnd: { seconds: number } }).currentPeriodEnd.seconds * 1000 - Date.now()) / (1000 * 60 * 60 * 24)))}d left
                             </div>
                           )}
                         </div>

@@ -1,7 +1,7 @@
 import { useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { getAuth, fetchSignInMethodsForEmail } from "firebase/auth";
+import { getAuth, sendPasswordResetEmail } from "firebase/auth";
 
 export function ForgotPasswordPage() {
   const { resetPassword } = useAuth();
@@ -14,15 +14,9 @@ export function ForgotPasswordPage() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
-      // Check email exists before sending reset link
+      // Send password reset email
       const auth = getAuth();
-      const methods = await fetchSignInMethodsForEmail(auth, email);
-      if (methods.length === 0) {
-        setError("No account found with this email.");
-        setLoading(false);
-        return;
-      }
-      
+      await sendPasswordResetEmail(auth, email);
       await resetPassword(email);
       setSuccess(true);
     } catch (err: unknown) {
