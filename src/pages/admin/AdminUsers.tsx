@@ -8,7 +8,7 @@ import {
   getOrCreateConversation,
   mirrorPublicProfile
 } from "../../services/firestoreService";
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, deleteDoc, writeBatch } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, deleteDoc, writeBatch, runTransaction } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, updateProfile, signOut } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -224,6 +224,11 @@ export default function AdminUsers() {
   const [queueRefreshTime, setQueueRefreshTime] = useState<Date | null>(null);
   const [queueLoading, setQueueLoading] = useState(false);
   const [openMenuUid, setOpenMenuUid] = useState<string | null>(null);
+
+  // ── Grant Subscription ──────────────────────────────────────────────
+  const [grantSubUser, setGrantSubUser] = useState<UserRow | null>(null);
+  const [grantSubMonths, setGrantSubMonths] = useState<1 | 3 | 6 | 12>(1);
+  const [grantSubLoading, setGrantSubLoading] = useState(false);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -555,6 +560,62 @@ export default function AdminUsers() {
     setActionLoading(null);
   };
 
+  const handleGrantSubscription = async () => {
+    if (!grantSubUser) return;
+    const uid = grantSubUser.uid as string;
+    const name = (grantSubUser.displayName as string) || (grantSubUser.email as string) || uid;
+    setGrantSubLoading(true);
+    try {
+      const now = new Date();
+      const periodEnd = new Date(now.getTime() + grantSubMonths * 30 * 24 * 60 * 60 * 1000);
+      const monthKey = now.toISOString().slice(0, 7).replace("-", "");
+      const subId = `sub_${uid}_${monthKey}`;
+
+      await runTransaction(db, async (tx) => {
+        const subRef = doc(db, "subscriptions", subId);
+        const userRef = doc(db, "users", uid);
+        tx.set(subRef, {
+          uid,
+          plan: "business_monthly_v1",
+          status: "comped",
+          currency: "NC",
+          amount: 0,
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+          autoRenewCoins: false,
+          cancelAtPeriodEnd: false,
+          source: "admin_grant",
+          grantedBy: adminId,
+          grantedMonths: grantSubMonths,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+        tx.set(userRef, {
+          subscription: {
+            status: "comped",
+            currentPeriodEnd: periodEnd,
+            plan: "business_monthly_v1",
+            autoRenewCoins: false,
+          },
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      });
+
+      await logAudit(
+        "subscription_comp_granted", adminId, adminName,
+        `Granted ${grantSubMonths}-month complimentary subscription to: ${name}`,
+        uid
+      );
+      showToast(`Subscription granted to ${name} for ${grantSubMonths} month${grantSubMonths > 1 ? "s" : ""}`);
+      setGrantSubUser(null);
+      await load();
+    } catch (err) {
+      captureError(err, { operation: "admin.grant_subscription", uid });
+      showToast("Failed to grant subscription", "error");
+    }
+    setGrantSubLoading(false);
+  };
+
   const handleLoginAs = (u: UserRow) => {
     navigate("/account?viewAsUid=" + u.uid);
   };
@@ -714,6 +775,41 @@ export default function AdminUsers() {
                 style={{ opacity: (!roleUnderstandsWarning || roleNameConfirmation.trim() === "") ? 0.5 : 1 }}
               >
                 Grant Admin Access
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Grant Subscription Modal ── */}
+      {grantSubUser && (
+        <div className="au-role-modal-overlay" onClick={() => setGrantSubUser(null)}>
+          <div className="card au-role-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <h2>Grant Subscription</h2>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>
+              Grant a complimentary Business subscription to{" "}
+              <strong>{(grantSubUser.displayName as string) || (grantSubUser.email as string)}</strong>.
+              This sets status to <code>comped</code> and writes an audit log.
+            </p>
+            <div className="form-group">
+              <label className="form-label">Duration</label>
+              <select
+                className="form-input"
+                value={grantSubMonths}
+                onChange={e => setGrantSubMonths(Number(e.target.value) as 1 | 3 | 6 | 12)}
+              >
+                <option value={1}>1 month</option>
+                <option value={3}>3 months</option>
+                <option value={6}>6 months</option>
+                <option value={12}>12 months</option>
+              </select>
+            </div>
+            <div className="au-role-modal__actions">
+              <button className="btn btn-ghost btn-sm" onClick={() => setGrantSubUser(null)} disabled={grantSubLoading}>
+                Cancel
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={handleGrantSubscription} disabled={grantSubLoading}>
+                {grantSubLoading ? "Granting…" : `Grant ${grantSubMonths}mo Subscription`}
               </button>
             </div>
           </div>
@@ -969,6 +1065,11 @@ export default function AdminUsers() {
                             <button type="button" className="au-actions__dropdown-item" role="menuitem" onClick={() => { setOpenMenuUid(null); handleTogglePro(u); }} disabled={busy}>
                               {u.isServiceProvider ? "Remove Pro" : "Set Pro"}
                             </button>
+                            {!!u.isServiceProvider && (
+                              <button type="button" className="au-actions__dropdown-item" role="menuitem" onClick={() => { setOpenMenuUid(null); setGrantSubMonths(1); setGrantSubUser(u); }} disabled={busy}>
+                                🎁 Grant Subscription
+                              </button>
+                            )}
                             {!u.emailVerified && !!u.phoneNumber && (
                               <button type="button" className="au-actions__dropdown-item" role="menuitem" onClick={() => { setOpenMenuUid(null); handleApproveEmailByMobile(u); }} disabled={busy}>
                                 Approve by Mobile
