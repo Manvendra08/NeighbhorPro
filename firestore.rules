@@ -111,7 +111,7 @@ service cloud.firestore {
           'booking_escrow_release', 'payout', 'payout_cancelled',
           'earn_review', 'earn_referral', 'earn_free_consult', 'earn_profile',
           'earn_milestone', 'earn_groupsession', 'earn_ondemand', 'earn_signup_bonus',
-          'admin_credit', 'admin_debit'
+          'admin_credit', 'admin_debit', 'subscription_debit'
         ]
         && request.resource.data.type is string
         && request.resource.data.description is string
