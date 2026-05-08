@@ -143,7 +143,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [svcTitle, setSvcTitle] = useState("");
   const [svcDesc, setSvcDesc] = useState("");
-  const [svcFeeType, setSvcFeeType] = useState<"free" | "quote" | "hourly">("free");
+  const [svcFeeType, setSvcFeeType] = useState<"free" | "quote" | "hourly" | "monthly">("free");
   const [svcPrice, setSvcPrice] = useState("");
   const [svcCategory, setSvcCategory] = useState("");
   const [svcCategoryGroup, setSvcCategoryGroup] = useState("");
@@ -378,7 +378,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     setSvcDesc((service.description as string) || "");
     
     // Determine fee type from service data
-    let feeType: "free" | "quote" | "hourly" = "free";
+    let feeType: "free" | "quote" | "hourly" | "monthly" = "free";
     if (service.quoteBased) feeType = "quote";
     else if (Number(service.price) > 0) feeType = "hourly";
     else if (service.isFree || (Number(service.price) || 0) === 0) feeType = "free";
@@ -737,7 +737,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
 
           {showServiceForm && !isAdminViewAs && (
             <div style={{ marginBottom: 20, padding: 16, background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
-              {svcCategory && isBusinessCategory(svcCategory) && (
+              {svcCategory && isBusinessCategory(svcCategory) && !isSubActive(sub) && (
                 <div style={{ 
                   marginBottom: 16, 
                   padding: "12px 16px", 
@@ -748,9 +748,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                   color: "#1B6B8A"
                 }}>
                   <strong>💳 Subscription Required:</strong> Business category listings require an active monthly subscription.
-                  {!targetProfile?.subscription || !['active', 'renewing', 'past_due', 'grace', 'comped'].includes((targetProfile.subscription as { status?: string })?.status || '') ? (
-                    <span> <a href="/wallet" style={{ color: "#1B6B8A", textDecoration: "underline" }}>Subscribe now</a> to activate your listing.</span>
-                  ) : null}
+                  <span> <a href="/wallet" style={{ color: "#1B6B8A", textDecoration: "underline" }}>Subscribe now</a> to activate your listing.</span>
                 </div>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
@@ -780,17 +778,29 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Fee Type</label>
-                  <select className="form-input" value={svcFeeType} onChange={(event) => setSvcFeeType(event.target.value as "free" | "quote" | "hourly")} id="svc-fee-type-select">
+                  <select className="form-input" value={svcFeeType} onChange={(event) => setSvcFeeType(event.target.value as "free" | "quote" | "hourly" | "monthly")} id="svc-fee-type-select">
                     <option value="free">Free</option>
                     <option value="quote">Quote-based</option>
                     <option value="hourly">Hourly Fee</option>
+                    <option value="monthly">Monthly Fee</option>
                   </select>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Amount (NC)</label>
-                  <input type="number" className="form-input" value={svcPrice} onChange={(event) => setSvcPrice(event.target.value)} min={0} disabled={svcFeeType !== "hourly"} id="svc-price-input" placeholder={svcFeeType === "hourly" ? "Enter amount" : "N/A"} />
+                  <input type="number" className="form-input" value={svcPrice} onChange={(event) => setSvcPrice(event.target.value)} min={0} disabled={svcFeeType !== "hourly" && svcFeeType !== "monthly"} id="svc-price-input" placeholder={svcFeeType === "hourly" || svcFeeType === "monthly" ? "Enter amount" : "N/A"} />
                 </div>
               </div>
+              {svcFeeType === "quote" && (
+                <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: 8, marginBottom: 12 }}>
+                  💡 Quote-based: You'll provide a custom quote after discussing requirements with the client.
+                </div>
+              )}
+              {svcFeeType === "free" && (
+                <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: 8, marginBottom: 12 }}>
+                  💡 Free services help build credibility and boost your visibility in the community.
+                </div>
+              )}
+              <div style={{ marginTop: 16 }} />
               <button className="btn btn-success" onClick={handleServiceSave} disabled={!svcTitle.trim()}>
                 {editingServiceId ? "Update Service" : "Save Service"}
               </button>
@@ -818,6 +828,19 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {isServiceProvider && !isAdminViewAs && (
+            <div style={{ marginTop: 24, padding: 16, background: "rgba(27,107,138,0.05)", border: "1px solid rgba(27,107,138,0.2)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem" }}>
+              <div style={{ fontWeight: 700, marginBottom: 8, color: "#1B6B8A" }}>💡 Pro Tips</div>
+              <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, color: "var(--text)" }}>
+                <li>Offer at least one free consultation to build trust and credibility</li>
+                <li>Respond to booking requests within 24 hours for better visibility</li>
+                <li>Complete your profile with skills, bio, and a professional photo</li>
+                <li>Encourage clients to leave reviews after completed sessions</li>
+                <li>Free services get 3x more visibility in search results</li>
+              </ul>
             </div>
           )}
         </div>
