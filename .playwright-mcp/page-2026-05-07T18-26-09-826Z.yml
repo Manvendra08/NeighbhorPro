@@ -1,0 +1,47 @@
+- generic [ref=e417]:
+  - text: ●
+  - generic [ref=e419]:
+    - link "Logo" [ref=e420] [cursor=pointer]:
+      - /url: /
+      - img "Logo" [ref=e421]
+    - heading "Create account" [level=1] [ref=e422]
+    - paragraph [ref=e423]: Join your neighborhood network
+    - button "Continue with Google" [ref=e424] [cursor=pointer]:
+      - img [ref=e425]
+      - text: Continue with Google
+    - generic [ref=e430]: or register with email
+    - generic [ref=e431]:
+      - generic [ref=e432]:
+        - generic [ref=e433]: Full Name
+        - textbox "John Doe" [ref=e434]
+      - generic [ref=e435]:
+        - generic [ref=e436]: Email
+        - textbox "you@example.com" [ref=e437]
+      - generic [ref=e438]:
+        - generic [ref=e439]: Password
+        - textbox "Min 8 characters" [ref=e440]
+      - generic [ref=e441]:
+        - generic [ref=e442]: Confirm Password
+        - textbox "••••••••" [ref=e443]
+      - generic [ref=e444]:
+        - generic [ref=e445]: Referral Code (optional)
+        - textbox "PNXXXXXX" [ref=e446]
+      - generic [ref=e447]:
+        - checkbox "I have read and agree to the Terms of Service and Privacy Policy." [ref=e448]
+        - generic [ref=e449] [cursor=pointer]:
+          - text: I have read and agree to the
+          - link "Terms of Service" [ref=e450]:
+            - /url: /terms
+          - text: and
+          - link "Privacy Policy" [ref=e451]:
+            - /url: /privacy
+          - text: .
+      - button "Create Account" [disabled] [ref=e452]
+    - paragraph [ref=e453]:
+      - text: Already have an account?
+      - link "Sign in" [ref=e454] [cursor=pointer]:
+        - /url: /login
+    - paragraph [ref=e455]:
+      - text: Need help?
+      - link "Contact Support" [ref=e456] [cursor=pointer]:
+        - /url: /contact

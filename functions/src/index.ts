@@ -488,3 +488,6 @@ export const flagSpamReviews = onDocumentCreated(
     logger.info("Automated spam review flag created", { proId });
   }
 );
+
+// ── Subscription Cloud Functions (Phase 2 — Blaze) ──────────────────────────
+export { subscribeWithNCCallable, activateTrialCallable, dailyRenewalSweep, adminSubscriptionAction } from './subscriptions';

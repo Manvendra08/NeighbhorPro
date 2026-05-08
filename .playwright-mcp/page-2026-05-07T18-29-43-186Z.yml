@@ -1,0 +1,52 @@
+- generic [ref=e3]:
+  - button "<- Back" [ref=e4] [cursor=pointer]
+  - heading "Terms of Service" [level=1] [ref=e5]
+  - paragraph [ref=e6]: "Effective: May 1, 2026 | ProNeighbor, Pune, India"
+  - generic [ref=e7]:
+    - heading "1. Acceptance" [level=3] [ref=e8]
+    - paragraph [ref=e9]: By creating an account, accessing the app, or using any ProNeighbor service, you agree to these Terms of Service. If you do not agree, do not use the platform.
+  - generic [ref=e10]:
+    - heading "2. Platform Role" [level=3] [ref=e11]
+    - paragraph [ref=e12]: ProNeighbor operates a hyperlocal marketplace that helps residents discover, communicate with, book, and pay local professionals. ProNeighbor is a technology platform and is not the provider of the professional services listed by users unless explicitly stated otherwise.
+  - generic [ref=e13]:
+    - heading "3. Eligibility and Accounts" [level=3] [ref=e14]
+    - paragraph [ref=e15]: You must be at least 18 years old and capable of entering a binding agreement to use the platform. You must provide accurate account, profile, and verification information. You are responsible for activity that occurs under your account and for keeping your login credentials secure.
+  - generic [ref=e16]:
+    - heading "4. Residency and Professional Verification" [level=3] [ref=e17]
+    - paragraph [ref=e18]: ProNeighbor may request documents, profile details, or other information to verify residency, identity, or professional eligibility. Verification status may be reviewed, suspended, or revoked if information is incomplete, inaccurate, expired, misleading, or inconsistent with platform rules.
+  - generic [ref=e19]:
+    - heading "5. Listings, Profiles, and User Content" [level=3] [ref=e20]
+    - paragraph [ref=e21]: You are responsible for the legality, accuracy, and completeness of content you upload or publish, including profile details, service listings, rates, availability, messages, reviews, proofs, and support submissions. You must have the right to share that content. ProNeighbor may remove, edit, hide, or moderate content that violates policy, law, or marketplace standards.
+  - generic [ref=e22]:
+    - heading "6. Bookings and Marketplace Conduct" [level=3] [ref=e23]
+    - paragraph [ref=e24]: Users must use the platform in good faith. Residents must provide accurate booking details and attend or cancel responsibly. Professionals must honor accepted bookings, provide services lawfully and competently, and avoid misleading claims. Off-platform coercion, fake ratings, impersonation, harassment, spam, fraud, and attempts to manipulate trust or payment systems are prohibited.
+  - generic [ref=e25]:
+    - heading "7. NeighbourCoins" [level=3] [ref=e26]
+    - paragraph [ref=e27]: NeighbourCoins are a platform wallet unit used inside ProNeighbor. They are not legal tender, are not a bank deposit, do not earn interest, and cannot be transferred freely between users unless the platform explicitly enables it. Wallet balances, rewards, bonuses, holds, credits, debits, refunds, and expiries may be governed by platform rules, promotions, and anti-abuse controls in force at the relevant time.
+  - generic [ref=e28]:
+    - heading "8. Payments, Escrow, Refunds, and Payouts" [level=3] [ref=e29]
+    - paragraph [ref=e30]: Bookings may involve wallet debits, temporary holds, escrow, refunds, and provider payouts. Refund eligibility depends on booking state, cancellation timing, dispute outcome, abuse review, and platform policy in force at the time of the transaction. ProNeighbor may delay, reverse, reject, or investigate wallet activity or payouts where fraud, error, legal risk, abuse, chargeback, or policy breach is suspected.
+  - generic [ref=e31]:
+    - heading "9. Reviews, Ratings, and Reputation" [level=3] [ref=e32]
+    - paragraph [ref=e33]: Ratings and reviews must be based on genuine platform interactions and must be truthful, relevant, and lawful. ProNeighbor may remove, suppress, or investigate reviews that appear abusive, fabricated, retaliatory, duplicated, or otherwise unreliable. Reputation signals on the platform are informational only and are not a guarantee of service outcome.
+  - generic [ref=e34]:
+    - heading "10. Suspension, Restriction, and Termination" [level=3] [ref=e35]
+    - paragraph [ref=e36]: ProNeighbor may suspend, restrict, flag, moderate, or terminate any account, listing, payout, review, message flow, or wallet activity if we believe there is a policy breach, fraud risk, payment risk, legal issue, safety concern, or operational need. We may also preserve records for audit, security, or legal purposes after access is removed.
+  - generic [ref=e37]:
+    - heading "11. Disclaimers" [level=3] [ref=e38]
+    - paragraph [ref=e39]: The platform is provided on an as-available and as-is basis to the maximum extent permitted by law. ProNeighbor does not guarantee uninterrupted availability, error-free operation, service quality, provider suitability, user behavior, identity accuracy, booking completion, or outcome of any professional engagement.
+  - generic [ref=e40]:
+    - heading "12. Limitation of Liability" [level=3] [ref=e41]
+    - paragraph [ref=e42]: To the maximum extent permitted by law, ProNeighbor and its affiliates, operators, and personnel are not liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for loss of profits, reputation, data, goodwill, or business arising from use of the platform. Any direct liability, where legally unavoidable, will be limited to the amount paid by you to ProNeighbor for the specific transaction giving rise to the claim during the 3 months preceding the event.
+  - generic [ref=e43]:
+    - heading "13. Indemnity" [level=3] [ref=e44]
+    - paragraph [ref=e45]: You agree to defend, indemnify, and hold ProNeighbor harmless from claims, losses, liabilities, and expenses arising out of your content, your services, your misuse of the platform, your violation of law, or your breach of these Terms.
+  - generic [ref=e46]:
+    - heading "14. Governing Law and Disputes" [level=3] [ref=e47]
+    - paragraph [ref=e48]: These Terms are governed by the laws of India. Subject to applicable law, courts located in Pune, Maharashtra will have exclusive jurisdiction over disputes arising out of or relating to the platform or these Terms.
+  - generic [ref=e49]:
+    - heading "15. Changes to Terms" [level=3] [ref=e50]
+    - paragraph [ref=e51]: We may revise these Terms from time to time. Updated Terms become effective when posted or when otherwise communicated by the platform. Continued use after the effective date means you accept the revised Terms.
+  - generic [ref=e52]:
+    - heading "16. Contact" [level=3] [ref=e53]
+    - paragraph [ref=e54]: "Legal questions: legal@proneighbor.in. General support: support@proneighbor.in. ProNeighbor, Pune, Maharashtra, India."

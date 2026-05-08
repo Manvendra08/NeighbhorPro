@@ -1,0 +1,426 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - link "PN ProNeighbor" [ref=e5] [cursor=pointer]:
+      - /url: "#"
+      - img "PN" [ref=e6]
+      - generic [ref=e7]: ProNeighbor
+    - generic [ref=e8]:
+      - button "Sign In" [ref=e9] [cursor=pointer]
+      - button "Close navigation menu" [expanded] [active] [ref=e418] [cursor=pointer]:
+        - img [ref=e11]
+  - generic [ref=e419]:
+    - button "How It Works" [ref=e420] [cursor=pointer]
+    - button "Features" [ref=e421] [cursor=pointer]
+    - button "Services" [ref=e422] [cursor=pointer]
+    - button "Early Access" [ref=e423] [cursor=pointer]
+    - button "Register as Expert" [ref=e424] [cursor=pointer]
+  - generic [ref=e16]:
+    - generic [ref=e17]: Launching May 2026 · Park Street, Wakad
+    - heading "Your Society's Professionals Network, Right here." [level=1] [ref=e19]:
+      - text: Your Society's
+      - text: Professionals Network,
+      - text: Right here.
+    - paragraph [ref=e20]: Connect with verified professionals who live in your gated community. CA, doctor, yoga, tutor — booked in minutes.
+    - generic [ref=e21]:
+      - generic [ref=e22]: Get notified when Park Street goes live
+      - button "Join Waitlist" [ref=e24] [cursor=pointer]
+    - generic [ref=e27]: 24 / 200 founding spots claimed
+    - generic [ref=e28]:
+      - generic [ref=e29]: Not from Park Street?
+      - button "→ Register your society for the next launch" [ref=e30] [cursor=pointer]
+  - generic [ref=e32]:
+    - generic [ref=e33]:
+      - generic [ref=e34]: 🏘️
+      - generic [ref=e35]: Pilot launch exclusive to Park Street, Wakad
+    - generic [ref=e36]:
+      - generic [ref=e37]: ⭐
+      - generic [ref=e38]: Trusted by early adopters
+    - generic [ref=e39]:
+      - generic [ref=e40]: 💼
+      - generic [ref=e41]: CA, Tuition, Yoga + 17 more
+    - generic [ref=e42]:
+      - generic [ref=e43]: 🔐
+      - generic [ref=e44]: Verified residents only
+    - generic [ref=e45]:
+      - generic [ref=e46]: 🪙
+      - generic [ref=e47]: NeighbourCoins Rewards
+  - generic [ref=e49]:
+    - heading "How It Works" [level=2] [ref=e50]
+    - heading "From need to booking in under 15 minutes." [level=2] [ref=e51]
+    - paragraph [ref=e52]: No cold calls. No WhatsApp forwards. A clean, trusted marketplace inside your gates.
+    - generic [ref=e54]:
+      - button "I'm a Resident" [ref=e55] [cursor=pointer]
+      - button "I'm a Professional" [ref=e56] [cursor=pointer]
+    - generic [ref=e57]:
+      - generic [ref=e58]:
+        - generic [ref=e59]: "01"
+        - generic [ref=e60]: 🏠
+        - heading "Join Your Society" [level=3] [ref=e61]
+        - paragraph [ref=e62]: Sign up with your society code. Only genuine residents and pros get in.
+      - generic [ref=e63]:
+        - generic [ref=e64]: "02"
+        - generic [ref=e65]: 🔍
+        - heading "Browse & Filter" [level=3] [ref=e66]
+        - paragraph [ref=e67]: Search by category, rating, price, or availability. See neighbour endorsements.
+      - generic [ref=e68]:
+        - generic [ref=e69]: "03"
+        - generic [ref=e70]: ✅
+        - heading "Book Instantly" [level=3] [ref=e71]
+        - paragraph [ref=e72]: Confirm your booking, pay securely via NeighbourCoins or UPI, and leave a review after the session. Your neighbour's reputation grows with every 5-star experience.
+  - generic [ref=e74]:
+    - heading "Register as Expert" [level=2] [ref=e75]
+    - heading "The professional network for Park Street residents." [level=2] [ref=e76]
+    - generic [ref=e77]:
+      - generic [ref=e78]:
+        - heading "🚫 Zero Commission" [level=3] [ref=e79]
+        - generic [ref=e80]: 3 months, then 15% flat - no surprises
+      - generic [ref=e81]:
+        - heading "📅 Own Your Schedule" [level=3] [ref=e82]
+        - generic [ref=e83]: Set availability, rates, and accept/decline freely
+      - generic [ref=e84]:
+        - heading "⭐ Build Reputation" [level=3] [ref=e85]
+        - generic [ref=e86]: Verified badges, reviews boost your discovery rank
+    - generic [ref=e87]:
+      - emphasis [ref=e88]: Verification completed within 48 hours
+      - emphasis [ref=e89]: Payouts every 7 days via UPI or bank transfer
+    - button "Register as Expert" [ref=e90] [cursor=pointer]
+  - generic [ref=e93]:
+    - generic [ref=e94]:
+      - heading "See It In Action" [level=2] [ref=e95]
+      - heading "Discover pros who live in your building." [level=2] [ref=e96]:
+        - text: Discover pros who live
+        - text: in your building.
+      - paragraph [ref=e97]: See real-time availability, verified ratings, and neighbour endorsements - then book in one tap.
+      - generic [ref=e98]:
+        - generic [ref=e99]:
+          - generic [ref=e100]: ⭐
+          - generic [ref=e101]:
+            - heading "Verified ratings & reviews" [level=3] [ref=e102]
+            - generic [ref=e103]: Only residents who completed bookings can review
+        - generic [ref=e104]:
+          - generic [ref=e105]: 📅
+          - generic [ref=e106]:
+            - heading "Real-time availability" [level=3] [ref=e107]
+            - generic [ref=e108]: See open slots today and book instantly
+        - generic [ref=e109]:
+          - generic [ref=e110]: 🏘️
+          - generic [ref=e111]:
+            - heading "Tower-level trust" [level=3] [ref=e112]
+            - generic [ref=e113]: Know exactly which building your pro lives in
+        - generic [ref=e114]:
+          - generic [ref=e115]: 🪙
+          - generic [ref=e116]:
+            - heading "Pay with NeighbourCoins" [level=3] [ref=e117]
+            - generic [ref=e118]: Earn coins on every booking, use them on the next
+      - button "Browse Professionals →" [ref=e119] [cursor=pointer]
+    - generic [ref=e120]:
+      - generic [ref=e121]:
+        - generic [ref=e123]:
+          - generic [ref=e124]: 9:41
+          - generic [ref=e125]:
+            - img [ref=e126]
+            - img [ref=e131]
+            - img [ref=e135]
+        - generic [ref=e139]:
+          - generic [ref=e140]:
+            - generic [ref=e141]: PN
+            - generic [ref=e142]: Browse Experts
+            - generic [ref=e143]: RK
+          - generic [ref=e144]:
+            - img [ref=e145]
+            - generic [ref=e148]: Search skill or name…
+          - generic [ref=e149]:
+            - generic [ref=e150]: All
+            - generic [ref=e151]: Yoga
+            - generic [ref=e152]: CA / Tax
+            - generic [ref=e153]: Health
+          - generic [ref=e154]: 4 experts near you · Tower B
+          - generic [ref=e155]:
+            - generic [ref=e156]:
+              - generic [ref=e157]: PS
+              - generic [ref=e158]:
+                - generic [ref=e159]:
+                  - text: Priya Sharma
+                  - generic [ref=e160]: ✓ Verified
+                - generic [ref=e161]: Yoga Coach · Tower B, Flat 402
+                - generic [ref=e162]:
+                  - generic [ref=e163]: ★★★★★
+                  - generic [ref=e164]: "4.9"
+                  - generic [ref=e165]: (34 reviews)
+              - generic [ref=e166]:
+                - generic [ref=e167]: ₹290
+                - generic [ref=e168]: /session
+            - generic [ref=e169]:
+              - generic [ref=e170]:
+                - generic [ref=e171]: MK
+                - generic [ref=e172]: RS
+                - generic [ref=e173]: AP
+              - generic [ref=e174]: Trusted by 12 residents in Tower B
+            - generic [ref=e175]:
+              - generic [ref=e176]: Today
+              - generic [ref=e177] [cursor=pointer]: 7:00 AM
+              - generic [ref=e178] [cursor=pointer]: 8:00 AM
+              - generic [ref=e179] [cursor=pointer]: 5:30 PM
+            - button "Book Now · 7:00 AM" [ref=e180] [cursor=pointer]
+          - generic [ref=e181]:
+            - generic [ref=e182]: AK
+            - generic [ref=e183]:
+              - generic [ref=e184]:
+                - text: Amit Kumar
+                - generic [ref=e185]: ✓
+              - generic [ref=e186]: CA · Tax Filing · Tower A
+              - generic [ref=e187]:
+                - generic [ref=e188]: ★★★★★
+                - generic [ref=e189]: "4.8"
+                - generic [ref=e190]: (28)
+            - generic [ref=e191]:
+              - generic [ref=e192]: ₹0
+              - generic [ref=e193]: Free consult
+              - button "Book" [ref=e194] [cursor=pointer]
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - generic [ref=e197]: 🏠
+              - generic [ref=e198]: Home
+            - generic [ref=e199]:
+              - generic [ref=e200]: 🔍
+              - generic [ref=e201]: Browse
+            - generic [ref=e203]:
+              - generic [ref=e204]: 📅
+              - generic [ref=e205]: Bookings
+            - generic [ref=e206]:
+              - generic [ref=e207]: 💬
+              - generic [ref=e208]: Chat
+            - generic [ref=e209]:
+              - generic [ref=e210]: 👤
+              - generic [ref=e211]: Profile
+      - paragraph [ref=e212]: "\"Discover pros who live in your building - see ratings, availability, and book instantly.\""
+  - generic [ref=e214]:
+    - heading "Service Categories" [level=2] [ref=e215]
+    - heading "20+ categories, all inside your gates." [level=2] [ref=e216]
+    - paragraph [ref=e217]: From tax filing to yoga — your society has more talent than you think.
+    - generic [ref=e218]:
+      - generic [ref=e219]:
+        - generic [ref=e220]:
+          - generic [ref=e221]: 🔄
+          - heading "Business - Learn, grow, repeat." [level=3] [ref=e222]
+        - paragraph [ref=e223]: First month free · Verified pros with active Business listings.
+        - generic [ref=e224]:
+          - generic [ref=e225]:
+            - generic [ref=e226]: 📚
+            - generic [ref=e227]: Tuition & Coaching
+          - generic [ref=e228]:
+            - generic [ref=e229]: 🧘
+            - generic [ref=e230]: Yoga & Fitness
+          - generic [ref=e231]:
+            - generic [ref=e232]: 🎵
+            - generic [ref=e233]: Music & Dance
+          - generic [ref=e234]:
+            - generic [ref=e235]: 🗣️
+            - generic [ref=e236]: Language Classes
+          - generic [ref=e237]:
+            - generic [ref=e238]: 🥗
+            - generic [ref=e239]: Nutrition & Diet
+      - generic [ref=e240]:
+        - generic [ref=e241]:
+          - generic [ref=e242]: 🏠
+          - heading "Services - Everyday needs, one flat away." [level=3] [ref=e243]
+        - paragraph [ref=e244]: On-demand help from neighbours you already trust.
+        - generic [ref=e245]:
+          - generic [ref=e246]:
+            - generic [ref=e247]: 📊
+            - generic [ref=e248]: Tax & CA
+          - generic [ref=e249]:
+            - generic [ref=e250]: ⚖️
+            - generic [ref=e251]: Legal Advisory
+          - generic [ref=e252]:
+            - generic [ref=e253]: 💹
+            - generic [ref=e254]: Accounting & GST
+          - generic [ref=e255]:
+            - generic [ref=e256]: 📈
+            - generic [ref=e257]: Investment Planning
+          - generic [ref=e258]:
+            - generic [ref=e259]: 💼
+            - generic [ref=e260]: Career Coaching
+          - generic [ref=e261]:
+            - generic [ref=e262]: 📱
+            - generic [ref=e263]: Digital Marketing
+          - generic [ref=e264]:
+            - generic [ref=e265]: 📝
+            - generic [ref=e266]: Resume & LinkedIn
+          - generic [ref=e267]:
+            - generic [ref=e268]: ✨
+            - generic [ref=e269]: Homeopathy Doctor
+          - generic [ref=e270]:
+            - generic [ref=e271]: ✨
+            - generic [ref=e272]: Beauty & Grooming
+          - generic [ref=e273]:
+            - generic [ref=e274]: 💼
+            - generic [ref=e275]: Professional Services
+          - generic [ref=e276]:
+            - generic [ref=e277]: 🎨
+            - generic [ref=e278]: Design & Branding
+      - generic [ref=e279]:
+        - generic [ref=e280]:
+          - generic [ref=e281]: 🛍️
+          - heading "E-Commerce - Turn your hobby into a hustle." [level=3] [ref=e282]
+          - generic [ref=e283]: Coming Soon
+        - paragraph [ref=e284]: Society-based micro-businesses coming to your app soon.
+        - generic [ref=e285]:
+          - generic:
+            - generic: 🍱
+            - generic: Food & Catering
+          - generic:
+            - generic: 👗
+            - generic: Apparels & Fashion
+          - generic:
+            - generic: 💍
+            - generic: Fashion Jewellery
+          - generic:
+            - generic: 👜
+            - generic: Customized Bags
+          - generic:
+            - generic: 🏡
+            - generic: Home Decor & Crafts
+          - generic:
+            - generic: 🎁
+            - generic: Handmade Gifts
+          - generic:
+            - generic: 🎂
+            - generic: Baking & Desserts
+  - generic [ref=e287]:
+    - heading "Features" [level=2] [ref=e288]
+    - heading "Built for how gated communities actually work." [level=2] [ref=e289]:
+      - text: Built for how gated communities
+      - emphasis [ref=e290]: actually
+      - text: work.
+    - generic [ref=e291]:
+      - generic [ref=e292]:
+        - generic [ref=e293]: ⚡
+        - heading "Instant Slot Booking" [level=3] [ref=e294]
+        - paragraph [ref=e295]: Real-time availability. Pick a slot, confirm instantly.
+      - generic [ref=e296]:
+        - generic [ref=e297]: 🔄
+        - heading "Recurring Bookings" [level=3] [ref=e298]
+        - paragraph [ref=e299]: Auto-books weekly yoga, monthly CA reviews.
+      - generic [ref=e300]:
+        - generic [ref=e301]: 🤝
+        - heading "Neighbour Endorsements" [level=3] [ref=e302]
+        - paragraph [ref=e303]: Endorsed by 4 neighbours in Tower B. Far more trusted.
+      - generic [ref=e304]:
+        - generic [ref=e305]: 🔐
+        - heading "Verified Pro Badges" [level=3] [ref=e306]
+        - paragraph [ref=e307]: 🎓 Degree · 🪪 ID · ✅ Background checks.
+      - generic [ref=e308]:
+        - generic [ref=e309]: 🏠
+        - heading "Society-Only Booking" [level=3] [ref=e310]
+        - paragraph [ref=e311]: Only residents of your registered society can book.
+      - generic [ref=e312]:
+        - generic [ref=e313]: 🪙
+        - heading "NeighbourCoins Wallet" [level=3] [ref=e314]
+        - paragraph [ref=e315]: Earn NC credits on every booking. Redeem them for future services.
+  - generic [ref=e318]:
+    - heading "Early Joiner Benefits" [level=2] [ref=e319]
+    - heading "First 200 get founder perks for life." [level=2] [ref=e320]
+    - generic [ref=e321]:
+      - generic [ref=e322]:
+        - generic [ref=e323]: 🏆
+        - generic [ref=e324]:
+          - heading "Founder Badge" [level=3] [ref=e325]
+          - text: Permanent social trust signal on every profile.
+      - generic [ref=e326]:
+        - generic [ref=e327]: 💰
+        - generic [ref=e328]:
+          - heading "Zero Platform Fee — 3 Months" [level=3] [ref=e329]
+          - text: Pros keep 100%.
+      - generic [ref=e330]:
+        - generic [ref=e331]: 🪙
+        - generic [ref=e332]:
+          - heading "Early Wallet Credit" [level=3] [ref=e333]
+          - text: ₹200 in NeighbourCoins (NC) on your first booking
+      - generic [ref=e334]:
+        - generic [ref=e335]: 🚀
+        - generic [ref=e336]:
+          - heading "Priority Onboarding" [level=3] [ref=e337]
+          - text: Your society goes live before public launch.
+      - generic [ref=e338]:
+        - generic [ref=e340]: 🎁 Refer a neighbour · Earn ₹200 in NeighbourCoins (NC) · No cap on referrals
+        - button "Reserve My Founder Spot" [ref=e341] [cursor=pointer]
+  - generic [ref=e343]:
+    - heading "FAQ" [level=2] [ref=e344]
+    - heading "Questions people ask before joining." [level=2] [ref=e345]
+    - generic [ref=e346]:
+      - group [ref=e347]:
+        - generic "How does society verification work?" [ref=e348] [cursor=pointer]:
+          - generic [ref=e349]: How does society verification work?
+          - generic [ref=e350]: ▼
+      - group [ref=e351]:
+        - generic "Is there a fee to book services?" [ref=e352] [cursor=pointer]:
+          - generic [ref=e353]: Is there a fee to book services?
+          - generic [ref=e354]: ▼
+      - group [ref=e355]:
+        - generic "What if I need to cancel?" [ref=e356] [cursor=pointer]:
+          - generic [ref=e357]: What if I need to cancel?
+          - generic [ref=e358]: ▼
+      - group [ref=e359]:
+        - generic "How long does verification take?" [ref=e360] [cursor=pointer]:
+          - generic [ref=e361]: How long does verification take?
+          - generic [ref=e362]: ▼
+      - group [ref=e363]:
+        - generic "When and how do I receive payouts?" [ref=e364] [cursor=pointer]:
+          - generic [ref=e365]: When and how do I receive payouts?
+          - generic [ref=e366]: ▼
+      - group [ref=e367]:
+        - generic "Can I set my own rates?" [ref=e368] [cursor=pointer]:
+          - generic [ref=e369]: Can I set my own rates?
+          - generic [ref=e370]: ▼
+  - contentinfo [ref=e371]:
+    - generic [ref=e372]:
+      - generic [ref=e373]:
+        - generic [ref=e374]:
+          - link "PN ProNeighbor" [ref=e375] [cursor=pointer]:
+            - /url: /
+            - img "PN" [ref=e376]
+            - generic [ref=e377]: ProNeighbor
+          - paragraph [ref=e378]: Hyperlocal Professionals Network.
+          - paragraph [ref=e379]: 📍 Park Street, Wakad, Pune · May 2026
+        - generic [ref=e380]:
+          - heading "Product" [level=4] [ref=e381]
+          - link "How it Works" [ref=e382] [cursor=pointer]:
+            - /url: "#how"
+          - link "Features" [ref=e383] [cursor=pointer]:
+            - /url: "#features"
+          - link "Categories" [ref=e384] [cursor=pointer]:
+            - /url: "#categories"
+          - link "Early Access" [ref=e385] [cursor=pointer]:
+            - /url: "#early"
+        - generic [ref=e386]:
+          - heading "For Pros" [level=4] [ref=e387]
+          - link "Register as Expert" [ref=e388] [cursor=pointer]:
+            - /url: "#pro"
+          - link "Founder Perks" [ref=e389] [cursor=pointer]:
+            - /url: "#early"
+        - generic [ref=e390]:
+          - heading "Company" [level=4] [ref=e391]
+          - link "Privacy" [ref=e392] [cursor=pointer]:
+            - /url: /privacy
+          - link "Terms" [ref=e393] [cursor=pointer]:
+            - /url: /terms
+          - link "Contact" [ref=e394] [cursor=pointer]:
+            - /url: /contact
+      - generic [ref=e395]:
+        - generic "Social links" [ref=e396]:
+          - link "Instagram" [ref=e397] [cursor=pointer]:
+            - /url: https://instagram.com
+            - img [ref=e398]
+          - link "LinkedIn" [ref=e402] [cursor=pointer]:
+            - /url: https://linkedin.com
+            - img [ref=e403]
+          - link "WhatsApp Community" [ref=e406] [cursor=pointer]:
+            - /url: https://chat.whatsapp.com/
+            - img [ref=e407]
+        - status "Play Store app coming soon" [ref=e411]:
+          - generic [ref=e412]: ▶
+          - generic [ref=e413]: Mobile App - Coming soon
+      - generic [ref=e414]:
+        - generic [ref=e415]: © 2026 ProNeighbor. All rights reserved.
+        - generic [ref=e416]: Made with ❤️ in Pune 🇮🇳

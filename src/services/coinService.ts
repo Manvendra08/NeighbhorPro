@@ -382,9 +382,12 @@ export async function topUpCoins(uid: string, priceRs: number, coins: number, pa
     if (existingPurchase.exists()) return;
 
     const userSnap = await tx.get(userRef);
-    const newBal = ((userSnap.data()?.coinBalance as number) ?? 0) + coins;
+    const currentCoinBal = (userSnap.data()?.coinBalance as number) ?? 0;
+    const currentCashable = (userSnap.data()?.cashableBalance as number) ?? 0;
+    const newBal = currentCoinBal + coins;
+    const newCashable = currentCashable + coins; // topup is always cashable
 
-    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: `${purchaseId}_topup` });
+    tx.update(userRef, { coinBalance: newBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: `${purchaseId}_topup` });
     tx.set(purchaseRef, {
       uid,
       amountPaid: priceRs,
@@ -488,8 +491,9 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       const proRef = doc(db, "users", proUid);
       const proSnap = await tx.get(proRef);
       const newProBal = ((proSnap.data()?.coinBalance as number) ?? 0) + proEarning;
+      const newProCashable = ((proSnap.data()?.cashableBalance as number) ?? 0) + proEarning; // escrow release = cashable
       // All writes in one atomic batch — status update included
-      tx.update(proRef, { coinBalance: newProBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+      tx.update(proRef, { coinBalance: newProBal, cashableBalance: newProCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.update(bookingRef, {
         status: "completed",
         escrowStatus: "released",
@@ -554,8 +558,9 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
     const userRef = doc(db, "users", clientUid);
     const snap = await tx.get(userRef);
     const newBal = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
-    
-    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+    const newCashable = ((snap.data()?.cashableBalance as number) ?? 0) + escrowCoins; // refund = cashable
+
+    tx.update(userRef, { coinBalance: newBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
     tx.update(bookingRef, {
       status: "cancelled",
       escrowStatus: "refunded",
@@ -608,9 +613,10 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
         const clientRef = doc(db, "users", clientUid);
         const clientSnap = await tx.get(clientRef);
         const newBal = ((clientSnap.data()?.coinBalance as number) ?? 0) + escrowCoins;
+        const newCashable = ((clientSnap.data()?.cashableBalance as number) ?? 0) + escrowCoins; // refund = cashable
 
         const ledgerEntryId = `${bookingId}_refund_${clientUid}`;
-        tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+        tx.update(clientRef, { coinBalance: newBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
         tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false });
         tx.set(doc(db, "coinLedger", clientUid, "entries", ledgerEntryId), {
           uid: clientUid, type: "booking_refund", amount: escrowCoins, balanceAfter: newBal,
@@ -645,7 +651,11 @@ export async function earnCoins(uid: string, type: LedgerType, refId?: string): 
     const userRef = doc(db, "users", uid);
     const snap = await tx.get(userRef);
     const newBal = ((snap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: dedupDocId });
+    const isPromoType = PROMO_LEDGER_TYPES.includes(type);
+    const promoUpdate = isPromoType
+      ? { promoBalance: ((snap.data()?.promoBalance as number) ?? 0) + rule.coins }
+      : {};
+    tx.update(userRef, { coinBalance: newBal, ...promoUpdate, updatedAt: serverTimestamp(), lastLedgerEntryId: dedupDocId });
     tx.set(dedupRef, {
       uid, type, amount: rule.coins, balanceAfter: newBal,
       description: rule.label, refId: refId ?? null, createdAt: serverTimestamp(),
@@ -670,19 +680,21 @@ export async function requestPayout(uid: string, displayName: string, coins: num
     await runTransaction(db, async tx => {
       const userRef = doc(db, "users", uid);
       const snap = await tx.get(userRef);
-      const balance = (snap.data()?.coinBalance as number) ?? 0;
-      if (balance < coins) throw new Error("INSUFFICIENT_BALANCE");
-      const newBal = balance - coins;
+      const cashable = (snap.data()?.cashableBalance as number) ?? 0;
+      if (cashable < coins) throw new Error("INSUFFICIENT_BALANCE");
+      const coinBal = (snap.data()?.coinBalance as number) ?? 0;
+      const newCashable = cashable - coins;
+      const newCoinBal = Math.max(0, coinBal - coins);
       const payoutRef = doc(collection(db, "coinPayouts"));
       const ledgerEntryId = `${payoutRef.id}_payout_${uid}`;
-      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+      tx.update(userRef, { coinBalance: newCoinBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.set(payoutRef, { uid, displayName, coinsRedeemed: coins, amountRs: coins, upiId, upiMasked: maskedUpi, status: "pending", createdAt: serverTimestamp() } as CoinPayout);
-      tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), { uid, type: "payout", amount: -coins, balanceAfter: newBal, description: `Payout ₹${coins} -> ${maskedUpi}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
+      tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), { uid, type: "payout", amount: -coins, balanceAfter: newCoinBal, description: `Payout ₹${coins} -> ${maskedUpi}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
-    return { success: false, reason: msg === "INSUFFICIENT_BALANCE" ? "Insufficient balance" : "Transaction failed" };
+    return { success: false, reason: msg === "INSUFFICIENT_BALANCE" ? "Insufficient cashable balance. Only real-money sourced NC (from top-ups, booking earnings, refunds) can be withdrawn." : "Transaction failed" };
   }
 }
 
@@ -720,10 +732,12 @@ export async function cancelPayoutRequest(uid: string, payoutId: string): Promis
       const userRef = doc(db, "users", uid);
       const userSnap = await tx.get(userRef);
       const currentBalance = (userSnap.data()?.coinBalance as number) ?? 0;
+      const currentCashable = (userSnap.data()?.cashableBalance as number) ?? 0;
       const refundedBalance = currentBalance + (payout.coinsRedeemed || 0);
+      const refundedCashable = currentCashable + (payout.coinsRedeemed || 0);
 
       const ledgerEntryId = `${payoutId}_payout_cancel_${uid}`;
-      tx.update(userRef, { coinBalance: refundedBalance, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+      tx.update(userRef, { coinBalance: refundedBalance, cashableBalance: refundedCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.update(payoutRef, { status: "cancelled_by_user", cancelledAt: serverTimestamp(), updatedAt: serverTimestamp() });
       tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), {
         uid,

@@ -8,6 +8,8 @@ import { useAuth } from "../contexts/AuthContext";
 import InfoTooltip from "../components/common/InfoTooltip";
 import { computeAggregateRating } from "../utils/rating";
 import { captureError } from "../lib/sentry";
+import ActiveProPill from "../components/ActiveProPill";
+import { isBusinessCategory } from "../constants/serviceCatalog";
 
 function Skel({ w = "100%", h = 16, radius = 6, mb = 0 }: { w?: string | number; h?: number; radius?: number; mb?: number }) {
   return <div className="skeleton" style={{ width: w, height: h, borderRadius: radius, marginBottom: mb, flexShrink: 0 }} />;
@@ -217,6 +219,16 @@ export default function ProDetail() {
   }
 
   const initials = ((pro.displayName as string) || "?").split(" ").map(word => word[0]).join("").slice(0, 2).toUpperCase();
+
+  const proSubStatus = (pro.subscription as { status?: string } | undefined)?.status;
+  const SUB_ACTIVE_STATES = new Set([
+    "trial", "trial_ending", "active", "renewing", "past_due", "grace", "comped",
+  ]);
+  const proSubIsActive = proSubStatus ? SUB_ACTIVE_STATES.has(proSubStatus) : true;
+  const hasBusinessServices = services.some(
+    (s) => isBusinessCategory((s.category as string) || "")
+  );
+  const proUnavailable = hasBusinessServices && !proSubIsActive;
   const isOwnProfile = user?.uid === id;
   const canShowResidentPayable = !isOwnProfile;
   const publicEmail = typeof pro.email === "string" ? pro.email.trim() : "";
@@ -288,7 +300,10 @@ export default function ProDetail() {
           </div>
 
           <div style={{ flex: 1, minWidth: 220 }}>
-            <h1 style={{ fontSize: 24, marginBottom: 4 }}>{(pro.displayName as string) || "Anonymous"}</h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+              <h1 style={{ fontSize: 24, margin: 0 }}>{(pro.displayName as string) || "Anonymous"}</h1>
+              <ActiveProPill status={(pro.subscription as { status?: string } | undefined)?.status ?? null} size="md" />
+            </div>
             <p className="text-muted" style={{ marginBottom: 8 }}>
               {(pro.society as string) || "Community Member"}
               {publicTower ? ` | ${publicTower}` : ""}
@@ -312,7 +327,24 @@ export default function ProDetail() {
 
           {!isOwnProfile && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button className="btn btn-primary" onClick={handleBookConsultation}>Book Consultation</button>
+              {proUnavailable ? (
+                <div
+                  style={{
+                    padding: "10px 18px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "#fef3c7",
+                    border: "1px solid #f59e0b50",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#b45309",
+                    textAlign: "center",
+                  }}
+                >
+                  Currently unavailable
+                </div>
+              ) : (
+                <button className="btn btn-primary" onClick={handleBookConsultation}>Book Consultation</button>
+              )}
               <button className="btn btn-secondary" onClick={async () => {
                 if (!user || !id) {
                   alert("Please sign in to continue.");

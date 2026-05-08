@@ -37,6 +37,7 @@ import AdminReviews    from "./pages/admin/AdminReviews";
 import AdminWallet     from "./pages/admin/AdminWallet";
 import AdminTickets    from "./pages/admin/AdminTickets";
 import AdminBookings   from "./pages/admin/AdminBookings";
+import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 
 export default function App() {
   return (
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="/admin/settings"       element={<ProtectedRoute adminOnly><AdminSettings /></ProtectedRoute>} />
             <Route path="/admin/wallet"         element={<ProtectedRoute adminOnly><AdminWallet /></ProtectedRoute>} />
             <Route path="/admin/bookings"       element={<ProtectedRoute adminOnly><AdminBookings /></ProtectedRoute>} />
+            <Route path="/admin/subscriptions" element={<ProtectedRoute adminOnly><AdminSubscriptions /></ProtectedRoute>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

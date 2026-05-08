@@ -58,23 +58,26 @@ Run a single e2e test: `npx playwright test e2e/dashboard.spec.ts`
 
 All Firestore operations go through service files in `src/services/`:
 - `firestoreService.ts` — CRUD for users, services, bookings, profiles
-- `coinService.ts` — Wallet ledger, coin packs, referrals, payouts (16 ledger entry types)
+- `coinService.ts` — Wallet ledger with dual-bucket tracking (cashable NC vs promo NC), coin packs, referrals, payouts (17 ledger types including `subscription_debit`)
+- `subscriptionService.ts` — Business listing subscription lifecycle (trial, paid plans, renewal, cancellation) with admin-configurable pricing
 - `activityService.ts` — Activity logging with rate limiting (25 event types)
 - `auditService.ts` — Admin action audit trail (prevents self-targeting on sensitive actions)
 - `loyaltyService.ts` — Multi-tier loyalty system (none/bronze/silver/gold/diamond)
-- `razorpayService.ts` — Payment integration
+- `razorpayService.ts` — Payment integration (wallet top-up and pro payouts only; subscriptions use NC only)
 
 React Query hooks in `src/lib/queryClient.ts` cache public profiles (5m), services (2m), and balances (30s).
 
 ### Key Firestore Collections
 
-- `users` — Full profiles with role, verification status, coin balance
-- `services` — Service listings with moderation status (pending/approved/featured/rejected)
+- `users` — Full profiles with role, verification status, coin balances (`coinBalance` total, `cashableBalance` real-money sourced, `promoBalance` earned), subscription denorm (`subscription.status`, `subscription.plan`, `subscription.currentPeriodEnd`)
+- `services` — Service listings with moderation status (pending/approved/featured/rejected), subscription status (`subStatus: 'paused_subscription' | null`)
 - `bookings` — Booking lifecycle with escrow coins
-- `coinLedger` — Coin transaction history
+- `coinLedger/{uid}/entries` — Coin transaction history (17 types: topup, booking_*, payout*, earn_*, admin_*, subscription_debit)
+- `subscriptions` — Business listing subscription docs (status: trial|active|expired|comped|paused, plan, currentPeriodStart/End, source: trial|coins|comp|admin_grant)
+- `subscriptionInvoices` — Paid subscription invoices (idempotent via ledgerEntryId, immutable)
 - `auditLogs` — Admin action audit trail (append-only)
 - `activityLogs` — User activity events
-- `config/platformSettings` — Platform configuration (categories, commission, feature flags)
+- `config/platformSettings` — Platform configuration (categories, commission, subscription plans with admin-editable prices `sub3mPriceNC`, `sub6mPriceNC`, `sub12mPriceNC`)
 - `notifications` — Real-time notifications (6 kinds)
 
 ### Admin Panel
@@ -84,7 +87,31 @@ React Query hooks in `src/lib/queryClient.ts` cache public profiles (5m), servic
 - Destructive actions require confirmation dialogs
 - Service moderation: approve/reject/feature with bulk actions (`AdminServices.tsx`)
 - Platform settings including service category management (`AdminSettings.tsx`)
+- Subscription pricing: edit 3m/6m/12m plan prices in `AdminSettings.tsx` → `config/platformSettings` (read dynamically by SubscribeSheet)
+- Subscription admin: KPI dashboard, grant/revoke/force-cancel actions (`AdminSubscriptions.tsx`)
 - Wallet admin: payout processing, ledger adjustments (`AdminWallet.tsx`)
+
+### Subscription System (Business Listings)
+
+**Model:** Business-category service listings require an active subscription (3/6/12 month tiers, NC-only payment). First 30 days free for all new pros (trial auto-enrolled on first activation).
+
+**Plans:** Admin-configurable via `config/platformSettings`:
+- `business_3m_v1`: 90 days @ 999 NC (333 NC/mo)
+- `business_6m_v1`: 180 days @ 1799 NC (300 NC/mo — best value)
+- `business_12m_v1`: 365 days @ 2299 NC (192 NC/mo)
+
+**Lifecycle:** Trial (30d free) → active/renewing → past_due (5d grace) → expired | cancelled | comped | paused (admin).
+
+**Key Pages:**
+- `src/pages/SubscriptionManage.tsx` — Pro view: current plan, period end, invoice history, renew/cancel actions
+- `src/components/SubscribeSheet.tsx` — Plan picker modal, reads prices from admin config, validations on cashable balance
+- `src/components/SubscriptionBanner.tsx` — State-aware status banners (trial → trial_ending → active → renewing → expired, etc.)
+- `src/components/ActiveProPill.tsx` — Trust signal on BrowsePros/ProDetail for active pros
+- `src/pages/admin/AdminSubscriptions.tsx` — KPI strip (active/trial/expired/comped counts), filterable table, comp/cancel actions
+
+**Ledger Integration:** Subscription payments debit from `cashableBalance` only (real-money sourced NC). Earned NC (`promoBalance`) cannot be used for subscriptions. On successful purchase, `subscription_debit` ledger entry is created, `users.subscription` denorm updated.
+
+**Admin Config:** Edit plan prices, trial days, grace period days in `AdminSettings.tsx` under "Subscription" tab → writes to `config/platformSettings`. Changes reflect live in SubscribeSheet (no cache).
 
 ### PWA
 
@@ -216,6 +243,38 @@ Browser-based push notifications are enabled for all users (Resident, Pro, Admin
 - Use `npm run dev` to test locally. FCM requires HTTPS in production but works on `localhost` in dev.
 - Test permission grant/deny flows via browser settings (Settings > Notifications > localhost)
 - Verify token registration in Firestore `users/{userId}/fcmTokens` after permission grant
+
+## Wallet & Coin System
+
+**NeighbourCoins (NC):** Platform currency — 1 NC = ₹1 INR. Non-expiring (null expiry by default, configurable in `config/appSettings.ncTerms`).
+
+**Dual-Bucket Architecture:** Each user tracks two NC balances:
+- **Cashable NC** (`users.cashableBalance`): Real-money sourced (top-ups, booking earnings, refunds). Can be withdrawn via UPI payout. Used for subscription payments.
+- **Promo NC / Bonus** (`users.promoBalance`): Platform-earned (signup bonus, profile completion, referrals, reviews, milestones). Cannot be withdrawn. Used only for bookings.
+- **Total NC** (`users.coinBalance`): Sum of cashable + promo for display purposes.
+
+**Ledger Types (17):**
+- **Cashable sources:** `topup`, `booking_escrow_release`, `booking_refund`
+- **Promo sources:** `earn_signup_bonus`, `earn_profile`, `earn_referral`, `earn_review`, `earn_free_consult`, `earn_milestone`, `earn_groupsession`, `earn_ondemand`, `admin_credit`
+- **Debits:** `booking_debit`, `payout`, `subscription_debit`
+- **Special:** `booking_escrow` (temporary hold), `payout_cancelled` (refund on cancel), `admin_debit`
+
+**Wallet Page** (`src/pages/Wallet.tsx`):
+- **Overview tab:** NC breakdown (Total/Cashable/Promo), subscription status card, earn rules, referral code
+- **Buy tab:** Coin packs (Razorpay top-up), instant credit, bonus preview
+- **Earn tab:** Ways to earn with coin values
+- **Referral tab:** Shareable code + WhatsApp link, referral reward tracking
+- **Cash Out tab** (Pros only): Withdraw from `cashableBalance` only, UPI redemption, min 200 NC
+- **Subscription tab:** Current plan, pricing table, manage link
+- **History tab:** Full ledger with 50-entry pagination, colors per ledger type
+- **NC Terms tab:** Expiry policy, refund policy, earn cap, min payout
+
+**Payout Flow:**
+1. Pro enters amount + UPI ID in Cash Out tab
+2. Validation: amount ≥ 200 NC, `cashableBalance` ≥ amount
+3. On confirm: `requestPayout()` creates `coinPayouts` doc (status: pending), debit `cashableBalance`, log `payout` ledger entry
+4. Admin processes payout via `AdminWallet.tsx` → Razorpay/bank transfer → mark processed
+5. On cancel: `cashableBalance` refunded atomically
 
 ## Debugging & Monitoring
 

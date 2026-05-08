@@ -1,0 +1,46 @@
+- generic [ref=e3]:
+  - button "<- Back" [ref=e4] [cursor=pointer]
+  - heading "Privacy Policy" [level=1] [ref=e5]
+  - paragraph [ref=e6]: "Effective: May 1, 2026 | ProNeighbor, Pune, India"
+  - generic [ref=e7]:
+    - heading "1. Scope" [level=3] [ref=e8]
+    - paragraph [ref=e9]: This Privacy Policy explains how ProNeighbor collects, uses, stores, and shares personal information when you use the app, website, wallet, messaging, booking, support, and verification features.
+  - generic [ref=e10]:
+    - heading "2. Information We Collect" [level=3] [ref=e11]
+    - paragraph [ref=e12]: We may collect account details such as your name, email address, phone number, profile photo, and login identifiers; profile details such as society, tower, flat number, skills, rates, bio, and visibility settings; verification details such as residency proof images and review notes; transaction data such as bookings, wallet balance, NeighbourCoins ledger entries, payouts, and payment references; communication data such as messages, support tickets, notifications, and report submissions; and technical data such as device, browser, IP address, log events, and app usage signals.
+  - generic [ref=e13]:
+    - heading "3. How We Use Information" [level=3] [ref=e14]
+    - paragraph [ref=e15]: We use personal information to create and manage accounts, verify residents and professionals, publish profiles based on your visibility settings, process bookings and cancellations, operate the wallet and payout flow, detect abuse and fraud, respond to support issues, maintain audit trails, improve product quality, and comply with legal or regulatory obligations.
+  - generic [ref=e16]:
+    - heading "4. Information Visible to Other Users" [level=3] [ref=e17]
+    - paragraph [ref=e18]: Other users may see information needed for marketplace trust and booking, including your display name, photo, skills, pricing, ratings, review count, society or tower context, and professional profile details. Email address, phone number, and flat number are hidden by default unless you choose to make them visible where the product allows.
+  - generic [ref=e19]:
+    - heading "5. Admin and Internal Access" [level=3] [ref=e20]
+    - paragraph [ref=e21]: Authorized ProNeighbor admins may access user, booking, verification, wallet, support, moderation, and audit data when needed to operate the platform, investigate complaints, enforce platform rules, prevent fraud, process payouts, or meet legal obligations.
+  - generic [ref=e22]:
+    - heading "6. Payments and Wallet Data" [level=3] [ref=e23]
+    - paragraph [ref=e24]: Bookings and wallet activity may include wallet balances, top-ups, refunds, payout requests, booking escrow records, and payment reference IDs. Card, bank, and UPI payment processing may be handled by payment partners. ProNeighbor may store payment references, payout details, and reconciliation records, but does not need to store full card credentials to operate the platform.
+  - generic [ref=e25]:
+    - heading "7. Third-Party Services" [level=3] [ref=e26]
+    - paragraph [ref=e27]: We may use third-party providers for authentication, database and hosting infrastructure, file storage and media handling, messaging and notifications, analytics, error monitoring, and payment processing. Those providers process data under their own terms and privacy policies while acting as service providers to ProNeighbor.
+  - generic [ref=e28]:
+    - heading "8. Legal Bases and Purposes" [level=3] [ref=e29]
+    - paragraph [ref=e30]: We process data to perform our contract with users, operate requested services, protect platform security and marketplace integrity, comply with law, and pursue legitimate business interests such as fraud prevention, dispute handling, support, and service improvement.
+  - generic [ref=e31]:
+    - heading "9. Retention" [level=3] [ref=e32]
+    - paragraph [ref=e33]: We retain account and profile data while your account remains active. We may retain booking, transaction, payout, support, moderation, verification, security, and audit records for longer periods where needed for dispute resolution, fraud review, financial reconciliation, taxation, legal compliance, or enforcement of platform rules. When deletion is requested and legally permitted, we may delete or anonymize parts of your data while preserving records that must be retained.
+  - generic [ref=e34]:
+    - heading "10. Security" [level=3] [ref=e35]
+    - paragraph [ref=e36]: We use technical and organizational controls intended to reduce unauthorized access, misuse, or loss of data. No platform can guarantee absolute security. You are responsible for maintaining the confidentiality of your login credentials and for notifying us if you suspect unauthorized account activity.
+  - generic [ref=e37]:
+    - heading "11. Your Choices and Rights" [level=3] [ref=e38]
+    - paragraph [ref=e39]: Subject to applicable law, you may request access to your personal data, correction of inaccurate data, deletion of eligible data, or restriction of certain processing. You may also control profile visibility settings where offered in the product. Requests may be denied or limited where retention is required for legal, security, or financial reasons.
+  - generic [ref=e40]:
+    - heading "12. Children" [level=3] [ref=e41]
+    - paragraph [ref=e42]: ProNeighbor is not intended for users under 18 years of age. If we learn that a minor has provided personal data without valid authorization, we may suspend the account and remove the data where appropriate.
+  - generic [ref=e43]:
+    - heading "13. Changes to This Policy" [level=3] [ref=e44]
+    - paragraph [ref=e45]: We may update this Privacy Policy from time to time. Material changes may be communicated through the app, website, email, or other reasonable notice methods. Continued use of the service after the updated policy becomes effective means the updated policy applies.
+  - generic [ref=e46]:
+    - heading "14. Contact" [level=3] [ref=e47]
+    - paragraph [ref=e48]: "Privacy requests or questions: privacy@proneighbor.in. General support: support@proneighbor.in. ProNeighbor, Pune, Maharashtra, India."

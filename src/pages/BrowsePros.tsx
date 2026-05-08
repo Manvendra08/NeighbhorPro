@@ -12,6 +12,7 @@ import FormField from "../components/common/FormField";
 import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../constants/serviceCatalog";
 import { getBrowseEmptyDescription, getBrowseFallbackNotice } from "../utils/browse";
 import { captureError } from "../lib/sentry";
+import ActiveProPill from "../components/ActiveProPill";
 
 type BrowsePro = UserSummary & Record<string, unknown> & {
   category?: string;
@@ -270,13 +271,18 @@ export default function BrowsePros() {
           ) : (
             <>
               {filtered.map((pro) => (
-                <ProCard
-                  key={pro.uid}
-                  pro={pro}
-                  mobile
-                  onBook={handleBookNavigation}
-                  onViewProfile={(uid) => navigate(`/pro/${uid}`)}
-                />
+                <div key={pro.uid} style={{ position: "relative" }}>
+                  <ActiveProPill
+                    status={(pro.subscription as { status?: string } | undefined)?.status ?? null}
+                    size="sm"
+                  />
+                  <ProCard
+                    pro={pro}
+                    mobile
+                    onBook={handleBookNavigation}
+                    onViewProfile={(uid) => navigate(`/pro/${uid}`)}
+                  />
+                </div>
               ))}
               {!search && category === "All" && (
                 <div style={{ textAlign: "center", padding: "20px 0" }}>
@@ -395,13 +401,18 @@ export default function BrowsePros() {
           </div>
           <div className={viewMode === "grid" ? "grid grid-3" : "pro-list-layout"}>
             {filtered.map((pro) => (
-              <ProCard
-                key={pro.uid}
-                pro={pro}
-                grid={viewMode === "grid"}
-                onBook={handleBookNavigation}
-                onViewProfile={(uid) => navigate(`/pro/${uid}`)}
-              />
+              <div key={pro.uid} style={{ position: "relative" }}>
+                <ActiveProPill
+                  status={(pro.subscription as { status?: string } | undefined)?.status ?? null}
+                  size="sm"
+                />
+                <ProCard
+                  pro={pro}
+                  grid={viewMode === "grid"}
+                  onBook={handleBookNavigation}
+                  onViewProfile={(uid) => navigate(`/pro/${uid}`)}
+                />
+              </div>
             ))}
           </div>
           {!search && category === "All" && (

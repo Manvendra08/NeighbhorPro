@@ -208,11 +208,10 @@ service cloud.firestore {
         && request.resource.data.category is string
         && request.resource.data.description is string
         && (!('status' in request.resource.data) || request.resource.data.status == 'pending')
-        && (!(request.resource.data.category in ['Tuition & Coaching', 'Yoga & Fitness', 'Music & Dance', 'Language Classes', 'Nutrition & Diet']) 
+        && (!(request.resource.data.category in ['Tuition & Coaching', 'Yoga & Fitness', 'Music & Dance', 'Language Classes', 'Nutrition & Diet'])
             || (
               'subscription' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data
-              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.status in ['active','renewing','past_due','grace','comped']
-              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.currentPeriodEnd > request.time
+              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.status in ['trial','trial_ending','active','renewing','past_due','grace','comped']
             ));
       allow update: if isSignedIn() && (
         isAdmin() ||

@@ -23,12 +23,11 @@ type Settings = {
   featurePremiumSocieties: boolean;
   serviceCategories: string[];
   subscriptionEnabled?: boolean;
-  subscriptionMonthlyPriceINR?: number;
-  subscriptionMonthlyPriceNC?: number;
+  sub3mPriceNC?: number;
+  sub6mPriceNC?: number;
+  sub12mPriceNC?: number;
   subscriptionGracePeriodDays?: number;
-  subscriptionAutoDebitNCEnabled?: boolean;
-  subscriptionFounderPromoActive?: boolean;
-  subscriptionFounderPromoCap?: number;
+  subscriptionTrialDays?: number;
 };
 
 const DEFAULTS: Settings = {
@@ -39,12 +38,11 @@ const DEFAULTS: Settings = {
   featureReviews: true, featureMessaging: true, featurePremiumSocieties: true,
   serviceCategories: [...DEFAULT_SERVICE_CATEGORIES],
   subscriptionEnabled: false,
-  subscriptionMonthlyPriceINR: 299,
-  subscriptionMonthlyPriceNC: 500,
+  sub3mPriceNC: 999,
+  sub6mPriceNC: 1799,
+  sub12mPriceNC: 2299,
   subscriptionGracePeriodDays: 5,
-  subscriptionAutoDebitNCEnabled: true,
-  subscriptionFounderPromoActive: false,
-  subscriptionFounderPromoCap: 50,
+  subscriptionTrialDays: 30,
 };
 
 export default function AdminSettings() {
@@ -253,66 +251,54 @@ export default function AdminSettings() {
 
           <div className="card">
             <h3 className="card-title" style={{ marginBottom: 8 }}>💳 Business Subscription</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>
-              Business category listings require a monthly subscription. Configure pricing and policies.
+            <p className="text-muted text-sm" style={{ marginBottom: 12 }}>
+              Business category listings require an active subscription. NC-only payment.
             </p>
-            
-            <div className="form-group">
-              <label className="form-label">Monthly Price (INR)</label>
-              <input 
-                className="form-input" 
-                type="number" 
-                min={0} 
-                max={10000}
-                value={settings.subscriptionMonthlyPriceINR ?? 299} 
-                onChange={e => set("subscriptionMonthlyPriceINR" as keyof Settings, +e.target.value as never)} 
-              />
-              <span className="form-hint">Price for Razorpay payment (₹)</span>
+
+            <Toggle label="Subscription Enabled" desc="Require subscription for Business listings" k={"subscriptionEnabled" as keyof Settings} />
+
+            <div style={{ marginTop: 20, marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text)" }}>
+              Plan Pricing (NeighbourCoins)
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Monthly Price (NC)</label>
-              <input 
-                className="form-input" 
-                type="number" 
-                min={0} 
-                max={10000}
-                value={settings.subscriptionMonthlyPriceNC ?? 500} 
-                onChange={e => set("subscriptionMonthlyPriceNC" as keyof Settings, +e.target.value as never)} 
-              />
-              <span className="form-hint">Price for NeighbourCoins payment</span>
-            </div>
-
-            <div className="grid grid-2" style={{ gap: 16 }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Grace Period (days)</label>
-                <input 
-                  className="form-input" 
-                  type="number" 
-                  min={0} 
-                  max={30}
-                  value={settings.subscriptionGracePeriodDays ?? 5} 
-                  onChange={e => set("subscriptionGracePeriodDays" as keyof Settings, +e.target.value as never)} 
+            {([
+              { label: "3 Months", k: "sub3mPriceNC" as const, badge: null },
+              { label: "6 Months", k: "sub6mPriceNC" as const, badge: "Best value" },
+              { label: "12 Months", k: "sub12mPriceNC" as const, badge: null },
+            ] as const).map(row => (
+              <div key={row.k} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ flex: "0 0 90px", fontSize: 14, color: "var(--text)" }}>{row.label}</span>
+                <input
+                  className="form-input"
+                  type="number"
+                  min={0}
+                  max={99999}
+                  value={settings[row.k] ?? 0}
+                  onChange={e => set(row.k, +e.target.value as never)}
+                  style={{ flex: 1, marginBottom: 0 }}
                 />
+                {row.badge && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)", background: "rgba(var(--accent-rgb),0.1)", padding: "2px 8px", borderRadius: 10, whiteSpace: "nowrap" }}>
+                    ✨ {row.badge}
+                  </span>
+                )}
               </div>
-              
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Founder Promo Cap</label>
-                <input 
-                  className="form-input" 
-                  type="number" 
-                  min={0} 
-                  max={1000}
-                  value={settings.subscriptionFounderPromoCap ?? 50} 
-                  onChange={e => set("subscriptionFounderPromoCap" as keyof Settings, +e.target.value as never)} 
-                />
-              </div>
+            ))}
+
+            <div className="form-group" style={{ marginTop: 20, marginBottom: 0 }}>
+              <label className="form-label">Grace Period (days after expiry before listing pauses)</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0}
+                max={30}
+                value={settings.subscriptionGracePeriodDays ?? 5}
+                onChange={e => set("subscriptionGracePeriodDays", +e.target.value as never)}
+              />
             </div>
 
-            <div style={{ marginTop: 16 }}>
-              <Toggle label="Subscription Enabled" desc="Require subscription for Business listings" k={"subscriptionEnabled" as keyof Settings} />
-              <Toggle label="Auto-debit NC" desc="Allow automatic renewal from cashable NC balance" k={"subscriptionAutoDebitNCEnabled" as keyof Settings} />
-              <Toggle label="Founder Promo Active" desc="First N pros get first month free" k={"subscriptionFounderPromoActive" as keyof Settings} />
+            <div style={{ marginTop: 16, padding: "12px 14px", background: "rgba(136,146,164,0.08)", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--muted)" }}>
+              Free Trial: First {settings.subscriptionTrialDays ?? 30} days free for all new Business listing pros (universal).
             </div>
           </div>
         </div>

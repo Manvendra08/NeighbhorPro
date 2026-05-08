@@ -112,7 +112,7 @@ export default function LandingPage() {
   const groupHeadings: Record<string, { heading: string; subtitle: string; comingSoon: boolean }> = {
     "Business": {
       heading: "Business - Learn, grow, repeat.",
-      subtitle: "Weekly or monthly commitments with pros in your society.",
+      subtitle: "First month free · Verified pros with active Business listings.",
       comingSoon: false,
     },
     "Services": {

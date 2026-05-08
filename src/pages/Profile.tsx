@@ -13,6 +13,14 @@ import {
 } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
 import { CATEGORY_GROUPS, isBusinessCategory } from "../constants/serviceCatalog";
+import {
+  getSubscription,
+  activateTrial,
+  isSubActive,
+  type Subscription,
+} from "../services/subscriptionService";
+import SubscriptionBanner from "../components/SubscriptionBanner";
+import SubscribeSheet from "../components/SubscribeSheet";
 
 const SKILL_SUGGESTIONS = [
   "Tax Filing & ITR",
@@ -140,6 +148,9 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   const [svcCategory, setSvcCategory] = useState("");
   const [svcCategoryGroup, setSvcCategoryGroup] = useState("");
 
+  const [sub, setSub] = useState<Subscription | null>(null);
+  const [showSubscribeSheet, setShowSubscribeSheet] = useState(false);
+
   useEffect(() => {
     if (!targetProfile) return;
     setDisplayName((targetProfile.displayName as string) || "");
@@ -178,6 +189,21 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   useEffect(() => {
     if (!targetUid) return;
     getServicesByUser(targetUid).then(setServices).catch(() => setServices([]));
+  }, [targetUid]);
+
+  const fetchSub = async () => {
+    if (!targetUid) return;
+    try {
+      const result = await getSubscription(targetUid);
+      setSub(result);
+    } catch {
+      setSub(null);
+    }
+  };
+
+  useEffect(() => {
+    void fetchSub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetUid]);
 
   useEffect(() => {
@@ -282,17 +308,30 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       return;
     }
 
-    // Check if Business category requires active subscription
-    if (isBusinessCategory(svcCategory)) {
-      const subscription = targetProfile?.subscription as { status?: string; currentPeriodEnd?: { seconds: number } } | undefined;
-      const hasActiveSub = subscription && 
-        ['active', 'renewing', 'past_due', 'grace', 'comped'].includes(subscription.status || '') &&
-        subscription.currentPeriodEnd &&
-        subscription.currentPeriodEnd.seconds * 1000 > Date.now();
-      
-      if (!hasActiveSub) {
-        alert("Business category listings require an active subscription. Please subscribe first from your Wallet or Profile page.");
-        return;
+    // Business category: auto-activate trial if user has no active subscription
+    if (isBusinessCategory(svcCategory) && !isSubActive(sub)) {
+      try {
+        const newSub = await activateTrial(targetUid);
+        setSub(newSub);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "";
+        // TRIAL_ALREADY_USED or ACTIVE_SUB_EXISTS: check again whether sub is now active
+        if (msg !== "TRIAL_ALREADY_USED" && msg !== "ACTIVE_SUB_EXISTS") {
+          alert("Business category listings require an active subscription. Please subscribe from your Wallet.");
+          return;
+        }
+        // Re-fetch sub in case it exists but wasn't loaded
+        try {
+          const refreshed = await getSubscription(targetUid);
+          setSub(refreshed);
+          if (!isSubActive(refreshed)) {
+            alert("Business category listings require an active subscription. Please subscribe from your Wallet.");
+            return;
+          }
+        } catch {
+          alert("Business category listings require an active subscription. Please subscribe from your Wallet.");
+          return;
+        }
       }
     }
 
@@ -672,6 +711,10 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
         </button>
       </form>
 
+      {isServiceProvider && !isAdminViewAs && (
+        <SubscriptionBanner sub={sub} onChoosePlan={() => setShowSubscribeSheet(true)} />
+      )}
+
       {isServiceProvider && (
         <div className="card" style={{ marginBottom: 24 }}>
           <div className="card-header">
@@ -776,6 +819,19 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
             </div>
           )}
         </div>
+      )}
+
+      {showSubscribeSheet && !isAdminViewAs && targetUid && (
+        <SubscribeSheet
+          uid={targetUid}
+          cashableBalance={((targetProfile as unknown as Record<string, unknown>)?.cashableBalance as number) ?? 0}
+          trialUsed={((targetProfile as unknown as Record<string, unknown>)?.trialUsed as boolean) ?? false}
+          onClose={() => setShowSubscribeSheet(false)}
+          onSuccess={() => {
+            setShowSubscribeSheet(false);
+            void fetchSub();
+          }}
+        />
       )}
     </div>
   );
