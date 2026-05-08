@@ -19,14 +19,14 @@ export const DEFAULT_SERVICE_CATEGORIES: string[] = [
   "Professional Services",
   "Design & Branding",
   
-  // E-Commerce
-  "Food & Catering",
-  "Apparels & Fashion",
-  "Fashion Jewellery",
-  "Customized Bags",
-  "Home Decor & Crafts",
-  "Handmade Gifts",
-  "Baking & Desserts",
+  // DEACTIVATED: E-Commerce categories (preserve for future re-activation)
+  // "Food & Catering",
+  // "Apparels & Fashion",
+  // "Fashion Jewellery",
+  // "Customized Bags",
+  // "Home Decor & Crafts",
+  // "Handmade Gifts",
+  // "Baking & Desserts",
 ];
 
 export const CATEGORY_GROUPS: Record<string, string[]> = {
@@ -50,15 +50,16 @@ export const CATEGORY_GROUPS: Record<string, string[]> = {
     "Professional Services",
     "Design & Branding",
   ],
-  "E-Commerce": [
-    "Food & Catering",
-    "Apparels & Fashion",
-    "Fashion Jewellery",
-    "Customized Bags",
-    "Home Decor & Crafts",
-    "Handmade Gifts",
-    "Baking & Desserts",
-  ],
+  // DEACTIVATED: E-Commerce group (preserve for future re-activation)
+  // "E-Commerce": [
+  //   "Food & Catering",
+  //   "Apparels & Fashion",
+  //   "Fashion Jewellery",
+  //   "Customized Bags",
+  //   "Home Decor & Crafts",
+  //   "Handmade Gifts",
+  //   "Baking & Desserts",
+  // ],
 };
 
 export const SERVICE_CATEGORY_ICONS: Record<string, string> = {
@@ -81,13 +82,14 @@ export const SERVICE_CATEGORY_ICONS: Record<string, string> = {
   "Resume & LinkedIn": "📝",
   "Accounting & GST": "💹",
   "Investment Planning": "📈",
-  "Food & Catering": "🍱",
-  "Apparels & Fashion": "👗",
-  "Fashion Jewellery": "💍",
-  "Customized Bags": "👜",
-  "Home Decor & Crafts": "🏡",
-  "Handmade Gifts": "🎁",
-  "Baking & Desserts": "🎂",
+  // DEACTIVATED: E-Commerce icons (preserve for future re-activation)
+  // "Food & Catering": "🍱",
+  // "Apparels & Fashion": "👗",
+  // "Fashion Jewellery": "💍",
+  // "Customized Bags": "👜",
+  // "Home Decor & Crafts": "🏡",
+  // "Handmade Gifts": "🎁",
+  // "Baking & Desserts": "🎂",
 };
 
 export function normalizeServiceCategories(value: unknown): string[] {
