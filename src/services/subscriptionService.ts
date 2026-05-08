@@ -199,7 +199,6 @@ export async function getSubscription(uid: string): Promise<Subscription | null>
     collection(db, "subscriptions"),
     where("uid", "==", uid),
     where("status", "not-in", ["expired", "cancelled"]),
-    orderBy("status"),
     orderBy("createdAt", "desc"),
     limit(1)
   );
