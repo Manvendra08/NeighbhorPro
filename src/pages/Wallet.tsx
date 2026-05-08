@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   COIN_PACKS, EARN_RULES, MIN_PAYOUT_COINS, getLedger, requestPayout,
   getPendingPayoutForUser, cancelPayoutRequest,
-  formatNC, ledgerColor, ledgerSign, getNCTerms, applyReferralCode,
+  formatNC, ledgerColor, ledgerSign, getNCTerms,
   maskUpiId, generateReferralCode, isValidReferralCode, normalizeReferralCode,
   type LedgerEntry, type NCTerms, type CoinPayout,
 } from "../services/coinService";
@@ -43,9 +43,6 @@ export default function Wallet() {
   const [payoutRequest, setPayoutRequest] = useState<{ coins: number; upiId: string } | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [ncTerms, setNcTerms]     = useState<NCTerms | null>(null);
-  const [refCode, setRefCode]     = useState("");
-  const [refMsg, setRefMsg]       = useState<{ type: "success"|"error"; text: string }|null>(null);
-  const [refLoading, setRefLoading] = useState(false);
   const [copied, setCopied]       = useState(false);
   const [latestLedgerEntry, setLatestLedgerEntry] = useState<LedgerEntry | null>(null);
 
@@ -236,17 +233,6 @@ export default function Wallet() {
     setCancelLoading(false);
   };
 
-  const handleApplyReferral = async () => {
-    if (!user || !refCode.trim()) return;
-    setRefLoading(true);
-    const res = await applyReferralCode(user.uid, normalizeReferralCode(refCode));
-    setRefMsg(res.success
-      ? { type: "success", text: `Referral applied! ${EARN_RULES.earn_referral.coins} NC credited to your wallet.` }
-      : { type: "error", text: res.reason ?? "Failed." });
-    setRefLoading(false);
-    if (res.success) setRefCode("");
-  };
-
   const copyCode = () => {
     if (!myCode) return;
     navigator.clipboard
@@ -257,7 +243,6 @@ export default function Wallet() {
       })
       .catch((error: unknown) => {
         captureError(error, { operation: "wallet.copy_referral_code" });
-        setRefMsg({ type: "error", text: "Copy failed. Please copy manually." });
       });
   };
 
@@ -502,17 +487,6 @@ export default function Wallet() {
               ) : (
                 <button className="btn btn-primary btn-sm" onClick={() => navigate("/profile")}>Update Profile</button>
               )}
-            </div>
-          </div>
-
-          {/* Apply Referral Code Card */}
-          <div className="card" style={{ marginBottom: 20 }}>
-            <h3 className="card-title" style={{ marginBottom: 4 }}>Have a Referral Code?</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>Enter a friend's code and get {EARN_RULES.earn_referral.coins} NC instantly.</p>
-            <Msg m={refMsg} />
-            <div style={{ display: "flex", gap: 10 }}>
-              <input className="form-input" placeholder="e.g. PNABC123" value={refCode} onChange={e => setRefCode(normalizeReferralCode(e.target.value))} style={{ flex: 1, fontFamily: "monospace", letterSpacing: 1 }} />
-              <button className="btn btn-primary" onClick={handleApplyReferral} disabled={refLoading || !refCode.trim()}>{refLoading ? "Applying…" : "Apply"}</button>
             </div>
           </div>
 
