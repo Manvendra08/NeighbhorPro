@@ -341,7 +341,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       userId: targetUid,
       title: svcTitle,
       description: svcDesc,
-      price: svcFeeType === "hourly" ? Number(svcPrice) : 0,
+      price: (svcFeeType === "hourly" || svcFeeType === "monthly") ? Number(svcPrice) : 0,
       isFree: svcFeeType === "free",
       quoteBased: svcFeeType === "quote",
       feeType: svcFeeType,
@@ -816,7 +816,7 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
                   <div>
                     <div style={{ fontWeight: 600 }}>{service.title as string}</div>
                     <div className="text-muted text-sm">
-                      {service.quoteBased ? "Quote-based" : (service.isFree || (service.price as number) === 0) ? "Free" : `${service.price} NC/hr`}
+                      {service.quoteBased ? "Quote-based" : (service.isFree || (service.price as number) === 0) ? "Free" : (service.feeType === "monthly") ? `${service.price} NC/mo` : `${service.price} NC/hr`}
                       {service.category ? <span style={{ marginLeft: 8 }} className="badge badge-muted">{service.category as string}</span> : null}
                     </div>
                   </div>
