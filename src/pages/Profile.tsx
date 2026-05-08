@@ -379,12 +379,23 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     
     // Determine fee type from service data
     let feeType: "free" | "quote" | "hourly" | "monthly" = "free";
-    if (service.quoteBased) feeType = "quote";
-    else if (Number(service.price) > 0) feeType = "hourly";
-    else if (service.isFree || (Number(service.price) || 0) === 0) feeType = "free";
+    const feeTypeField = (service.feeType as string) || "";
+    const price = Number(service.price) || 0;
+    const quoteBased = Boolean(service.quoteBased);
+    const isFree = Boolean(service.isFree) || price === 0;
+    
+    if (feeTypeField === "monthly") {
+      feeType = "monthly";
+    } else if (feeTypeField === "hourly") {
+      feeType = "hourly";
+    } else if (quoteBased) {
+      feeType = "quote";
+    } else if (isFree) {
+      feeType = "free";
+    }
     
     setSvcFeeType(feeType);
-    setSvcPrice(String((service.price as number) || 0));
+    setSvcPrice(String(price));
     const cat = (service.category as string) || "";
     setSvcCategory(cat);
     // Find group for this category

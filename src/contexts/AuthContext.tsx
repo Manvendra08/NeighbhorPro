@@ -6,7 +6,7 @@ import {
   signInWithPhoneNumber, RecaptchaVerifier,
   reauthenticateWithCredential, EmailAuthProvider, deleteUser,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot, Timestamp, runTransaction } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
 import { captureError, setUser as setSentryUser } from "../lib/sentry";
 
@@ -91,7 +91,13 @@ function toRole(value: unknown): UserProfile["role"] {
 }
 
 function toFirestoreTimestamp(value: unknown): FirestoreTimestamp {
-  return (value ?? null) as FirestoreTimestamp;
+  if (value instanceof Timestamp) return value;
+  if (value && typeof value === 'object' && 'seconds' in value) {
+    const seconds = (value as { seconds?: number }).seconds;
+    if (typeof seconds === 'number') return Timestamp.fromMillis(seconds * 1000);
+  }
+  // Fallback: return current time as a safe default for invalid data
+  return Timestamp.now();
 }
 
 function toUserProfile(raw: Record<string, unknown>): UserProfile {
@@ -197,7 +203,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     setLoading(true);
+    let isMounted = true;
     const unsub = onSnapshot(doc(db, "users", user.uid), snap => {
+      if (!isMounted) return;
       if (snap.exists()) {
         const data = toUserProfile(normalizeProfileData({ uid: snap.id, ...snap.data() }));
         setUserProfile(data);
@@ -212,12 +220,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserProfile(null);
       }
       setLoading(false);
-    }, () => setLoading(false));
-    return unsub;
+    }, (error: unknown) => {
+      if (isMounted) {
+        captureError(error, { operation: "user_profile_snapshot", uid: user.uid });
+        setLoading(false);
+      }
+    });
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, [user]);
 
   const createUserProfile = async (u: User): Promise<boolean> => {
-    const ref = doc(db, "users", u.uid);
+  const ref = doc(db, "users", u.uid);
+  
+  // Use transaction to prevent race conditions on profile creation
+  const created = await runTransaction(db, async (tx) => {
+  const snap = await tx.get(ref);
+  if (snap.exists()) return false;
+  
+  const referralCode = await generateUniqueReferralCode({
+      displayName: u.displayName ?? "",
+    phoneNumber: u.phoneNumber ?? "",
+  uid: u.uid,
+  });
+
+  const profile: UserProfile = {
+  uid: u.uid, displayName: u.displayName ?? "", email: u.email ?? "",
+  photoURL: u.photoURL ?? "", bio: "", skills: [], hourlyRate: 0,
+  isFreeConsultation: true, society: "", locality: "", tower: "", flatNumber: "",
+  residentVerificationStatus: "none", verificationReviewNote: null, verificationMethod: null,
+  isServiceProvider: false, priceAfterQuote: false,
+  role: "user", rating: 0, reviewCount: 0, coinBalance: 0,
+    referralCode,
+    emailVerified: u.emailVerified,
+    emailVisible: false, phoneVisible: false, flatVisible: false,
+  createdAt: serverTimestamp(),
+  };
+  
+  tx.set(ref, profile);
+  tx.set(doc(db, "referralCodes", referralCode), {
+    uid: u.uid,
+    code: referralCode,
+  createdAt: serverTimestamp(),
+  });
+  
+  return true;
+  }).catch(async (error: unknown) => {
+  captureError(error, { operation: "create_user_profile_transaction", uid: u.uid });
+    // Fallback: check again and create non-transactionally if needed
     const snap = await getDoc(ref);
     if (!snap.exists()) {
       const referralCode = await generateUniqueReferralCode({
@@ -225,7 +277,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneNumber: u.phoneNumber ?? "",
         uid: u.uid,
       });
-
       const profile: UserProfile = {
         uid: u.uid, displayName: u.displayName ?? "", email: u.email ?? "",
         photoURL: u.photoURL ?? "", bio: "", skills: [], hourlyRate: 0,
@@ -239,23 +290,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: serverTimestamp(),
       };
       await setDoc(ref, profile);
+      // Use merge to avoid duplicate key errors on concurrent creates
       await setDoc(doc(db, "referralCodes", referralCode), {
         uid: u.uid,
         code: referralCode,
         createdAt: serverTimestamp(),
-      }).catch((error: unknown) => {
+      }, { merge: true }).catch((error: unknown) => {
         captureError(error, { operation: "create_referral_code_doc", uid: u.uid, referralCode });
-      });
-      await mirrorPublicProfile(u.uid, profile).catch((error: unknown) => {
-        captureError(error, { operation: "mirror_public_profile_on_signup", uid: u.uid });
-      });
-      await earnCoins(u.uid, "earn_signup_bonus", u.uid).catch((error: unknown) => {
-        captureError(error, { operation: "earn_signup_bonus", uid: u.uid });
       });
       return true;
     }
     return false;
-  };
+  });
+  
+  if (created) {
+    // Side effects outside transaction (can fail without rolling back profile creation)
+    const profileForMirror: Partial<UserProfile> = {
+      uid: u.uid, displayName: u.displayName ?? "", photoURL: u.photoURL ?? "",
+      bio: "", skills: [], hourlyRate: 0, isFreeConsultation: true,
+      society: "", locality: "", tower: "", flatNumber: "",
+      residentVerificationStatus: "none", isServiceProvider: false,
+      priceAfterQuote: false, role: "user", rating: 0, reviewCount: 0,
+    };
+    await mirrorPublicProfile(u.uid, profileForMirror).catch((error: unknown) => {
+      captureError(error, { operation: "mirror_public_profile_on_signup", uid: u.uid });
+    });
+    await earnCoins(u.uid, "earn_signup_bonus", u.uid).catch((error: unknown) => {
+      captureError(error, { operation: "earn_signup_bonus", uid: u.uid });
+    });
+  }
+  
+  return created;
+};
 
   const signIn = async (email: string, password: string) => {
     const cred = await signInWithEmailAndPassword(auth, email, password);

@@ -54,8 +54,8 @@ export function ProtectedRoute({ children, adminOnly, userOnly, requireVerified 
 
   if (requireVerified && userProfile?.role !== "admin") {
     const isPasswordProvider = user.providerData?.some(p => p.providerId === "password");
-    const isEmailApprovedByAdmin = userProfile?.emailVerified === true;
-    if (isPasswordProvider && !user.emailVerified && !isEmailApprovedByAdmin) {
+    // Only trust Firebase Auth's emailVerified field for security
+    if (isPasswordProvider && !user.emailVerified) {
       return <Navigate to="/dashboard?verifyEmail=1" replace />;
     }
   }
