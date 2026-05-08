@@ -622,7 +622,7 @@ export async function createService(data: Record<string, unknown>) {
   if (isBusinessCategory(data.category as string)) {
     const userDoc = await getDoc(doc(db, "users", data.userId as string));
     const sub = userDoc.data()?.subscription;
-    if (!sub || !["active", "renewing", "past_due", "grace", "comped"].includes(sub.status) || (sub.currentPeriodEnd?.toMillis() ?? 0) <= Date.now()) {
+    if (!sub || !["trial", "trial_ending", "active", "renewing", "past_due", "grace", "comped"].includes(sub.status) || (sub.currentPeriodEnd?.toMillis() ?? 0) <= Date.now()) {
       throw new Error("Business category requires an active subscription");
     }
   }

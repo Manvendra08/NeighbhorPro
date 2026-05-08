@@ -313,6 +313,8 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       try {
         const newSub = await activateTrial(targetUid);
         setSub(newSub);
+        // Wait 500ms for Firestore denorm to propagate
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "";
         // TRIAL_ALREADY_USED or ACTIVE_SUB_EXISTS: check again whether sub is now active
