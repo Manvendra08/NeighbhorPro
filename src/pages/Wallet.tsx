@@ -14,7 +14,7 @@ import { formatTimestamp, updateUserProfile } from "../services/firestoreService
 import { queryClient, queryKeys, useCoinBalanceQuery } from "../lib/queryClient";
 import { captureError } from "../lib/sentry";
 
-type Tab = "overview" | "buy" | "earn" | "referral" | "payout" | "history" | "subscription" | "terms";
+type Tab = "overview" | "buy" | "earn" | "payout" | "history" | "subscription" | "terms";
 
 const STATUS_UI: Partial<Record<PaymentStatus, { text: string; color: string }>> = {
   awaiting_payment: { text: "⏳ Complete payment in the Razorpay popup…", color: "#1B6B8A" },
@@ -50,6 +50,8 @@ export default function Wallet() {
   const [latestLedgerEntry, setLatestLedgerEntry] = useState<LedgerEntry | null>(null);
 
   const { data: balance = userProfile?.coinBalance ?? 0 } = useCoinBalanceQuery(user?.uid, userProfile?.coinBalance ?? 0);
+  const cashableBalance = (userProfile as Record<string, unknown> | null)?.cashableBalance as number ?? 0;
+  const promoBalance = (userProfile as Record<string, unknown> | null)?.promoBalance as number ?? 0;
   const isPro   = userProfile?.isServiceProvider;
   const isBusy  = payStatus === "awaiting_payment" || payStatus === "crediting";
   const topupsEnabled = isRazorpayTopupEnabled();
@@ -263,7 +265,6 @@ export default function Wallet() {
     { key: "overview", label: "Overview" },
     { key: "buy",      label: "Buy" },
     { key: "earn",     label: "Earn" },
-    { key: "referral", label: "Refer & Earn" },
     ...(isPro ? [{ key: "payout" as Tab, label: "Cash Out" }] : []),
     { key: "subscription", label: "Subscriptions" },
     { key: "history",  label: "History" },
@@ -282,8 +283,13 @@ export default function Wallet() {
         </div>
         <div style={{ background: "linear-gradient(135deg,#1B6B8A,#0F4E68)", borderRadius: 16, padding: "16px 28px", textAlign: "center", color: "#fff" }}>
           <div style={{ fontSize: "0.75rem", opacity: 0.8, textTransform: "uppercase", letterSpacing: 1 }}>Balance</div>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: "2rem", fontWeight: 800, lineHeight: 1.1 }}>{balance.toLocaleString("en-IN")}</div>
-          <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>NeighbourCoins</div>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: "2rem", fontWeight: 800, lineHeight: 1.1, marginBottom: 8 }}>{balance.toLocaleString("en-IN")}</div>
+          <div style={{ fontSize: "0.8rem", opacity: 0.75, marginBottom: 12 }}>NeighbourCoins</div>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", fontSize: "0.75rem", opacity: 0.85 }}>
+            <div>💳 Cashable: {cashableBalance.toLocaleString("en-IN")} NC</div>
+            <div>•</div>
+            <div>🎁 Bonus: {promoBalance.toLocaleString("en-IN")} NC</div>
+          </div>
         </div>
       </div>
 
@@ -337,6 +343,8 @@ export default function Wallet() {
               </div>
             ))}
           </div>
+          {/* NC Breakdown - now integrated into balance card above */}
+
           <div className="card" style={{ marginBottom: 20 }}>
             <h3 className="card-title" style={{ marginBottom: 16 }}>How NeighbourCoins Work</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
@@ -416,7 +424,7 @@ export default function Wallet() {
             >
               + Buy Coins
             </button>
-            <button className="btn btn-secondary btn-lg" onClick={() => setTab("referral")} style={{ justifyContent: "center" }}>🎯 Refer & Earn</button>
+            <button className="btn btn-secondary btn-lg" onClick={() => setTab("earn")} style={{ justifyContent: "center" }}>🎯 Earn & Refer</button>
           </div>
         </div>
       )}
@@ -466,6 +474,49 @@ export default function Wallet() {
       {/* ── EARN ── */}
       {tab === "earn" && (
         <div style={{ maxWidth: 680 }}>
+          {/* Your Referral Code Card - shown first */}
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h3 className="card-title" style={{ marginBottom: 4 }}>Your Referral Code</h3>
+            <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Share with neighbours. They get {EARN_RULES.earn_referral.coins} NC when they sign up with your code or referral link.</p>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface-2)", borderRadius: 12, padding: "16px 20px", marginBottom: 16 }}>
+              <div style={{ flex: 1, fontFamily: "monospace", fontSize: hasPhone ? "1.4rem" : "0.95rem", fontWeight: 800, letterSpacing: hasPhone ? 2 : 0, color: hasPhone ? "#1B6B8A" : "var(--muted)" }}>
+                {hasPhone ? (myCode || "—") : "Update mobile number to enable referral program."}
+              </div>
+              {hasPhone && myCode && <button className="btn btn-secondary btn-sm" onClick={copyCode}>{copied ? "✓ Copied!" : "Copy"}</button>}
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {hasPhone && myCode ? (
+                <>
+                  <a 
+                    href={`https://wa.me/?text=${encodeURIComponent(`Join ProNeighbor — your society's expert network! Use my referral code *${myCode}* and get ${EARN_RULES.earn_referral.coins} NeighbourCoins instantly 🎉 ${referralLink}`)}`}
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#25D366", color: "#fff", border: "none" }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72.937 3.659 1.435 5.621 1.435h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                    Share
+                  </a>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { navigator.share?.({ title: "ProNeighbor Referral", text: `Join with my code ${myCode}`, url: referralLink }); }}>↗ Share</button>
+                </>
+              ) : (
+                <button className="btn btn-primary btn-sm" onClick={() => navigate("/profile")}>Update Profile</button>
+              )}
+            </div>
+          </div>
+
+          {/* Apply Referral Code Card */}
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h3 className="card-title" style={{ marginBottom: 4 }}>Have a Referral Code?</h3>
+            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>Enter a friend's code and get {EARN_RULES.earn_referral.coins} NC instantly.</p>
+            <Msg m={refMsg} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <input className="form-input" placeholder="e.g. PNABC123" value={refCode} onChange={e => setRefCode(normalizeReferralCode(e.target.value))} style={{ flex: 1, fontFamily: "monospace", letterSpacing: 1 }} />
+              <button className="btn btn-primary" onClick={handleApplyReferral} disabled={refLoading || !refCode.trim()}>{refLoading ? "Applying…" : "Apply"}</button>
+            </div>
+          </div>
+
+          {/* Ways to Earn Card */}
           <div className="card">
             <h3 className="card-title" style={{ marginBottom: 4 }}>Ways to Earn NeighbourCoins</h3>
             <p className="text-muted text-sm" style={{ marginBottom: 24 }}>Earned coins capped at 20% of monthly transaction value.</p>
@@ -498,49 +549,7 @@ export default function Wallet() {
         </div>
       )}
 
-      {/* ── REFERRAL ── */}
-      {tab === "referral" && (
-        <div style={{ maxWidth: 560 }}>
-          <div className="card" style={{ marginBottom: 20 }}>
-            <h3 className="card-title" style={{ marginBottom: 4 }}>Your Referral Code</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 20 }}>Share with neighbours. They get {EARN_RULES.earn_referral.coins} NC when they sign up with your code or referral link.</p>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--surface-2)", borderRadius: 12, padding: "16px 20px", marginBottom: 16 }}>
-              <div style={{ flex: 1, fontFamily: "monospace", fontSize: hasPhone ? "1.4rem" : "0.95rem", fontWeight: 800, letterSpacing: hasPhone ? 2 : 0, color: hasPhone ? "#1B6B8A" : "var(--muted)" }}>
-                {hasPhone ? (myCode || "—") : "Update mobile number to enable referral program."}
-              </div>
-              {hasPhone && myCode && <button className="btn btn-secondary btn-sm" onClick={copyCode}>{copied ? "✓ Copied!" : "Copy"}</button>}
-            </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {hasPhone && myCode ? (
-                <>
-                  <a 
-                    href={`https://wa.me/?text=${encodeURIComponent(`Join ProNeighbor — your society's expert network! Use my referral code *${myCode}* and get ${EARN_RULES.earn_referral.coins} NeighbourCoins instantly 🎉 ${referralLink}`)}`}
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="btn btn-secondary btn-sm"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#25D366", color: "#fff", border: "none" }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72.937 3.659 1.435 5.621 1.435h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-                    Share
-                  </a>
-                  <button className="btn btn-secondary btn-sm" onClick={() => { navigator.share?.({ title: "ProNeighbor Referral", text: `Join with my code ${myCode}`, url: referralLink }); }}>↗ Share</button>
-                </>
-              ) : (
-                <button className="btn btn-primary btn-sm" onClick={() => navigate("/profile")}>Update Profile</button>
-              )}
-            </div>
-          </div>
-          <div className="card">
-            <h3 className="card-title" style={{ marginBottom: 4 }}>Have a Referral Code?</h3>
-            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>Enter a friend's code and get {EARN_RULES.earn_referral.coins} NC instantly.</p>
-            <Msg m={refMsg} />
-            <div style={{ display: "flex", gap: 10 }}>
-              <input className="form-input" placeholder="e.g. PNABC123" value={refCode} onChange={e => setRefCode(normalizeReferralCode(e.target.value))} style={{ flex: 1, fontFamily: "monospace", letterSpacing: 1 }} />
-              <button className="btn btn-primary" onClick={handleApplyReferral} disabled={refLoading || !refCode.trim()}>{refLoading ? "Applying…" : "Apply"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* ── PAYOUT ── */}
       {tab === "payout" && isPro && (
@@ -569,14 +578,28 @@ export default function Wallet() {
                 </button>
               </div>
             )}
-            <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 16px", marginBottom: 20 }}>
-              <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Available to withdraw</div>
-              <div style={{ fontWeight: 800, fontSize: "1.4rem", color: "#1B6B8A" }}>{formatNC(balance)} = ₹{balance.toLocaleString("en-IN")}</div>
+            <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 16px", marginBottom: 12 }}>
+              <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: 4 }}>Available to withdraw (cashable NC only)</div>
+              <div style={{ fontWeight: 800, fontSize: "1.4rem", color: "#16a34a" }}>{formatNC(cashableBalance)} = ₹{cashableBalance.toLocaleString("en-IN")}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 100px", background: "rgba(27,107,138,0.06)", borderRadius: 8, padding: "8px 12px", border: "1px solid rgba(27,107,138,0.15)" }}>
+                <div style={{ fontSize: 10, color: "#1B6B8A", fontWeight: 600 }}>Total NC</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#1B6B8A" }}>{balance.toLocaleString("en-IN")} NC</div>
+              </div>
+              <div style={{ flex: "1 1 100px", background: "rgba(22,163,74,0.06)", borderRadius: 8, padding: "8px 12px", border: "1px solid rgba(22,163,74,0.15)" }}>
+                <div style={{ fontSize: 10, color: "#16a34a", fontWeight: 600 }}>💳 Cashable</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#16a34a" }}>{cashableBalance.toLocaleString("en-IN")} NC</div>
+              </div>
+              <div style={{ flex: "1 1 100px", background: "rgba(245,158,11,0.06)", borderRadius: 8, padding: "8px 12px", border: "1px solid rgba(245,158,11,0.15)" }}>
+                <div style={{ fontSize: 10, color: "#b45309", fontWeight: 600 }}>🎁 Bonus (non-withdrawable)</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#b45309" }}>{promoBalance.toLocaleString("en-IN")} NC</div>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                 <label className="form-label">Amount (NC)</label>
-                <input className="form-input" type="number" placeholder={`Min ${MIN_PAYOUT_COINS}`} value={payoutCoins} onChange={e => setPC(e.target.value)} min={MIN_PAYOUT_COINS} max={balance} />
+                <input className="form-input" type="number" placeholder={`Min ${MIN_PAYOUT_COINS}`} value={payoutCoins} onChange={e => setPC(e.target.value)} min={MIN_PAYOUT_COINS} max={cashableBalance} />
                 {payoutCoins && !isNaN(parseInt(payoutCoins)) && <div className="form-hint">You'll receive ₹{parseInt(payoutCoins).toLocaleString("en-IN")} via UPI</div>}
               </div>
               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
@@ -589,10 +612,10 @@ export default function Wallet() {
               </div>
             </div>
             <Msg m={payoutMsg} />
-            <button className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={handlePayout} disabled={payoutLoading || !!pendingPayout || balance < MIN_PAYOUT_COINS}>
+            <button className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={handlePayout} disabled={payoutLoading || !!pendingPayout || cashableBalance < MIN_PAYOUT_COINS}>
               {payoutLoading ? "Submitting…" : "Request Payout"}
             </button>
-            {balance < MIN_PAYOUT_COINS && <p style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center", marginTop: 8 }}>Minimum {MIN_PAYOUT_COINS} NC required.</p>}
+            {cashableBalance < MIN_PAYOUT_COINS && <p style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center", marginTop: 8 }}>Minimum {MIN_PAYOUT_COINS} cashable NC required. Bonus NC cannot be withdrawn.</p>}
           </div>
         </div>
       )}
@@ -658,10 +681,100 @@ export default function Wallet() {
 
       {tab === "subscription" && (
         <div style={{ maxWidth: 640 }}>
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h3 className="card-title" style={{ marginBottom: 16 }}>💳 Business Subscription</h3>
+            {(() => {
+              const subRaw = userProfile?.subscription as Record<string, unknown> | undefined;
+              const status = subRaw?.status as string | undefined;
+              const plan = subRaw?.plan as string | undefined;
+              const endTs = subRaw?.currentPeriodEnd as { seconds?: number } | undefined;
+              const endDate = endTs?.seconds ? new Date(endTs.seconds * 1000) : null;
+              const daysLeft = endDate ? Math.ceil((endDate.getTime() - Date.now()) / 86_400_000) : 0;
+
+              const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+                trial:         { bg: "#dcfce7", color: "#16a34a" },
+                trial_ending:  { bg: "#fef9c3", color: "#b45309" },
+                active:        { bg: "#dcfce7", color: "#16a34a" },
+                renewing:      { bg: "#dbeafe", color: "#1d4ed8" },
+                past_due:      { bg: "#fef3c7", color: "#d97706" },
+                grace:         { bg: "#fee2e2", color: "#dc2626" },
+                expired:       { bg: "#f1f5f9", color: "#64748b" },
+                cancelled:     { bg: "#f1f5f9", color: "#64748b" },
+                comped:        { bg: "#f3e8ff", color: "#7c3aed" },
+                paused:        { bg: "#fee2e2", color: "#dc2626" },
+              };
+              const PLAN_LABELS: Record<string, string> = {
+                business_trial_v1: "Free Trial",
+                business_3m_v1:    "3-Month Plan",
+                business_6m_v1:    "6-Month Plan",
+                business_12m_v1:   "12-Month Plan",
+              };
+              const chip = STATUS_COLORS[status ?? ""] ?? { bg: "#f1f5f9", color: "#64748b" };
+
+              if (!status || status === "expired" || status === "cancelled") {
+                return (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: "var(--muted)" }}>⬜ No active subscription</div>
+                        <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>First 30 days free for all Business listings</div>
+                      </div>
+                      <button className="btn btn-primary btn-sm" onClick={() => navigate("/profile/subscription")}>Activate</button>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Plans: 999 NC / 3mo · 1799 NC / 6mo · 2299 NC / 12mo</div>
+                  </>
+                );
+              }
+              return (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                        <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: chip.bg, color: chip.color }}>
+                          {status.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                        </span>
+                        {plan && PLAN_LABELS[plan] && (
+                          <span style={{ fontSize: 13, color: "var(--muted)" }}>{PLAN_LABELS[plan]}</span>
+                        )}
+                      </div>
+                      {endDate && (
+                        <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                          {daysLeft > 0 ? `${daysLeft} days remaining` : "Expired"} · Ends {endDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        </div>
+                      )}
+                    </div>
+                    <button className="btn btn-secondary btn-sm" onClick={() => navigate("/profile/subscription")}>Manage</button>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+                    Subscription payments are debited from your cashable NC balance. Top up wallet to renew.
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
           <div className="card">
-            <h3 className="card-title">Business Subscription</h3>
-            <p>₹500/month or 500 NC</p>
-            <p style={{ fontSize: "0.9rem", marginTop: 12 }}>Active subscriptions will appear here.</p>
+            <h3 className="card-title" style={{ marginBottom: 4 }}>📋 Subscription Plans</h3>
+            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>NC-only payment. First 30 days free for all new Business listing pros.</p>
+            {[
+              { label: "3 Months",  price: "999 NC",  perMonth: "333 NC/mo",  badge: null },
+              { label: "6 Months",  price: "1799 NC", perMonth: "300 NC/mo",  badge: "✨ Best value" },
+              { label: "12 Months", price: "2299 NC", perMonth: "192 NC/mo",  badge: null },
+            ].map(p => (
+              <div key={p.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{p.label}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>{p.perMonth}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {p.badge && <span style={{ fontSize: 11, fontWeight: 600, color: "#b45309", background: "#fef9c3", padding: "2px 8px", borderRadius: 10 }}>{p.badge}</span>}
+                  <span style={{ fontWeight: 700, color: "var(--text)" }}>{p.price}</span>
+                </div>
+              </div>
+            ))}
+            <button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} onClick={() => navigate("/profile/subscription")}>
+              Manage Subscription
+            </button>
           </div>
         </div>
       )}
