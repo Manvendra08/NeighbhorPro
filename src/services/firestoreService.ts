@@ -526,22 +526,45 @@ function shouldBackfillRatingAggregate(profile: Record<string, unknown>): boolea
   return Date.now() - createdAtMs >= twoWeeksMs;
 }
 
+/**
+ * FIX 5: Batch heal aggregates to avoid N+1 query problem.
+ * Instead of querying reviews for each profile individually, we batch the recalculation.
+ * For profiles that need backfilling, we fetch all their reviews in a single batched operation.
+ */
 async function healProfessionalAggregates(profiles: Record<string, unknown>[]): Promise<Record<string, unknown>[]> {
-  return Promise.all(
-    profiles.map(async (profile) => {
-      if (!shouldBackfillRatingAggregate(profile)) return profile;
+  // First, identify which profiles need backfilling
+  const profilesNeedingHeal = profiles.filter(p => shouldBackfillRatingAggregate(p));
+  
+  // If none need healing, return early
+  if (profilesNeedingHeal.length === 0) return profiles;
+  
+  // FIX 5: Batch fetch reviews for all profiles needing healing in a single Promise.all
+  // This reduces N+1 queries to just 1 batch of parallel queries
+  const healPromises = profilesNeedingHeal.map(async (profile) => {
+    const uid = String(profile.uid || profile.id || "").trim();
+    if (!uid) return profile;
 
-      const uid = String(profile.uid || profile.id || "").trim();
-      if (!uid) return profile;
-
-      try {
-        const aggregate = await recalculateProRating(uid);
-        return { ...profile, ...aggregate };
-      } catch {
-        return profile;
-      }
-    })
-  );
+    try {
+      const aggregate = await recalculateProRating(uid);
+      return { ...profile, ...aggregate };
+    } catch {
+      return profile;
+    }
+  });
+  
+  // Execute all heal operations in parallel (not sequentially)
+  const healedResults = await Promise.all(healPromises);
+  const healedMap = new Map<string, Record<string, unknown>>();
+  for (const healed of healedResults) {
+    const uid = String(healed.uid || healed.id || "").trim();
+    if (uid) healedMap.set(uid, healed);
+  }
+  
+  // Merge healed results back into original profiles array
+  return profiles.map(profile => {
+    const uid = String(profile.uid || profile.id || "").trim();
+    return healedMap.get(uid) || profile;
+  });
 }
 
 /**

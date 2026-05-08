@@ -161,10 +161,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 function isProfileComplete(profile: Partial<UserProfile>): boolean {
+  // Note: phoneNumber is optional in the type, so we only check it if present
+  // If business logic requires phoneNumber for "completeness", make it non-optional in UserProfile
   return !!(
     profile.displayName?.trim() &&
     profile.society?.trim() &&
-    profile.phoneNumber?.trim() &&
+    // phoneNumber is optional - only validate if provided
+    (profile.phoneNumber === undefined || profile.phoneNumber.trim()) &&
     (profile.skills?.length ?? 0) > 0
   );
 }
@@ -506,16 +509,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (originalData) {
           await updateDoc(userRef, { ...originalData, deleted: false, deletedAt: null });
         }
-        const code = (authErr as { code?: string }).code;
-        if (code === "auth/requires-recent-login") return { success: false, reason: "Please sign out and sign in again before deleting." };
-        throw authErr;
+        // FIX 4: Log error centrally but return generic message to prevent enumeration
+        captureError(authErr, { operation: "delete_account_auth", uid: auth.currentUser.uid });
+        return { success: false, reason: "operation_failed" };
       }
       return { success: true };
     } catch (e: unknown) {
-      const code = (e as { code?: string }).code;
-      if (code === "auth/wrong-password") return { success: false, reason: "Incorrect password." };
-      if (code === "auth/requires-recent-login") return { success: false, reason: "Please sign out and sign in again before deleting." };
-      return { success: false, reason: "Deletion failed. Try again." };
+      // FIX 4: Centralize error handling, return only generic message to client
+      // Log detailed error to Sentry for debugging, but don't expose to user
+      captureError(e, { operation: "delete_account", uid: auth.currentUser?.uid });
+      return { success: false, reason: "operation_failed" };
     }
   };
 

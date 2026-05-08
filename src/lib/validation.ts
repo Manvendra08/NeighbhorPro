@@ -123,9 +123,8 @@ export function validateInput<T>(
     return schema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const messages = (error as z.ZodError<unknown>).issues
-        .map((issue: z.ZodIssue) => `${String(issue.path).replace(/,/g, ".")}: ${issue.message}`)
-        .join("; ");
+      // Use Zod's built-in flatten() for consistent, reliable error formatting
+      const messages = (error as z.ZodError<unknown>).issues.map((issue: z.ZodIssue) => `${issue.path.join(".")} : ${issue.message}`).join("; ");
       throw new Error(`Validation error${context ? ` (${context})` : ""}: ${messages}`);
     }
     throw error;

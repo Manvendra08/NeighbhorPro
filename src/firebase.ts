@@ -17,6 +17,7 @@ const firebaseEnv = {
   measurementId: readEnv("VITE_FIREBASE_MEASUREMENT_ID"),
 };
 
+// FIX 6: Graceful handling of missing/invalid env vars
 const missingFirebaseEnv = Object.entries(firebaseEnv)
   .filter(
     ([key, value]) =>
@@ -27,24 +28,44 @@ const missingFirebaseEnv = Object.entries(firebaseEnv)
 const firebaseApiKeyLooksInvalid =
   !firebaseEnv.apiKey || !/^AIza[0-9A-Za-z_-]{35}$/.test(firebaseEnv.apiKey);
 
-if (missingFirebaseEnv.length > 0 || firebaseApiKeyLooksInvalid) {
+const hasInvalidConfig = missingFirebaseEnv.length > 0 || firebaseApiKeyLooksInvalid;
+
+// FIX 6: In development, log warning and provide mock config; in production, fail hard
+if (hasInvalidConfig) {
   const errors = [...missingFirebaseEnv];
   if (firebaseApiKeyLooksInvalid) errors.push("apiKey (invalid format)");
-
-  throw new Error(
-    `Invalid Firebase env configuration: ${errors.join(", ")}. Update .env.local with the exact values from Firebase Console > Project settings > General > Your apps (Web app), then restart the Vite dev server.`
-  );
+  const errorMsg = `Invalid Firebase env configuration: ${errors.join(", ")}. Update .env.local with the exact values from Firebase Console > Project settings > General > Your apps (Web app), then restart the Vite dev server.`;
+  
+  if (import.meta.env.DEV) {
+    // Development: warn and provide fallback mock config
+    console.warn("⚠️ Firebase Config Warning:", errorMsg);
+    console.warn("⚠️ Using mock Firebase configuration for development. Features requiring Firebase will not work.");
+  } else {
+    // Production: fail hard with clear error message
+    throw new Error(errorMsg);
+  }
 }
 
-const firebaseConfig = {
-  apiKey: firebaseEnv.apiKey,
-  authDomain: firebaseEnv.authDomain,
-  projectId: firebaseEnv.projectId,
-  storageBucket: firebaseEnv.storageBucket,
-  messagingSenderId: firebaseEnv.messagingSenderId,
-  appId: firebaseEnv.appId,
-  ...(firebaseEnv.measurementId ? { measurementId: firebaseEnv.measurementId } : {}),
-};
+const firebaseConfig = hasInvalidConfig && import.meta.env.DEV
+  ? {
+      // FIX 6: Mock config for development when env vars are missing
+      // This prevents crashes during dev but Firebase features won't work
+      apiKey: "mock-api-key",
+      authDomain: "localhost",
+      projectId: "mock-project",
+      storageBucket: "mock.appspot.com",
+      messagingSenderId: "000000000000",
+      appId: "1:000000000000:web:0000000000000000",
+    }
+  : {
+      apiKey: firebaseEnv.apiKey,
+      authDomain: firebaseEnv.authDomain,
+      projectId: firebaseEnv.projectId,
+      storageBucket: firebaseEnv.storageBucket,
+      messagingSenderId: firebaseEnv.messagingSenderId,
+      appId: firebaseEnv.appId,
+      ...(firebaseEnv.measurementId ? { measurementId: firebaseEnv.measurementId } : {}),
+    };
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

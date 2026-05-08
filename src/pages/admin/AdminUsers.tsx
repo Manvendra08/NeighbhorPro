@@ -519,10 +519,19 @@ export default function AdminUsers() {
       return;
     }
 
+    // Show confirmation dialog with cascade deletion warning (required for tests)
+    const targetName = (u.displayName as string) || u.email as string;
+    const confirmMessage = `Permanently delete ${targetName} and ALL associated data? This will cascade delete all bookings, coin ledger entries, services, reviews, messages, and other associated records. This action cannot be undone.`;
+    
+    // Use window.confirm for testability - returns false if user cancels
+    const confirmed = window.confirm(confirmMessage);
+    if (!confirmed) {
+      // User cancelled - do not proceed with deletion
+      return;
+    }
+
     setActionLoading(u.uid as string);
     try {
-      const targetName = (u.displayName as string) || u.email as string;
-      
       console.log(`[Admin Delete] Starting deletion for user: ${targetName} (${u.uid})`);
       
       // 1. Write audit log BEFORE deletion
@@ -533,7 +542,7 @@ export default function AdminUsers() {
       );
       console.log(`[Admin Delete] Audit log written`);
 
-      // 2. Cascade delete all user data
+      // 2. Cascade delete all user data across collections
       await cascadeDeleteUserData(u.uid as string);
       console.log(`[Admin Delete] Cascade deletion completed`);
 

@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "pretest": "node -e \"require('fs').mkdirSync('coverage/.tmp',{recursive:true})\"",
     "test": "vitest run --coverage --pool=threads",
+    "test:coverage": "vitest run --coverage --pool=threads",
     "test:watch": "vitest",
     "preview": "vite preview",
     "test:e2e": "playwright test",

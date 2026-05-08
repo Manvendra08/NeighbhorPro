@@ -231,13 +231,16 @@ describe("coinService", () => {
   });
 
   it("creates payout request when no pending payout exists", async () => {
-    firestoreState.seed("users/user-1", { coinBalance: 1000 });
+    // Seed both coinBalance AND cashableBalance since requestPayout checks cashableBalance
+    // Only coins from top-ups, booking earnings, and refunds are cashable (withdrawable)
+    firestoreState.seed("users/user-1", { coinBalance: 1000, cashableBalance: 1000 });
     vi.mocked(getDocs).mockResolvedValue({ empty: true, docs: [] } as unknown as Awaited<ReturnType<typeof getDocs>>);
 
     const result = await requestPayout("user-1", "User One", 300, "user@upi");
 
     expect(result).toEqual({ success: true });
     expect(firestoreState.read("users/user-1")?.coinBalance).toBe(700);
+    expect(firestoreState.read("users/user-1")?.cashableBalance).toBe(700);
   });
 
   it("generates referral code matching required format", () => {
