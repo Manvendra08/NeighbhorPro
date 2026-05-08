@@ -120,17 +120,18 @@ export default function LandingPage() {
       subtitle: "On-demand help from neighbours you already trust.",
       comingSoon: false,
     },
-    "E-Commerce": {
-      heading: "E-Commerce - Turn your hobby into a hustle.",
-      subtitle: "Society-based micro-businesses coming to your app soon.",
-      comingSoon: true,
-    },
+    // DEACTIVATED: E-Commerce feature (keep code for future re-activation)
+    // "E-Commerce": {
+    //   heading: "E-Commerce - Turn your hobby into a hustle.",
+    //   subtitle: "Society-based micro-businesses coming to your app soon.",
+    //   comingSoon: true,
+    // },
   };
 
   const groupTagIcons: Record<string, string> = {
     "business": "🔄",
     "services": "🏠",
-    "e-commerce": "🛍️",
+    // DEACTIVATED: "e-commerce": "🛍️",
   };
 
   const serviceGroups = Object.entries(CATEGORY_GROUPS).map(([groupName, categories]) => ({

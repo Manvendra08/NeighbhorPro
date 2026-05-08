@@ -85,12 +85,34 @@
 }
 
 .lp-btn-secondary {
-  background: none;
-  border: 1.5px solid rgba(27, 107, 138, 0.3);
-  color: #1B6B8A;
+  background: linear-gradient(135deg, #1B6B8A, #0D5A7A);
+  border: 2px solid #1B6B8A;
+  color: #fff;
   border-radius: 50px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  box-shadow: 
+    0 4px 12px rgba(27, 107, 138, 0.35),
+    0 8px 20px rgba(27, 107, 138, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
+  position: relative;
+  transform: translateY(0);
+}
+
+.lp-btn-secondary:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 6px 16px rgba(27, 107, 138, 0.4),
+    0 12px 28px rgba(27, 107, 138, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.lp-btn-secondary:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 2px 8px rgba(27, 107, 138, 0.3),
+    inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .lp-nav-btn-signin {

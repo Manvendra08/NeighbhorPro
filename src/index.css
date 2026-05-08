@@ -1100,18 +1100,30 @@ h4 {
 .btn-primary {
   background: linear-gradient(135deg, #1B6B8A, #0D4E66);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(27, 107, 138, 0.25);
+  box-shadow: 
+    0 8px 20px rgba(27, 107, 138, 0.35),
+    0 4px 12px rgba(27, 107, 138, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  position: relative;
+  transform: translateY(0);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .btn-primary:hover {
   opacity: 1;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(27, 107, 138, 0.35);
+  transform: translateY(-4px);
+  box-shadow: 
+    0 12px 28px rgba(27, 107, 138, 0.4),
+    0 8px 20px rgba(27, 107, 138, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   background: linear-gradient(135deg, #207DA1, #105D7A);
 }
 
 .btn-primary:active {
-  transform: translateY(0);
+  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 12px rgba(27, 107, 138, 0.3),
+    inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .btn-3d {
@@ -2779,6 +2791,17 @@ select.form-input {
 
 .auth-footer a:hover {
   text-decoration: underline;
+}
+
+/* Auth form Sign In button - enhanced 3D effect */
+.auth-card form .btn-primary {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin-top: 8px;
+  border-radius: 10px;
 }
 
 /* ── loader ── */
