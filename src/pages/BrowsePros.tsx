@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { listProfessionals, BROWSE_PAGE_SIZE, getPlatformSettings, getAllSocieties } from "../services/firestoreService";
+import { listProfessionals, BROWSE_PAGE_SIZE, getPlatformSettings, getAllSocieties, getAllServicesUnpaginated } from "../services/firestoreService";
 import { useAuth } from "../contexts/AuthContext";
 import { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import { useIsMobile } from "../hooks/useIsMobile";
@@ -9,7 +9,7 @@ import EmptyState from "../components/common/EmptyState";
 import ProCard from "../components/common/ProCard";
 import SkeletonLoader from "../components/common/SkeletonLoader";
 import FormField from "../components/common/FormField";
-import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../constants/serviceCatalog";
+import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories, CATEGORY_GROUPS } from "../constants/serviceCatalog";
 import { getBrowseEmptyDescription, getBrowseFallbackNotice } from "../utils/browse";
 import { captureError } from "../lib/sentry";
 import ActiveProPill from "../components/ActiveProPill";
@@ -72,24 +72,74 @@ export default function BrowsePros() {
     };
   };
 
+  const applyBusinessCategoryJoinFilter = async (pros: BrowsePro[]): Promise<BrowsePro[]> => {
+    const normalizedCategory = categoryParam.trim();
+    const wantsBusiness =
+      normalizedCategory !== "All" &&
+      (normalizedCategory === "Business" ||
+        businessLeafCategories.some(c => c.trim().toLowerCase() === normalizedCategory.toLowerCase()));
+    if (!wantsBusiness) return pros;
+
+    const leafCats =
+      normalizedCategory === "Business"
+        ? businessLeafCategories
+        : [normalizedCategory];
+
+    const services = await getAllServicesUnpaginated();
+
+    // services.userId is the schema used by createService(...), so prefer it for reliable joins.
+    const leafCatsLower = leafCats.map(c => String(c).trim().toLowerCase());
+    const matchingProUids = new Set(
+      services
+        .filter((svc) => leafCatsLower.includes(String(svc.category || "").trim().toLowerCase()))
+        .map((svc) => {
+          const uidRaw = svc.userId ?? svc.user_id ?? "";
+          return typeof uidRaw === "string" ? uidRaw.trim() : String(uidRaw || "").trim();
+        })
+        .filter((uid): uid is string => Boolean(uid))
+    );
+
+    return pros.filter((p) => matchingProUids.has(String(p.uid).trim()));
+  };
+
   const loadPage = async (reset = false) => {
     const loadSequence = ++loadSequenceRef.current;
     if (reset) { setLoading(true); cursorRef.current = null; }
     else setLoadingMore(true);
+
     try {
       const filters = buildServerFilters();
       const { data, nextCursor } = await listProfessionals(reset ? null : cursorRef.current, filters);
       if (loadSequence !== loadSequenceRef.current) return;
+
       cursorRef.current = nextCursor;
-      setHasMore(nextCursor !== null);
+
       // Server-side pro filter applied - only exclude self
       let visiblePros = data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
+
+      // NEW: if category is a Business-related category/group, join against `services.category`
+      // because publicProfiles only mirror `skills` (not `services.category`).
+      visiblePros = await applyBusinessCategoryJoinFilter(visiblePros);
+
+      if (nextCursor !== null) {
+        // If Business-category join filters out everything from the current page,
+        // the raw cursor may still be non-null, but UX "Load more" should reflect join results.
+        // We keep `hasMore` optimistic for non-reset loads; for reset loads with zero results,
+        // we rely on fallback logic below.
+        setHasMore(visiblePros.length > 0 ? nextCursor !== null : reset ? false : nextCursor !== null);
+      } else {
+        setHasMore(false);
+      }
 
       if (reset && visiblePros.length === 0 && (filters.society || filters.tower)) {
         const fallback = await listProfessionals(null, {});
         visiblePros = fallback.data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
         cursorRef.current = fallback.nextCursor;
-        setHasMore(fallback.nextCursor !== null);
+
+        const fallbackVisiblePros = await applyBusinessCategoryJoinFilter(visiblePros);
+        visiblePros = fallbackVisiblePros;
+
+        setHasMore(fallbackVisiblePros.length > 0 ? fallback.nextCursor !== null : false);
 
         const selectedSociety = String(filters.society || "").trim();
         if (selectedSociety) {
@@ -107,6 +157,7 @@ export default function BrowsePros() {
         captureError(error, { operation: "browse.load_page", reset, localityFilter, towerFilter });
       }
     }
+
     if (loadSequence === loadSequenceRef.current) {
       setLoading(false);
       setLoadingMore(false);
@@ -119,6 +170,11 @@ export default function BrowsePros() {
     loadSequenceRef.current += 1;
   }, []);
 
+  const businessLeafCategories = useMemo(() => {
+    const business = CATEGORY_GROUPS["Business"];
+    return Array.isArray(business) ? business : [];
+  }, []);
+
   useEffect(() => {
     let alive = true;
     getPlatformSettings()
@@ -129,7 +185,7 @@ export default function BrowsePros() {
         captureError(error, { operation: "browse.get_platform_settings" });
         if (alive) setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
       });
-      
+
     getAllSocieties(100)
       .then((res) => {
         const list = res.data
@@ -147,20 +203,31 @@ export default function BrowsePros() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [businessLeafCategories]);
 
   useEffect(() => {
-    setCategory(categoryParam);
+    setCategory(categoryParam.trim());
   }, [categoryParam]);
 
   useEffect(() => {
     let result = allPros;
+
+    // NEW: when category is Business group/leaf, we already filtered by services.category in loadPage().
+    // So we skip the old skills-based category filtering to avoid re-breaking results.
     if (category !== "All") {
-      result = result.filter(p =>
-        (Array.isArray(p.skills) && p.skills.some(s => typeof s === "string" && s.toLowerCase().includes(category.toLowerCase())))
-        || ((p.category || "").toLowerCase().includes(category.toLowerCase()))
-      );
+      const normalizedCategory = category.trim();
+      const isBusinessCategorySelection =
+        normalizedCategory === "Business" ||
+        businessLeafCategories.some(c => c.trim().toLowerCase() === normalizedCategory.toLowerCase());
+
+      if (!isBusinessCategorySelection) {
+        result = result.filter(p =>
+          (Array.isArray(p.skills) && p.skills.some(s => typeof s === "string" && s.toLowerCase().includes(category.toLowerCase())))
+          || ((p.category || "").toLowerCase().includes(category.toLowerCase()))
+        );
+      }
     }
+
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(p =>
@@ -171,6 +238,7 @@ export default function BrowsePros() {
         (Array.isArray(p.skills) && p.skills.some(s => typeof s === "string" && s.toLowerCase().includes(q)))
       );
     }
+
     setFiltered(
       [...result].sort((left, right) => {
         const ratingDelta = (Number(right.rating) || 0) - (Number(left.rating) || 0);
@@ -180,7 +248,7 @@ export default function BrowsePros() {
         return String(left.displayName || "").localeCompare(String(right.displayName || ""));
       })
     );
-  }, [category, search, allPros, localityFilter, towerFilter]);
+  }, [category, search, allPros, localityFilter, towerFilter, businessLeafCategories]);
 
   const syncSearchParams = (nextSearch: string, nextCategory: string) => {
     const nextParams = new URLSearchParams(searchParams);

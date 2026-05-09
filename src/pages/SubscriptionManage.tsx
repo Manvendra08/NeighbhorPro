@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
@@ -16,21 +16,49 @@ import {
 } from "../services/subscriptionService";
 import SubscribeSheet from "../components/SubscribeSheet";
 
+// FIX #10: Add stricter type checking and sanitization for timestamp formatting
 function formatTs(ts: unknown): string {
   if (!ts) return "--";
   let date: Date | null = null;
-  if (ts instanceof Timestamp) {
-    date = ts.toDate();
-  } else if (
-    typeof ts === "object" &&
-    ts !== null &&
-    "seconds" in (ts as object) &&
-    typeof (ts as { seconds: number }).seconds === "number"
-  ) {
-    date = new Date((ts as { seconds: number }).seconds * 1000);
+  
+  try {
+    if (ts instanceof Timestamp) {
+      // Firebase Timestamp - safe to convert
+      date = ts.toDate();
+    } else if (
+      typeof ts === "object" &&
+      ts !== null &&
+      "seconds" in ts &&
+      typeof (ts as { seconds: number }).seconds === "number"
+    ) {
+      // Plain object with seconds field (e.g., from JSON)
+      const seconds = (ts as { seconds: number }).seconds;
+      // Validate seconds is a reasonable timestamp (between 1970 and 2100)
+      if (seconds < 0 || seconds > 4102444800) {
+        console.warn("Invalid timestamp seconds value:", seconds);
+        return "--";
+      }
+      date = new Date(seconds * 1000);
+    } else if (ts instanceof Date) {
+      // Already a Date object
+      date = ts;
+    } else {
+      // Unknown format - log and return fallback
+      console.warn("formatTs received unsupported type:", typeof ts);
+      return "--";
+    }
+    
+    // Validate the resulting date is valid
+    if (!date || isNaN(date.getTime())) {
+      console.warn("formatTs produced invalid date");
+      return "--";
+    }
+    
+    return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  } catch (err) {
+    console.error("formatTs error:", err);
+    return "--";
   }
-  if (!date) return "--";
-  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function planDisplayLabel(planId: string): string {
@@ -114,25 +142,56 @@ export default function SubscriptionManage() {
   const trialUsed: boolean =
     (userProfile as unknown as { trialUsed?: boolean })?.trialUsed ?? false;
 
+  // FIX #8: Add error state tracking for better partial failure handling
+  const [subFetchError, setSubFetchError] = useState<string | null>(null);
+  const [invoicesFetchError, setInvoicesFetchError] = useState<string | null>(null);
+
+  // FIX #9: Add mounted ref to prevent state updates on unmounted component
+  const isMounted = useRef(true);
+
   const fetchSub = useCallback(async () => {
     if (!user?.uid) return;
     setLoadingSub(true);
+    setSubFetchError(null);
     try {
       const result = await getSubscription(user.uid);
-      setSub(result);
+      // FIX #9: Only update state if component is still mounted
+      if (isMounted.current) {
+        setSub(result);
+      }
+    } catch (err) {
+      console.error("Failed to fetch subscription:", err);
+      if (isMounted.current) {
+        setSubFetchError(err instanceof Error ? err.message : "Failed to load subscription");
+        setSub(null); // Clear stale data on error
+      }
     } finally {
-      setLoadingSub(false);
+      if (isMounted.current) {
+        setLoadingSub(false);
+      }
     }
   }, [user?.uid]);
 
   const fetchInvoices = useCallback(async () => {
     if (!user?.uid) return;
     setLoadingInvoices(true);
+    setInvoicesFetchError(null);
     try {
       const result = await getAllSubscriptionInvoices(user.uid);
-      setInvoices(result);
+      // FIX #9: Only update state if component is still mounted
+      if (isMounted.current) {
+        setInvoices(result);
+      }
+    } catch (err) {
+      console.error("Failed to fetch invoices:", err);
+      if (isMounted.current) {
+        setInvoicesFetchError(err instanceof Error ? err.message : "Failed to load invoices");
+        setInvoices([]); // Clear stale data on error
+      }
     } finally {
-      setLoadingInvoices(false);
+      if (isMounted.current) {
+        setLoadingInvoices(false);
+      }
     }
   }, [user?.uid]);
 
@@ -140,6 +199,13 @@ export default function SubscriptionManage() {
     fetchSub();
     fetchInvoices();
   }, [fetchSub, fetchInvoices]);
+
+  // FIX #9: Cleanup mounted ref on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const handleCancel = async () => {
     if (!user?.uid) return;
@@ -324,6 +390,30 @@ export default function SubscriptionManage() {
             <Skeleton height={16} width="80%" />
             <Skeleton height={16} width="70%" />
           </div>
+        ) : subFetchError ? (
+          <div style={{
+            background: "#fef2f2",
+            border: "1px solid #fca5a5",
+            borderRadius: 10,
+            padding: "10px 14px",
+            color: "var(--error, #dc2626)",
+            fontSize: "0.9rem",
+          }}>
+            <strong>Error:</strong> {subFetchError}
+            <button
+              onClick={fetchSub}
+              style={{
+                marginLeft: 10,
+                background: "none",
+                border: "none",
+                color: "var(--accent, #7c3aed)",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Retry
+            </button>
+          </div>
         ) : (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
@@ -422,6 +512,30 @@ export default function SubscriptionManage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <Skeleton height={36} />
             <Skeleton height={36} />
+          </div>
+        ) : invoicesFetchError ? (
+          <div style={{
+            background: "#fef2f2",
+            border: "1px solid #fca5a5",
+            borderRadius: 10,
+            padding: "10px 14px",
+            color: "var(--error, #dc2626)",
+            fontSize: "0.9rem",
+          }}>
+            <strong>Error:</strong> {invoicesFetchError}
+            <button
+              onClick={fetchInvoices}
+              style={{
+                marginLeft: 10,
+                background: "none",
+                border: "none",
+                color: "var(--accent, #7c3aed)",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Retry
+            </button>
           </div>
         ) : invoices.length === 0 ? (
           <p style={{ color: "var(--muted, #6b7280)", fontSize: "0.9rem" }}>No invoices yet.</p>

@@ -5,7 +5,12 @@
       "args": [
         "@playwright/mcp@latest"
       ]
+    },
+    "github.com/Saik0s/mcp-browser-use": {
+      "type": "streamable-http",
+      "url": "http://localhost:8383/mcp"
     }
   }
 }
+
 

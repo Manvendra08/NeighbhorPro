@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">94.44% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>17/18</span>
+                <span class='fraction'>0/18</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">67.74% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>21/31</span>
+                <span class='fraction'>0/31</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>4/4</span>
+                <span class='fraction'>0/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">93.75% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>15/16</span>
+                <span class='fraction'>0/16</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -105,73 +105,73 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
-<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">export function computeAggregateRating(
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">export function <span class="fstat-no" title="function not covered" >computeAggregateRating(</span>
   ratingValue: unknown,
   reviewCountValue: unknown,
   fallbackReviews: unknown,
 ): { rating: number | null; reviewCount: number } {
-  const reviewCount = Math.max(0, Number(reviewCountValue) || 0);
-  const hasReviewsByCount = reviewCount &gt; 0;
-  const hasReviewsByList = Array.isArray(fallbackReviews) &amp;&amp; fallbackReviews.length &gt; 0;
-  const hasReviews = hasReviewsByCount || hasReviewsByList;
-  if (!hasReviews) return { rating: null, reviewCount: 0 };
+  const reviewCount = <span class="cstat-no" title="statement not covered" >Math.max(0, Number(reviewCountValue) || 0);</span>
+  const hasReviewsByCount = <span class="cstat-no" title="statement not covered" >reviewCount &gt; 0;</span>
+  const hasReviewsByList = <span class="cstat-no" title="statement not covered" >Array.isArray(fallbackReviews) &amp;&amp; fallbackReviews.length &gt; 0;</span>
+  const hasReviews = <span class="cstat-no" title="statement not covered" >hasReviewsByCount || hasReviewsByList;</span>
+<span class="cstat-no" title="statement not covered" >  if (!hasReviews) <span class="cstat-no" title="statement not covered" >return { rating: null, reviewCount: 0 };</span></span>
 &nbsp;
-  const normalizedRating = Number(ratingValue);
-  <span class="missing-if-branch" title="if path not taken" >I</span>if (Number.isFinite(normalizedRating) &amp;&amp; normalizedRating &gt; 0) {
+  const normalizedRating = <span class="cstat-no" title="statement not covered" >Number(ratingValue);</span>
+<span class="cstat-no" title="statement not covered" >  if (Number.isFinite(normalizedRating) &amp;&amp; normalizedRating &gt; 0) {</span>
 <span class="cstat-no" title="statement not covered" >    return {</span>
       rating: Math.round(normalizedRating * 10) / 10,
       reviewCount: reviewCount &gt; 0 ? reviewCount : (Array.isArray(fallbackReviews) ? fallbackReviews.length : 0),
     };
   }
 &nbsp;
-  if (Array.isArray(fallbackReviews) &amp;&amp; fallbackReviews.length &gt; 0) {
-    const validRatings = fallbackReviews
-      .map((review) =&gt; Number((review as Record&lt;string, unknown&gt;)?.rating))
-      .filter((value) =&gt; Number.isFinite(value) &amp;&amp; value &gt;= 1 &amp;&amp; value &lt;= 5) as number[];
-    <span class="missing-if-branch" title="else path not taken" >E</span>if (validRatings.length &gt; 0) {
-      const average = validRatings.reduce((sum, value) =&gt; sum + value, 0) / validRatings.length;
-      return {
+<span class="cstat-no" title="statement not covered" >  if (Array.isArray(fallbackReviews) &amp;&amp; fallbackReviews.length &gt; 0) {</span>
+    const validRatings = <span class="cstat-no" title="statement not covered" >fallbackReviews</span>
+      .map(<span class="fstat-no" title="function not covered" >(r</span>eview) =&gt; <span class="cstat-no" title="statement not covered" >Number((review as Record&lt;string, unknown&gt;)?.rating))</span>
+      .filter(<span class="fstat-no" title="function not covered" >(v</span>alue) =&gt; <span class="cstat-no" title="statement not covered" >Number.isFinite(value) &amp;&amp; value &gt;= 1 &amp;&amp; value &lt;= 5)</span> as number[];
+<span class="cstat-no" title="statement not covered" >    if (validRatings.length &gt; 0) {</span>
+      const average = <span class="cstat-no" title="statement not covered" >validRatings.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, value) =&gt; <span class="cstat-no" title="statement not covered" >sum + value, 0</span>) / validRatings.length;</span>
+<span class="cstat-no" title="statement not covered" >      return {</span>
         rating: Math.round(average * 10) / 10,
-        reviewCount: reviewCount &gt; 0 ? reviewCount : <span class="branch-1 cbranch-no" title="branch not covered" >fallbackReviews.length,</span>
+        reviewCount: reviewCount &gt; 0 ? reviewCount : fallbackReviews.length,
       };
     }
   }
 &nbsp;
-  return {
+<span class="cstat-no" title="statement not covered" >  return {</span>
     rating: null,
-    reviewCount: reviewCount &gt; 0 ? reviewCount : (<span class="branch-1 cbranch-no" title="branch not covered" >Array.isArray(fallbackReviews) ? fallbackReviews.length : 1),</span>
+    reviewCount: reviewCount &gt; 0 ? reviewCount : (Array.isArray(fallbackReviews) ? fallbackReviews.length : 1),
   };
 }
 &nbsp;</pre></td></tr></table></pre>
@@ -181,7 +181,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-08T15:40:02.867Z
+                at 2026-05-09T19:55:05.606Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

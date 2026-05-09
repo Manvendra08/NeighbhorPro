@@ -1,18 +1,9 @@
-# Bug Fix TODO - ProNeighbor Round 2
+https://tv.dhan.co/# TODO
 
-## Phase 1: Critical Fixes
-- [ ] Fix `ProAvailabilityEditor.tsx` - timer cleanup + race condition + console.error
-- [ ] Fix `ProDetail.tsx` - type assertions + empty catch
-- [ ] Fix `Wallet.tsx` - type assertion + timer cleanup 
-- [ ] Fix `Profile.tsx` - timer cleanup + empty catch
-- [ ] Fix `MyAccount.tsx` - timer cleanup + empty catch
+- [ ] Install `mcp-server-browser-use` (github.com/Saik0s/mcp-browser-use) using the README manual route.
+- [x] Start the server as a daemon on `http://localhost:8383`.
 
-## Phase 2: Type Safety Helpers
-- [ ] Add `asString()`, `asNumber()`, `asArray()` helpers to `src/lib/validation.ts`
-- [ ] Replace type assertions in key files
-- [ ] Add constants for toast durations
+- [x] Update `blackbox_mcp_settings.json` to register the MCP server with name `github.com/Saik0s/mcp-browser-use`.
+- [ ] Verify server health at `http://localhost:8383/api/health`.
+- [ ] Demonstrate capabilities by calling one MCP tool (e.g., `health_check` or `run_browser_agent`) from that server.
 
-## Phase 3: Production Hygiene
-- [ ] Replace console statements with `captureError()`
-- [ ] Update remaining empty `.catch()` blocks
-- [ ] Document hardcoded magic values for future extraction

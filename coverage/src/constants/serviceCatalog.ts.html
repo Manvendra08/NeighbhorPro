@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">23.07% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>3/13</span>
+                <span class='fraction'>0/13</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">27.27% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>3/11</span>
+                <span class='fraction'>0/11</span>
             </div>
         
             
@@ -173,7 +173,9 @@
 <a name='L108'></a><a href='#L108'>108</a>
 <a name='L109'></a><a href='#L109'>109</a>
 <a name='L110'></a><a href='#L110'>110</a>
-<a name='L111'></a><a href='#L111'>111</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">3x</span>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -204,7 +206,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -236,7 +238,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -283,7 +287,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">export const DEFAULT_SERVICE_CATEGORIES: string[] = [
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">export const DEFAULT_SERVICE_CATEGORIES: string[] = <span class="cstat-no" title="statement not covered" >[</span>
   // Business
   "Tuition &amp; Coaching",
   "Yoga &amp; Fitness",
@@ -304,17 +308,17 @@
   "Professional Services",
   "Design &amp; Branding",
   
-  // E-Commerce
-  "Food &amp; Catering",
-  "Apparels &amp; Fashion",
-  "Fashion Jewellery",
-  "Customized Bags",
-  "Home Decor &amp; Crafts",
-  "Handmade Gifts",
-  "Baking &amp; Desserts",
+  // DEACTIVATED: E-Commerce categories (preserve for future re-activation)
+  // "Food &amp; Catering",
+  // "Apparels &amp; Fashion",
+  // "Fashion Jewellery",
+  // "Customized Bags",
+  // "Home Decor &amp; Crafts",
+  // "Handmade Gifts",
+  // "Baking &amp; Desserts",
 ];
 &nbsp;
-export const CATEGORY_GROUPS: Record&lt;string, string[]&gt; = {
+export const CATEGORY_GROUPS: Record&lt;string, string[]&gt; = <span class="cstat-no" title="statement not covered" >{</span>
   "Business": [
     "Tuition &amp; Coaching",
     "Yoga &amp; Fitness",
@@ -335,18 +339,19 @@ export const CATEGORY_GROUPS: Record&lt;string, string[]&gt; = {
     "Professional Services",
     "Design &amp; Branding",
   ],
-  "E-Commerce": [
-    "Food &amp; Catering",
-    "Apparels &amp; Fashion",
-    "Fashion Jewellery",
-    "Customized Bags",
-    "Home Decor &amp; Crafts",
-    "Handmade Gifts",
-    "Baking &amp; Desserts",
-  ],
+  // DEACTIVATED: E-Commerce group (preserve for future re-activation)
+  // "E-Commerce": [
+  //   "Food &amp; Catering",
+  //   "Apparels &amp; Fashion",
+  //   "Fashion Jewellery",
+  //   "Customized Bags",
+  //   "Home Decor &amp; Crafts",
+  //   "Handmade Gifts",
+  //   "Baking &amp; Desserts",
+  // ],
 };
 &nbsp;
-export const SERVICE_CATEGORY_ICONS: Record&lt;string, string&gt; = {
+export const SERVICE_CATEGORY_ICONS: Record&lt;string, string&gt; = <span class="cstat-no" title="statement not covered" >{</span>
   "Tuition &amp; Coaching": "📚",
   "Yoga &amp; Fitness": "🧘",
   "Music &amp; Dance": "🎵",
@@ -366,13 +371,14 @@ export const SERVICE_CATEGORY_ICONS: Record&lt;string, string&gt; = {
   "Resume &amp; LinkedIn": "📝",
   "Accounting &amp; GST": "💹",
   "Investment Planning": "📈",
-  "Food &amp; Catering": "🍱",
-  "Apparels &amp; Fashion": "👗",
-  "Fashion Jewellery": "💍",
-  "Customized Bags": "👜",
-  "Home Decor &amp; Crafts": "🏡",
-  "Handmade Gifts": "🎁",
-  "Baking &amp; Desserts": "🎂",
+  // DEACTIVATED: E-Commerce icons (preserve for future re-activation)
+  // "Food &amp; Catering": "🍱",
+  // "Apparels &amp; Fashion": "👗",
+  // "Fashion Jewellery": "💍",
+  // "Customized Bags": "👜",
+  // "Home Decor &amp; Crafts": "🏡",
+  // "Handmade Gifts": "🎁",
+  // "Baking &amp; Desserts": "🎂",
 };
 &nbsp;
 export function <span class="fstat-no" title="function not covered" >normalizeServiceCategories(v</span>alue: unknown): string[] {
@@ -400,7 +406,7 @@ export function <span class="fstat-no" title="function not covered" >isBusinessC
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-08T15:40:02.867Z
+                at 2026-05-09T19:55:05.606Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

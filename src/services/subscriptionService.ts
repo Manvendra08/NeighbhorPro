@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { z } from "zod";
 import { db } from "../firebase";
+import { captureAuditEvent } from "./auditService";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -120,11 +121,11 @@ export async function getSubPlansFromConfig(): Promise<SubPlan[]> {
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
-const PAID_PLAN_IDS: [PlanId, ...PlanId[]] = [
-  "business_3m_v1",
-  "business_6m_v1",
-  "business_12m_v1",
-];
+// FIX #6: Derive PAID_PLAN_IDS from SUB_PLANS programmatically to avoid maintenance risk
+// This ensures adding new plans only requires updating SUB_PLANS, not multiple locations
+export const PAID_PLAN_IDS: [PlanId, ...PlanId[]] = SUB_PLANS
+  .filter(p => p.id !== "business_trial_v1")
+  .map(p => p.id) as [PlanId, ...PlanId[]];
 
 const subscribeNCSchema = z.object({
   uid: z.string().min(1),
@@ -132,6 +133,16 @@ const subscribeNCSchema = z.object({
 });
 
 // ─── Utility helpers ─────────────────────────────────────────────────────────
+
+/**
+ * FIX #2: Add DST-safe date arithmetic helper
+ * Using setDate/getDate instead of millisecond math to handle daylight saving time transitions correctly
+ */
+function addDaysDSTSafe(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
 
 function toDate(ts: unknown): Date | null {
   if (!ts) return null;
@@ -160,13 +171,23 @@ export function computeSubState(sub: Subscription | null): SubscriptionStatus {
   if (!sub) return "expired";
 
   const end = toDate(sub.currentPeriodEnd);
+  const start = toDate(sub.currentPeriodStart);
   const now = new Date();
 
   if (!end || end < now) return "expired";
 
   const days = Math.ceil((end.getTime() - now.getTime()) / 86_400_000);
 
-  if (sub.status === "trial" || sub.status === "trial_ending") {
+  // FIX #4: Explicit validation that trial periods cannot exceed 30 days regardless of stored status
+  // This prevents trials from continuing past intended duration if status field is stale
+  if (sub.plan === "business_trial_v1" || sub.source === "trial") {
+    const intendedTrialDuration = 30; // days
+    if (start) {
+      const daysSinceStart = Math.ceil((now.getTime() - start.getTime()) / 86_400_000);
+      if (daysSinceStart > intendedTrialDuration || end < now) {
+        return "expired";
+      }
+    }
     return days <= 7 ? "trial_ending" : "trial";
   }
 
@@ -211,12 +232,11 @@ export async function getSubscription(uid: string): Promise<Subscription | null>
   }
 
   // Fallback: read denorm field on user doc
-  const userSnap = await getDocs(
-    query(collection(db, "users"), where("__name__", "==", uid), limit(1))
-  );
+  // FIX #3: Use direct document reference instead of query with __name__
+  const userSnap = await getDoc(doc(db, "users", uid));
 
-  if (!userSnap.empty) {
-    const userData = userSnap.docs[0].data();
+  if (userSnap.exists()) {
+    const userData = userSnap.data();
     const denorm = userData?.subscription as Subscription | undefined;
     if (
       denorm &&
@@ -266,7 +286,8 @@ export async function activateTrial(uid: string): Promise<Subscription> {
     if (!activeSubSnap.empty) throw new Error("ACTIVE_SUB_EXISTS");
 
     const now = new Date();
-    const periodEnd = new Date(now.getTime() + 30 * 86_400_000);
+    // FIX #2: Use DST-safe date arithmetic instead of hardcoded milliseconds
+    const periodEnd = addDaysDSTSafe(now, 30);
     const periodEndTs = Timestamp.fromDate(periodEnd);
     const nowTs = Timestamp.fromDate(now);
 
@@ -316,6 +337,22 @@ export async function activateTrial(uid: string): Promise<Subscription> {
     });
 
     return { id: subId, ...sub };
+  }).then(result => {
+  // FIX #5: Add audit logging for subscription activation
+  captureAuditEvent({
+  action: "subscription_activated",
+  adminId: "system",
+  adminName: "System",
+  details: `Trial subscription activated for user ${uid}`,
+  targetId: uid,
+  metadata: {
+  plan: "business_trial_v1",
+    source: "trial",
+      amount: 0,
+      currency: "free",
+      },
+    }).catch((err: Error) => console.error("Audit log failed:", err));
+    return result;
   });
 }
 
@@ -324,6 +361,9 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
 
   const plan = SUB_PLANS.find(p => p.id === planId);
   if (!plan) throw new Error("INVALID_PLAN");
+
+  // Generate ledgerEntryId outside transaction so it's available for audit logging
+  const ledgerEntryId = `sub_debit_${uid}_${Date.now()}`;
 
   return runTransaction(db, async tx => {
     const userRef = doc(db, "users", uid);
@@ -337,32 +377,29 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
 
     if (cashableBalance < price) throw new Error("INSUFFICIENT_CASHABLE_BALANCE");
 
-    // Check for existing active/trial/comped subscription
-    const existingSubSnap = await getDocs(
-      query(
-        collection(db, "subscriptions"),
-        where("uid", "==", uid),
-        where("status", "not-in", ["expired", "cancelled"]),
-        limit(1)
-      )
-    );
+    // FIX #1: Check for existing active subscription using deterministic doc ID
+    // to prevent race conditions with concurrent subscription attempts
+    // Using a predictable subscription ID allows atomic check inside transaction
+    const activeSubId = `sub_${uid}_active`;
+    const activeSubRef = doc(db, "subscriptions", activeSubId);
+    const existingSubSnap = await tx.get(activeSubRef);
 
-    if (!existingSubSnap.empty) {
-      const existingSub = existingSubSnap.docs[0].data() as Subscription;
+    if (existingSubSnap.exists()) {
+      const existingSub = existingSubSnap.data() as Subscription;
       const end = toDate(existingSub.currentPeriodEnd);
       if (end && end > new Date()) {
         throw new Error("ACTIVE_SUB_EXISTS");
       }
     }
 
-    const ledgerEntryId = `sub_debit_${uid}_${Date.now()}`;
     const ledgerRef = doc(db, "coinLedger", uid, "entries", ledgerEntryId);
     const ledgerSnap = await tx.get(ledgerRef);
 
     if (ledgerSnap.exists()) throw new Error("DUPLICATE_LEDGER_ENTRY");
 
     const now = new Date();
-    const periodEnd = new Date(now.getTime() + plan.durationDays * 86_400_000);
+    // FIX #2: Use DST-safe date arithmetic instead of hardcoded milliseconds
+    const periodEnd = addDaysDSTSafe(now, plan.durationDays);
     const periodEndTs = Timestamp.fromDate(periodEnd);
     const nowTs = Timestamp.fromDate(now);
     const newCashable = cashableBalance - price;
@@ -423,7 +460,27 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
       updatedAt: serverTimestamp(),
     });
 
-    return { id: subId, ...sub };
+    return { id: subId, ...sub, ledgerEntryId };
+  }).then(result => {
+    // FIX #5: Add audit logging for subscription purchase
+    const subResult = result as Subscription & { ledgerEntryId?: string };
+    captureAuditEvent({
+      action: "subscription_purchased",
+      adminId: "system",
+      adminName: "System",
+      details: `Subscription purchased: ${planId} for ${plan.priceNC} NC`,
+      targetId: uid,
+      metadata: {
+        plan: planId,
+        source: "coins",
+        amount: plan.priceNC,
+        currency: "NC",
+        ledgerEntryId: subResult.ledgerEntryId,
+      },
+    }).catch((err: Error) => console.error("Audit log failed:", err));
+    // Return subscription without the extra ledgerEntryId field for type safety
+    const { ledgerEntryId: _, ...subscription } = subResult;
+    return subscription as Subscription;
   });
 }
 
@@ -441,6 +498,20 @@ export async function cancelSubscription(uid: string): Promise<void> {
       updatedAt: serverTimestamp(),
     });
   });
+
+  // FIX #5: Add audit logging for subscription cancellation
+  captureAuditEvent({
+    action: "subscription_cancelled",
+    adminId: "system",
+    adminName: "System",
+    details: `Subscription cancelled: ${activeSub.plan}`,
+    targetId: uid,
+    metadata: {
+      subscriptionId: activeSub.id,
+      plan: activeSub.plan,
+      cancelAtPeriodEnd: true,
+    },
+  }).catch((err: Error) => console.error("Audit log failed:", err));
 }
 
 export async function resumeSubscription(uid: string): Promise<void> {
@@ -458,4 +529,18 @@ export async function resumeSubscription(uid: string): Promise<void> {
       updatedAt: serverTimestamp(),
     });
   });
+
+  // FIX #5: Add audit logging for subscription resumption
+  captureAuditEvent({
+    action: "subscription_resumed",
+    adminId: "system",
+    adminName: "System",
+    details: `Subscription resumed: ${activeSub.plan}`,
+    targetId: uid,
+    metadata: {
+      subscriptionId: activeSub.id,
+      plan: activeSub.plan,
+      cancelAtPeriodEnd: false,
+    },
+  }).catch((err: Error) => console.error("Audit log failed:", err));
 }
