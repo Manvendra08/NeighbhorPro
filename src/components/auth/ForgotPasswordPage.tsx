@@ -1,6 +1,7 @@
 import { useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { auth } from "../../firebase";
 
 export function ForgotPasswordPage() {
   const { resetPassword } = useAuth();

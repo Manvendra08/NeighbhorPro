@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { LoginPage, RegisterPage, ForgotPasswordPage } from "./components/auth/AuthPages";
 import { EmailVerifiedPage } from "./components/auth/EmailVerifiedPage";
@@ -92,7 +92,6 @@ export default function App() {
 
 function PWAWrapper() {
   const auth = useAuth();
-  const navigate = useNavigate();
   
   // Initialize push notifications for logged-in users
   usePushNotifications(auth?.user?.uid);
