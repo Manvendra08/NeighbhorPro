@@ -39,12 +39,6 @@ vi.mock('firebase/firestore', async () => {
 
 // ─── Helper Functions ──────────────────────────────────────────────────────
 
-function createTimestamp(daysFromNow: number): Timestamp {
-  const date = new Date();
-  date.setDate(date.getDate() + daysFromNow);
-  return Timestamp.fromDate(date);
-}
-
 function createSubscription(overrides: Partial<Subscription>): Subscription {
   const now = new Date();
   return {

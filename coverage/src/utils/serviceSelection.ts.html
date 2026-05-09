@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">88.88% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/9</span>
+                <span class='fraction'>8/9</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">40% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/10</span>
+                <span class='fraction'>4/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/5</span>
+                <span class='fraction'>5/5</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">83.33% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/6</span>
+                <span class='fraction'>5/6</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -83,34 +83,34 @@
 <a name='L18'></a><a href='#L18'>18</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">type ServiceRow = Record&lt;string, unknown&gt;;
 &nbsp;
-export function <span class="fstat-no" title="function not covered" >getServiceCategories(s</span>ervices: ServiceRow[]): string[] {
-<span class="cstat-no" title="statement not covered" >  return [...new Set(services.map(<span class="fstat-no" title="function not covered" >(s</span>ervice) =&gt; ((<span class="cstat-no" title="statement not covered" >service.category as string) || "Other"))</span>)];</span>
+export function getServiceCategories(services: ServiceRow[]): string[] {
+  return [...new Set(services.map((service) =&gt; ((service.category as string) || <span class="branch-1 cbranch-no" title="branch not covered" >"Other"))</span>)];
 }
 &nbsp;
-export function <span class="fstat-no" title="function not covered" >shouldShowCategoryFilter(c</span>ategories: string[]): boolean {
-<span class="cstat-no" title="statement not covered" >  return categories.length &gt; 1;</span>
+export function shouldShowCategoryFilter(categories: string[]): boolean {
+  return categories.length &gt; 1;
 }
 &nbsp;
-export function <span class="fstat-no" title="function not covered" >getInitialServiceCategory(s</span>ervices: ServiceRow[], selectedServiceId?: string | null): string {
-<span class="cstat-no" title="statement not covered" >  if (selectedServiceId) {</span>
-    const matched = <span class="cstat-no" title="statement not covered" >services.find(<span class="fstat-no" title="function not covered" >(s</span>ervice) =&gt; <span class="cstat-no" title="statement not covered" >String(service.id) === selectedServiceId)</span>;</span>
-<span class="cstat-no" title="statement not covered" >    if (matched) <span class="cstat-no" title="statement not covered" >return ((matched.category as string) || "Other");</span></span>
+export function getInitialServiceCategory(services: ServiceRow[], selectedServiceId?: string | null): string {
+  <span class="missing-if-branch" title="else path not taken" >E</span>if (selectedServiceId) {
+    const matched = services.find((service) =&gt; String(service.id) === selectedServiceId);
+    <span class="missing-if-branch" title="else path not taken" >E</span>if (matched) return ((matched.category as string) || <span class="branch-1 cbranch-no" title="branch not covered" >"Other");</span>
   }
 <span class="cstat-no" title="statement not covered" >  return ((services[0]?.category as string) || "Other");</span>
 }
@@ -121,7 +121,7 @@ export function <span class="fstat-no" title="function not covered" >getInitialS
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-09T19:55:05.606Z
+                at 2026-05-09T20:06:54.582Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

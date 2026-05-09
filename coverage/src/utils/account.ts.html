@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">75% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/8</span>
+                <span class='fraction'>6/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">37.5% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/8</span>
+                <span class='fraction'>3/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">66.66% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/3</span>
+                <span class='fraction'>2/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/5</span>
+                <span class='fraction'>5/5</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line medium'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -83,13 +83,11 @@
 <a name='L18'></a><a href='#L18'>18</a>
 <a name='L19'></a><a href='#L19'>19</a>
 <a name='L20'></a><a href='#L20'>20</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -98,27 +96,29 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">export function <span class="fstat-no" title="function not covered" >profileCompleteness(p</span>rofile: Record&lt;string, unknown&gt; | null): { pct: number; missing: string[] } {
-<span class="cstat-no" title="statement not covered" >  if (!profile) <span class="cstat-no" title="statement not covered" >return { pct: 0, missing: [] };</span></span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">export function profileCompleteness(profile: Record&lt;string, unknown&gt; | null): { pct: number; missing: string[] } {
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (!profile) <span class="cstat-no" title="statement not covered" >return { pct: 0, missing: [] };</span>
 &nbsp;
-  const isPro = <span class="cstat-no" title="statement not covered" >profile.isServiceProvider === true;</span>
+  const isPro = profile.isServiceProvider === true;
 &nbsp;
-  const checks: [boolean, string][] = <span class="cstat-no" title="statement not covered" >[</span>
+  const checks: [boolean, string][] = [
     [Boolean((profile.displayName as string)?.trim()), "Display name"],
     [Boolean(profile.photoURL), "Profile photo"],
     [Boolean((profile.society as string)?.trim()), "Society / community"],
     [Boolean((profile.tower as string)?.trim()), "Tower / wing"],
     [Boolean((profile.flatNumber as string)?.trim()), "Flat number"],
     [Boolean((profile.phoneNumber as string)?.trim()), "Phone number"],
-    [Boolean(profile.residencyProofUrl || profile.residencyProofPreviewUrl), "Residency proof"],
-    ...(isPro ? [[Array.isArray(profile.skills) &amp;&amp; (profile.skills as string[]).length &gt; 0, "At least one skill"] as [boolean, string]] : []),
+    [Boolean(profile.residencyProofUrl || <span class="branch-1 cbranch-no" title="branch not covered" >profile.residencyProofPreviewUrl)</span>, "Residency proof"],
+    ...(isPro ? <span class="branch-0 cbranch-no" title="branch not covered" >[[Array.isArray(profile.skills) &amp;&amp; (profile.skills as string[]).length &gt; 0, "At least one skill"] as [boolean, string]] : [</span>]),
   ];
 &nbsp;
-  const missing = <span class="cstat-no" title="statement not covered" >checks.filter(<span class="fstat-no" title="function not covered" >([</span>ok]) =&gt; <span class="cstat-no" title="statement not covered" >!ok)</span>.map(<span class="fstat-no" title="function not covered" >([</span>, label]) =&gt; <span class="cstat-no" title="statement not covered" >label)</span>;</span>
-<span class="cstat-no" title="statement not covered" >  return { pct: Math.round(((checks.length - missing.length) / checks.length) * 100), missing };</span>
+  const missing = checks.filter(([ok]) =&gt; !ok).map(<span class="fstat-no" title="function not covered" >([</span>, label]) =&gt; <span class="cstat-no" title="statement not covered" >label)</span>;
+  return { pct: Math.round(((checks.length - missing.length) / checks.length) * 100), missing };
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -127,7 +127,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-09T19:55:05.606Z
+                at 2026-05-09T20:06:54.582Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

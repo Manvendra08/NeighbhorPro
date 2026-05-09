@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/5</span>
+                <span class='fraction'>5/5</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">50% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/10</span>
+                <span class='fraction'>5/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/3</span>
+                <span class='fraction'>3/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/5</span>
+                <span class='fraction'>5/5</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -117,14 +117,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -136,9 +133,12 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -160,35 +160,35 @@
   proBadgeText?: string;
 }
 &nbsp;
-const getInitials = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(n</span>ame: string) =&gt;</span>
-<span class="cstat-no" title="statement not covered" >  name</span>
+const getInitials = (name: string) =&gt;
+  name
     .split(" ")
     .filter(Boolean)
-    .map(<span class="fstat-no" title="function not covered" >(w</span>ord) =&gt; <span class="cstat-no" title="statement not covered" >word[0])</span>
+    .map((word) =&gt; word[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
 &nbsp;
-export default function <span class="fstat-no" title="function not covered" >Avatar({</span>
+export default function Avatar({
   name,
   photoURL,
   alt,
   className,
   fallbackClassName,
-  showProBadge = <span class="branch-0 cbranch-no" title="branch not covered" >false,</span>
+  showProBadge = false,
   proBadgeClassName,
-  proBadgeText = <span class="branch-0 cbranch-no" title="branch not covered" >"Pro",</span>
+  proBadgeText = "Pro",
 }: AvatarProps) {
-  const initials = <span class="cstat-no" title="statement not covered" >getInitials(name || "?");</span>
+  const initials = getInitials(name || <span class="branch-1 cbranch-no" title="branch not covered" >"?")</span>;
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  return (</span>
+  return (
     &lt;div className={className}&gt;
       {photoURL ? (
-        &lt;img src={photoURL} alt={alt ?? name} loading="lazy" /&gt;
+<span class="branch-0 cbranch-no" title="branch not covered" >        &lt;img src={photoURL} alt={alt ?? name} loading="lazy" /&gt;</span>
       ) : (
         &lt;span className={fallbackClassName}&gt;{initials}&lt;/span&gt;
       )}
-      {showProBadge &amp;&amp; &lt;span className={proBadgeClassName}&gt;{proBadgeText}&lt;/span&gt;}
+      {showProBadge &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >&lt;span className={proBadgeClassName}&gt;{proBadgeText}&lt;/span&gt;}</span>
     &lt;/div&gt;
   );
 }
@@ -199,7 +199,7 @@ export default function <span class="fstat-no" title="function not covered" >Ava
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-09T19:55:05.606Z
+                at 2026-05-09T20:06:54.582Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

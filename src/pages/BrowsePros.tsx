@@ -165,7 +165,7 @@ export default function BrowsePros() {
   };
 
   useEffect(() => { loadPage(true); }, []);
-  useEffect(() => { loadPage(true); }, [localityFilter, towerFilter]);
+  useEffect(() => { loadPage(true); }, [localityFilter, towerFilter, categoryParam]);
   useEffect(() => () => {
     loadSequenceRef.current += 1;
   }, []);
