@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/220</span>
+                <span class='fraction'>0/223</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/324</span>
+                <span class='fraction'>0/334</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/64</span>
+                <span class='fraction'>0/63</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/193</span>
+                <span class='fraction'>0/196</span>
             </div>
         
             
@@ -851,7 +851,8 @@
 <a name='L786'></a><a href='#L786'>786</a>
 <a name='L787'></a><a href='#L787'>787</a>
 <a name='L788'></a><a href='#L788'>788</a>
-<a name='L789'></a><a href='#L789'>789</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L789'></a><a href='#L789'>789</a>
+<a name='L790'></a><a href='#L790'>790</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -899,6 +900,15 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1206,14 +1216,11 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1223,8 +1230,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1239,9 +1244,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1687,6 +1689,15 @@ export default function <span class="fstat-no" title="function not covered" >Wal
   const [copied, setCopied<span class="cstat-no" title="statement not covered" >]       = useState(false);</span>
   const [latestLedgerEntry, setLatestLedgerEntry<span class="cstat-no" title="statement not covered" >] = useState&lt;LedgerEntry | null&gt;(null);</span>
 &nbsp;
+  // Handle URL tab parameter
+<span class="cstat-no" title="statement not covered" >  useEffect(<span class="fstat-no" title="function not covered" >() =&gt; {</span></span>
+    const params = <span class="cstat-no" title="statement not covered" >new URLSearchParams(window.location.search);</span>
+    const tabParam = <span class="cstat-no" title="statement not covered" >params.get("tab") as Tab;</span>
+<span class="cstat-no" title="statement not covered" >    if (tabParam &amp;&amp; ["overview", "buy", "earn", "payout", "history", "subscription", "terms"].includes(tabParam)) {</span>
+<span class="cstat-no" title="statement not covered" >      setTab(tabParam);</span>
+    }
+  }, []);
+&nbsp;
   const { data: balance = <span class="branch-0 cbranch-no" title="branch not covered" >userProfile?.coinBalance ?? 0 <span class="cstat-no" title="statement not covered" >}</span> = useCoinBalanceQuery(user?.uid, userProfile?.coinBalance ?? 0);</span>
   const cashableBalance = (<span class="cstat-no" title="statement not covered" >userProfile as Record&lt;string, unknown&gt; | null)?.cashableBalance as number ?? 0;</span>
   const promoBalance = (<span class="cstat-no" title="statement not covered" >userProfile as Record&lt;string, unknown&gt; | null)?.promoBalance as number ?? 0;</span>
@@ -1892,7 +1903,7 @@ export default function <span class="fstat-no" title="function not covered" >Wal
     { key: "buy",      label: "Buy" },
     { key: "earn",     label: "Earn" },
     ...(isPro ? [{ key: "payout" as Tab, label: "Cash Out" }] : []),
-    { key: "subscription", label: "Subscriptions" },
+    ...(isPro ? [{ key: "subscription" as Tab, label: "Subscriptions" }] : []),
     { key: "history",  label: "History" },
     { key: "terms",    label: "NC Terms" },
   ];
@@ -1994,6 +2005,8 @@ export default function <span class="fstat-no" title="function not covered" >Wal
                 const isExpired = <span class="cstat-no" title="statement not covered" >periodEndSeconds !== null &amp;&amp; periodEndSeconds * 1000 &lt;= Date.now();</span>
                 const statusLabel =
 <span class="cstat-no" title="statement not covered" >                  sub.status === "active"   ? "✅ Active" :</span>
+                  sub.status === "trial"    ? "🆓 Trial" :
+                  sub.status === "trial_ending" ? "🆓 Trial Ending" :
                   sub.status === "renewing" ? "🔄 Renewing" :
                   sub.status === "past_due" ? "⚠️ Payment Due" :
                   sub.status === "grace"    ? "⏳ Grace Period" :
@@ -2008,14 +2021,9 @@ export default function <span class="fstat-no" title="function not covered" >Wal
                   : "No renewal date";
 <span class="cstat-no" title="statement not covered" >                return (</span>
                   &lt;&gt;
-                    &lt;div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}&gt;
-                      &lt;div&gt;
-                        &lt;div style={{ fontWeight: 600, marginBottom: 4 }}&gt;{statusLabel}&lt;/div&gt;
-                        &lt;div style={{ fontSize: "0.85rem", color: "var(--muted)" }}&gt;{renewalText}&lt;/div&gt;
-                      &lt;/div&gt;
-                      &lt;button className="btn btn-secondary btn-sm" onClick={<span class="fstat-no" title="function not covered" >() =&gt; <span class="cstat-no" title="statement not covered" >n</span>avigate("/profile/subscription")}&gt;</span>
-                        Manage
-                      &lt;/button&gt;
+                    &lt;div style={{ marginBottom: 12 }}&gt;
+                      &lt;div style={{ fontWeight: 600, marginBottom: 4 }}&gt;{statusLabel}&lt;/div&gt;
+                      &lt;div style={{ fontSize: "0.85rem", color: "var(--muted)" }}&gt;{renewalText}&lt;/div&gt;
                     &lt;/div&gt;
                     &lt;div style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6 }}&gt;
                       Business category listings require an active subscription. Manage your plan, payment method, and invoices.
@@ -2024,14 +2032,9 @@ export default function <span class="fstat-no" title="function not covered" >Wal
                 );
               })() : (
                 &lt;&gt;
-                  &lt;div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}&gt;
-                    &lt;div&gt;
-                      &lt;div style={{ fontWeight: 600, marginBottom: 4, color: "var(--muted)" }}&gt;⬜ Not subscribed&lt;/div&gt;
-                      &lt;div style={{ fontSize: "0.85rem", color: "var(--muted)" }}&gt;Required to list Business category services&lt;/div&gt;
-                    &lt;/div&gt;
-                    &lt;button className="btn btn-primary btn-sm" onClick={<span class="fstat-no" title="function not covered" >() =&gt; <span class="cstat-no" title="statement not covered" >n</span>avigate("/profile/subscription")}&gt;</span>
-                      Subscribe
-                    &lt;/button&gt;
+                  &lt;div style={{ marginBottom: 12 }}&gt;
+                    &lt;div style={{ fontWeight: 600, marginBottom: 4, color: "var(--muted)" }}&gt;⬜ Not subscribed&lt;/div&gt;
+                    &lt;div style={{ fontSize: "0.85rem", color: "var(--muted)" }}&gt;Required to list Business category services&lt;/div&gt;
                   &lt;/div&gt;
                   &lt;div style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6 }}&gt;
                     Activate a Business subscription to list services in categories like Tuition, Yoga, Music, Language Classes, and Nutrition.
@@ -2387,7 +2390,7 @@ export default function <span class="fstat-no" title="function not covered" >Wal
                 &lt;/div&gt;
               &lt;/div&gt;
             ))}
-            &lt;button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} onClick={<span class="fstat-no" title="function not covered" >() =&gt; <span class="cstat-no" title="statement not covered" >n</span>avigate("/profile/subscription")}&gt;</span>
+            &lt;button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} onClick={<span class="fstat-no" title="function not covered" >() =&gt; <span class="cstat-no" title="statement not covered" >n</span>avigate("/subscription")}&gt;</span>
               Manage Subscription
             &lt;/button&gt;
           &lt;/div&gt;
@@ -2434,7 +2437,7 @@ export default function <span class="fstat-no" title="function not covered" >Wal
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-09T20:06:54.582Z
+                at 2026-05-10T08:18:25.411Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

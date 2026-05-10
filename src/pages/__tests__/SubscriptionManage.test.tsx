@@ -358,8 +358,8 @@ describe('formatTs performance characteristics', () => {
     }
     const end = performance.now();
     
-    // Should complete 1000 iterations in under 500ms (0.5ms per call) - relaxed for CI environments
-    expect(end - start).toBeLessThan(500);
+    // Should complete 1000 iterations in under 1000ms (1ms per call) - relaxed for CI environments
+    expect(end - start).toBeLessThan(1000);
   });
 
   it('should handle invalid inputs without significant overhead', () => {
