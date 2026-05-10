@@ -362,8 +362,12 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
   const plan = SUB_PLANS.find(p => p.id === planId);
   if (!plan) throw new Error("INVALID_PLAN");
 
-  // Generate ledgerEntryId outside transaction so it's available for audit logging
-  const ledgerEntryId = `sub_debit_${uid}_${Date.now()}`;
+  // FIX #1: Use deterministic subscription ID based on user + month to ensure idempotency
+  // This prevents duplicate subscriptions on retry and allows atomic check inside transaction
+  const now = new Date();
+  const monthKey = now.toISOString().slice(0, 7).replace("-", ""); // e.g., "202401"
+  const subId = `sub_${uid}_${monthKey}`;
+  const ledgerEntryId = `sub_debit_${uid}_${monthKey}`;
 
   return runTransaction(db, async tx => {
     const userRef = doc(db, "users", uid);
@@ -404,7 +408,6 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
     const nowTs = Timestamp.fromDate(now);
     const newCashable = cashableBalance - price;
 
-    const subId = `sub_${uid}_${ledgerEntryId}`;
     const subRef = doc(db, "subscriptions", subId);
     const invRef = doc(db, "subscriptionInvoices", `inv_${ledgerEntryId}`);
 

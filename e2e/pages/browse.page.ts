@@ -18,7 +18,10 @@ export class BrowsePage extends BasePage {
     
     this.searchInput = page.locator("input[placeholder*='search'], input[placeholder*='Search'], input[name='search'], #search").first();
     this.categoryFilters = page.locator("select, [data-testid='category-filter'], .category-filter, [role='tablist']").first();
-    this.professionalCards = page.locator("[data-testid='pro-card'], .professional-card, .pro-listing, .pro-card, .m-pro-card");
+    // FIX #2: Prioritize data-testid for reliable E2E test selectors
+    this.professionalCards = page.locator("[data-testid='pro-card']").or(
+      page.locator(".professional-card, .pro-listing, .pro-card, .m-pro-card")
+    );
     this.sortByDropdown = page.locator("select[name='sort'], [data-testid='sort-dropdown']").first();
     this.locationFilter = page.locator("input[placeholder*='location'], [data-testid='location-filter']").first();
     this.applyFiltersButton = page.getByRole("button", { name: /apply filters/i }).first();
@@ -102,9 +105,11 @@ export class BrowsePage extends BasePage {
   async assertLoaded(): Promise<void> {
     await expect(this.page).toHaveURL(/\/browse/);
     await expect(this.searchInput).toBeVisible({ timeout: 15000 });
-    // Wait for at least one professional card or "no results" message
+    // FIX #2: Use data-testid-first selector with fallback for no-results state
     await expect(
-      this.page.locator("[data-testid='pro-card'], .pro-card, .m-pro-card, .no-results, .empty-state").first()
+      this.page.locator("[data-testid='pro-card']").first().or(
+        this.page.locator(".pro-card, .m-pro-card, .no-results, .empty-state").first()
+      )
     ).toBeVisible({ timeout: 10000 });
   }
 

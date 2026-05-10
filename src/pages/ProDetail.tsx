@@ -388,15 +388,6 @@ export default function ProDetail() {
       )}
 
       <div className="card" style={{ marginBottom: 24 }}>
-        <h3 className="card-title" style={{ marginBottom: 14 }}>Skills & Expertise</h3>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {((pro.skills as string[]) || []).length > 0
-            ? (pro.skills as string[]).map(skill => <span className="skill-tag" key={skill}>{skill}</span>)
-            : <span className="text-muted">No skills listed</span>}
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24 }}>
         <h3 className="card-title" style={{ marginBottom: 14 }}>Services Offered</h3>
         {services.length === 0 ? (
           <p className="text-muted">No services listed.</p>

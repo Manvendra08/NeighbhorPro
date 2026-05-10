@@ -54,7 +54,7 @@ export default function ProCard({
 
   if (mobile) {
     return (
-      <div className="m-pro-card" onClick={() => onViewProfile(uid)}>
+      <div className="m-pro-card" data-testid="pro-card" onClick={() => onViewProfile(uid)}>
         <Avatar
           name={name}
           photoURL={pro.photoURL}
@@ -107,7 +107,7 @@ export default function ProCard({
 
   if (!grid) {
     return (
-      <div className="pro-card-list">
+      <div className="pro-card-list" data-testid="pro-card">
         <div className="pro-card-list__content" onClick={() => onViewProfile(uid)} style={{ cursor: "pointer" }}>
           <div
             className="pro-card-img"
@@ -207,7 +207,7 @@ export default function ProCard({
   }
 
   return (
-    <div className="pro-card">
+    <div className="pro-card" data-testid="pro-card">
       <div className="pro-card__clickable" onClick={() => onViewProfile(uid)}>
         <div className="pro-card-img pro-card-img--grid">
           {pro.photoURL ? (
