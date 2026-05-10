@@ -46,6 +46,15 @@ export default function Wallet() {
   const [copied, setCopied]       = useState(false);
   const [latestLedgerEntry, setLatestLedgerEntry] = useState<LedgerEntry | null>(null);
 
+  // Handle URL tab parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab") as Tab;
+    if (tabParam && ["overview", "buy", "earn", "payout", "history", "subscription", "terms"].includes(tabParam)) {
+      setTab(tabParam);
+    }
+  }, []);
+
   const { data: balance = userProfile?.coinBalance ?? 0 } = useCoinBalanceQuery(user?.uid, userProfile?.coinBalance ?? 0);
   const cashableBalance = (userProfile as Record<string, unknown> | null)?.cashableBalance as number ?? 0;
   const promoBalance = (userProfile as Record<string, unknown> | null)?.promoBalance as number ?? 0;
@@ -369,14 +378,9 @@ export default function Wallet() {
                   : "No renewal date";
                 return (
                   <>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                      <div>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{statusLabel}</div>
-                        <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{renewalText}</div>
-                      </div>
-                      <button className="btn btn-secondary btn-sm" onClick={() => navigate("/profile/subscription")}>
-                        Manage
-                      </button>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{statusLabel}</div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{renewalText}</div>
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6 }}>
                       Business category listings require an active subscription. Manage your plan, payment method, and invoices.
@@ -385,14 +389,9 @@ export default function Wallet() {
                 );
               })() : (
                 <>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--muted)" }}>⬜ Not subscribed</div>
-                      <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Required to list Business category services</div>
-                    </div>
-                    <button className="btn btn-primary btn-sm" onClick={() => navigate("/profile/subscription")}>
-                      Activate
-                    </button>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--muted)" }}>⬜ Not subscribed</div>
+                    <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Required to list Business category services</div>
                   </div>
                   <div style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6 }}>
                     Activate a Business subscription to list services in categories like Tuition, Yoga, Music, Language Classes, and Nutrition.
@@ -748,7 +747,7 @@ export default function Wallet() {
                 </div>
               </div>
             ))}
-            <button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} onClick={() => navigate("/profile/subscription")}>
+            <button className="btn btn-primary" style={{ marginTop: 16, width: "100%" }} onClick={() => navigate("/subscription")}>
               Manage Subscription
             </button>
           </div>

@@ -299,7 +299,7 @@ export default function SubscribeSheet({ uid, cashableBalance, trialUsed, onClos
           }}>
             <span>Top up your wallet to subscribe.</span>
             <button
-              onClick={() => navigate("/wallet?reason=subscribe")}
+              onClick={() => navigate("/wallet?tab=buy")}
               style={{
                 background: "none",
                 border: "none",
