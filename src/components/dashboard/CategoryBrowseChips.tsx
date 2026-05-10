@@ -8,7 +8,7 @@ export default function CategoryBrowseChips() {
         <Link
           key={category}
           className="db-category-chips__item"
-          to={`/browse?category=${encodeURIComponent(category)}`}
+          to={`/browse?service=${encodeURIComponent(category)}`}
         >
           <span aria-hidden="true">{SERVICE_CATEGORY_ICONS[category] || "✨"}</span>
           <span>{category}</span>

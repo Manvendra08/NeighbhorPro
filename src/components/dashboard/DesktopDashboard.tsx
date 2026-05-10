@@ -315,7 +315,7 @@ export default function DesktopDashboard({
 
       {!isPro && (
         <DashboardSection
-          title="Browse by Category"
+          title="Browse by Service"
           subtitle="Jump straight into popular neighborhood needs."
           actionLabel="Browse all"
           actionTo="/browse"

@@ -37,6 +37,8 @@ export default function BrowsePros() {
   const [localityFilter, setLocalityFilter] = useState("");
   const [towerFilter, setTowerFilter] = useState("");
   const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
+  const [svcCategoryGroup, setSvcCategoryGroup] = useState<string>(searchParams.get("serviceGroup") ?? "");
+  const [svcCategory, setSvcCategory] = useState<string>(searchParams.get("service") ?? "");
   const categories = ["All", ...serviceCategories];
   const [societies, setSocieties] = useState<{id: string, name: string}[]>([]);
   const [fallbackNotice, setFallbackNotice] = useState("");
@@ -102,6 +104,47 @@ export default function BrowsePros() {
     return pros.filter((p) => matchingProUids.has(String(p.uid).trim()));
   };
 
+  const applyServiceJoinFilter = async (pros: BrowsePro[]): Promise<BrowsePro[]> => {
+    // If no service filters selected, fall back to business-category join logic
+    const group = String(svcCategoryGroup || "").trim();
+    const service = String(svcCategory || "").trim();
+    if (!group && !service) return applyBusinessCategoryJoinFilter(pros);
+
+    try {
+      const services = await getAllServicesUnpaginated();
+
+      // Determine allowed categories from group or specific service selection
+      let allowedCategories: string[] = [];
+      if (service) {
+        allowedCategories = [service];
+      } else if (group && CATEGORY_GROUPS[group]) {
+        allowedCategories = CATEGORY_GROUPS[group] as string[];
+      }
+
+      const allowedLower = allowedCategories.map(c => String(c).trim().toLowerCase());
+      const serviceLower = service.toLowerCase();
+      
+      const matchingProUids = new Set(
+        services
+          .filter(svc => {
+            const categoryMatch = allowedLower.includes(String(svc.category || "").trim().toLowerCase());
+            const titleMatch = service && String(svc.title || "").trim().toLowerCase().includes(serviceLower);
+            return categoryMatch || titleMatch;
+          })
+          .map((svc) => {
+            const uidRaw = svc.userId ?? svc.user_id ?? "";
+            return typeof uidRaw === "string" ? uidRaw.trim() : String(uidRaw || "").trim();
+          })
+          .filter((uid): uid is string => Boolean(uid))
+      );
+
+      return pros.filter((p) => matchingProUids.has(String(p.uid).trim()));
+    } catch (error: unknown) {
+      captureError(error, { operation: "browse.applyServiceJoinFilter" });
+      return pros;
+    }
+  };
+
   const loadPage = async (reset = false) => {
     const loadSequence = ++loadSequenceRef.current;
     if (reset) { setLoading(true); cursorRef.current = null; }
@@ -117,9 +160,8 @@ export default function BrowsePros() {
       // Server-side pro filter applied - only exclude self
       let visiblePros = data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
 
-      // NEW: if category is a Business-related category/group, join against `services.category`
-      // because publicProfiles only mirror `skills` (not `services.category`).
-      visiblePros = await applyBusinessCategoryJoinFilter(visiblePros);
+      // NEW: if service filters are selected, join against `services.category` to get accurate results.
+      visiblePros = await applyServiceJoinFilter(visiblePros);
 
       if (nextCursor !== null) {
         // If Business-category join filters out everything from the current page,
@@ -165,7 +207,7 @@ export default function BrowsePros() {
   };
 
   useEffect(() => { loadPage(true); }, []);
-  useEffect(() => { loadPage(true); }, [localityFilter, towerFilter, categoryParam]);
+  useEffect(() => { loadPage(true); }, [localityFilter, towerFilter, categoryParam, svcCategoryGroup, svcCategory]);
   useEffect(() => () => {
     loadSequenceRef.current += 1;
   }, []);
@@ -250,13 +292,27 @@ export default function BrowsePros() {
     );
   }, [category, search, allPros, localityFilter, towerFilter, businessLeafCategories]);
 
-  const syncSearchParams = (nextSearch: string, nextCategory: string) => {
+  const syncSearchParams = (
+    nextSearch: string,
+    nextCategory: string,
+    nextSvcGroup?: string,
+    nextSvc?: string
+  ) => {
     const nextParams = new URLSearchParams(searchParams);
     if (nextSearch) nextParams.set("q", nextSearch);
     else nextParams.delete("q");
 
     if (nextCategory !== "All") nextParams.set("category", nextCategory);
     else nextParams.delete("category");
+
+    const groupToSet = typeof nextSvcGroup !== "undefined" ? nextSvcGroup : svcCategoryGroup;
+    const svcToSet = typeof nextSvc !== "undefined" ? nextSvc : svcCategory;
+
+    if (groupToSet) nextParams.set("serviceGroup", groupToSet);
+    else nextParams.delete("serviceGroup");
+
+    if (svcToSet) nextParams.set("service", svcToSet);
+    else nextParams.delete("service");
 
     setSearchParams(nextParams);
   };
@@ -268,6 +324,19 @@ export default function BrowsePros() {
   const handleCategoryChange = (nextCategory: string) => {
     setCategory(nextCategory);
     syncSearchParams(search, nextCategory);
+  };
+
+  const handleSvcGroupChange = (nextGroup: string) => {
+    setSvcCategoryGroup(nextGroup);
+    setSvcCategory("");
+    syncSearchParams(search, category, nextGroup, "");
+    loadPage(true);
+  };
+
+  const handleSvcCategoryChange = (nextSvc: string) => {
+    setSvcCategory(nextSvc);
+    syncSearchParams(search, category, svcCategoryGroup, nextSvc);
+    loadPage(true);
   };
 
   // ── Mobile layout ──────────────────────────────────────────────────────
@@ -289,23 +358,46 @@ export default function BrowsePros() {
           {search && <button className="m-search-clear" onClick={() => handleSearch("")}>✕</button>}
         </div>
 
-        {/* Category & Locality Selects */}
-        <div style={{ padding: "0 16px", marginTop: "12px", display: "flex", gap: "12px" }}>
+        {/* Category, Service Group & Name, Locality Selects */}
+        <div style={{ padding: "0 16px", marginTop: "12px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <select 
             className="form-input" 
             value={category} 
             onChange={(e) => handleCategoryChange(e.target.value)}
-            style={{ flex: 1, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
+            style={{ flex: 1, minWidth: 140, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
           >
-            {categories.map(c => (
-              <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>
+            {categories.filter(c => c !== "All").map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <select
+            className="form-input"
+            value={svcCategoryGroup}
+            onChange={(e) => handleSvcGroupChange(e.target.value)}
+            style={{ flex: 1, minWidth: 140, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
+          >
+            <option value="">All Service Groups</option>
+            {Object.keys(CATEGORY_GROUPS).map(g => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+          <select
+            className="form-input"
+            value={svcCategory}
+            onChange={(e) => handleSvcCategoryChange(e.target.value)}
+            disabled={!svcCategoryGroup}
+            style={{ flex: 1, minWidth: 140, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
+          >
+            <option value="">Select Service</option>
+            {svcCategoryGroup && (CATEGORY_GROUPS[svcCategoryGroup] || []).map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
           <select
             className="form-input"
             value={localityFilter}
             onChange={(e) => setLocalityFilter(e.target.value)}
-            style={{ flex: 1, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
+            style={{ flex: 1, minWidth: 140, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
           >
             <option value="">All Societies</option>
             {societies.map(s => (
@@ -397,8 +489,37 @@ export default function BrowsePros() {
                 onChange={e => handleCategoryChange(e.target.value)}
                 style={{ width: 180, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34, appearance: "none", background: "var(--surface)" }}
               >
-                {categories.map(c => (
-                  <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>
+                {categories.filter(c => c !== "All").map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6, zIndex: 1 }}>🧩</span>
+              <select
+                className="form-input"
+                value={svcCategoryGroup}
+                onChange={e => handleSvcGroupChange(e.target.value)}
+                style={{ width: 160, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34, appearance: "none", background: "var(--surface)" }}
+              >
+                <option value="">All Service Groups</option>
+                {Object.keys(CATEGORY_GROUPS).map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6, zIndex: 1 }}>🧾</span>
+              <select
+                className="form-input"
+                value={svcCategory}
+                onChange={e => handleSvcCategoryChange(e.target.value)}
+                disabled={!svcCategoryGroup}
+                style={{ width: 180, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34, appearance: "none", background: "var(--surface)" }}
+              >
+                <option value="">Select Service</option>
+                {svcCategoryGroup && (CATEGORY_GROUPS[svcCategoryGroup] || []).map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>

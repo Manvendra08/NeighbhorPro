@@ -22,72 +22,6 @@ import {
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import SubscribeSheet from "../components/SubscribeSheet";
 
-const SKILL_SUGGESTIONS = [
-  "Tax Filing & ITR",
-  "CA Services",
-  "Investment Advisory",
-  "Mutual Fund Planning",
-  "Insurance Planning",
-  "Legal Advice",
-  "Property & Real Estate Law",
-  "Contract Review",
-  "Will & Estate Planning",
-  "General Physician",
-  "Pediatrician",
-  "Dietitian & Nutrition",
-  "Mental Health Counselling",
-  "Physiotherapy",
-  "Homeopathy",
-  "Ayurveda Consultation",
-  "Dermatology Advice",
-  "Personal Training",
-  "Yoga",
-  "Zumba",
-  "Meditation & Mindfulness",
-  "Pilates",
-  "Functional Fitness",
-  "School Tutoring",
-  "JEE / NEET Coaching",
-  "CAT / MBA Prep",
-  "IELTS / GRE / TOEFL",
-  "Coding for Kids",
-  "Vedic Maths",
-  "Abacus",
-  "Olympiad Coaching",
-  "IT Support",
-  "Web Development",
-  "App Development",
-  "Cybersecurity",
-  "Data & Analytics",
-  "AI & Automation",
-  "Cloud & DevOps",
-  "Graphic Design",
-  "UI/UX Design",
-  "Interior Design",
-  "Architecture Consultation",
-  "Video Editing",
-  "Content Writing",
-  "Photography",
-  "Event Planning",
-  "Wedding Planning",
-  "Birthday & Party Planning",
-  "Guitar",
-  "Piano / Keyboard",
-  "Vocals & Singing",
-  "Classical Dance (Bharatnatyam / Kathak)",
-  "Western Dance",
-  "Art & Painting",
-  "Pottery & Crafts",
-  "Career Coaching",
-  "Resume & LinkedIn",
-  "Public Speaking",
-  "Language Coaching",
-  "Beauty & Makeup",
-  "Mehendi",
-  "Pet Training",
-  "Pet Grooming",
-];
-
 function getDeliverableProofUrl(url: unknown): string {
   return typeof url === "string" && url
     ? url.replace(/\/raw\/upload\//i, "/image/upload/")
@@ -118,7 +52,6 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
-  const [newSkill, setNewSkill] = useState("");
   const [hourlyRate, setHourlyRate] = useState(0);
   const [isServiceProvider, setIsServiceProvider] = useState(false);
   const [priceAfterQuote, setPriceAfterQuote] = useState(false);
@@ -295,14 +228,6 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       setSaving(false);
     }
   };
-
-  const addSkill = (skill: string) => {
-    const trimmed = skill.trim();
-    if (trimmed && !skills.includes(trimmed)) setSkills(prev => [...prev, trimmed]);
-    setNewSkill("");
-  };
-
-  const removeSkill = (skill: string) => setSkills(prev => prev.filter(item => item !== skill));
 
   const handleServiceSave = async () => {
     if (!targetUid || !svcTitle.trim() || isAdminViewAs) return;
@@ -678,45 +603,6 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
             </label>
           </div>
         </div>
-
-        {isServiceProvider && (
-          <div className="card" style={{ marginBottom: 24 }}>
-            <h3 className="card-title" style={{ marginBottom: 16 }}>Skills & Expertise</h3>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-              {skills.map(skill => (
-                <span className="skill-tag" key={skill} style={{ cursor: isAdminViewAs ? "default" : "pointer" }} onClick={() => !isAdminViewAs && removeSkill(skill)}>
-                  {skill}{isAdminViewAs ? "" : " x"}
-                </span>
-              ))}
-            </div>
-            {!isAdminViewAs && (
-              <>
-                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                  <input
-                    className="form-input"
-                    value={newSkill}
-                    onChange={(event) => setNewSkill(event.target.value)}
-                    placeholder="Add a skill..."
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addSkill(newSkill);
-                      }
-                    }}
-                    style={{ flex: 1 }}
-                    id="profile-skill-input"
-                  />
-                  <button type="button" className="btn btn-secondary" onClick={() => addSkill(newSkill)}>Add</button>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {SKILL_SUGGESTIONS.filter(skill => !skills.includes(skill)).slice(0, 10).map(skill => (
-                    <button type="button" key={skill} className="chip" onClick={() => addSkill(skill)} style={{ fontSize: 11 }}>+ {skill}</button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
 
         {saveError && <div className="error-box" style={{ marginBottom: 16 }}>{saveError}</div>}
         {saved && (
