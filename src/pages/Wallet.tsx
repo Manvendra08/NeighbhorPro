@@ -353,6 +353,8 @@ export default function Wallet() {
                 const isExpired = periodEndSeconds !== null && periodEndSeconds * 1000 <= Date.now();
                 const statusLabel =
                   sub.status === "active"   ? "✅ Active" :
+                  sub.status === "trial"    ? "🆓 Trial" :
+                  sub.status === "trial_ending" ? "🆓 Trial Ending" :
                   sub.status === "renewing" ? "🔄 Renewing" :
                   sub.status === "past_due" ? "⚠️ Payment Due" :
                   sub.status === "grace"    ? "⏳ Grace Period" :
@@ -389,7 +391,7 @@ export default function Wallet() {
                       <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Required to list Business category services</div>
                     </div>
                     <button className="btn btn-primary btn-sm" onClick={() => navigate("/profile/subscription")}>
-                      Subscribe
+                      Activate
                     </button>
                   </div>
                   <div style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6 }}>

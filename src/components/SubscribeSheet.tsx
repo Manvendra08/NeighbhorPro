@@ -31,6 +31,7 @@ function getErrorMessage(error: unknown): string {
   if (error.message === "USER_NOT_FOUND") return "Your account could not be found. Please refresh and try again.";
   if (error.message === "INVALID_PLAN") return "Invalid plan selected. Please try again.";
   if (error.message === "ACTIVE_SUB_EXISTS") return "You already have an active subscription.";
+  if (error.message === "TRIAL_ALREADY_USED") return "You've already used your free trial. Choose a paid plan to continue.";
   return error.message || "Subscription failed. Please try again.";
 }
 
