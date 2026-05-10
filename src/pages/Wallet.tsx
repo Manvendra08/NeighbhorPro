@@ -251,7 +251,7 @@ export default function Wallet() {
     { key: "buy",      label: "Buy" },
     { key: "earn",     label: "Earn" },
     ...(isPro ? [{ key: "payout" as Tab, label: "Cash Out" }] : []),
-    { key: "subscription", label: "Subscriptions" },
+    ...(isPro ? [{ key: "subscription" as Tab, label: "Subscriptions" }] : []),
     { key: "history",  label: "History" },
     { key: "terms",    label: "NC Terms" },
   ];
