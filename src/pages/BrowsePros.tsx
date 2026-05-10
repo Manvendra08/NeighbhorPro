@@ -9,7 +9,7 @@ import EmptyState from "../components/common/EmptyState";
 import ProCard from "../components/common/ProCard";
 import SkeletonLoader from "../components/common/SkeletonLoader";
 import FormField from "../components/common/FormField";
-import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories, CATEGORY_GROUPS } from "../constants/serviceCatalog";
+import { CATEGORY_GROUPS } from "../constants/serviceCatalog";
 import { getBrowseEmptyDescription, getBrowseFallbackNotice } from "../utils/browse";
 import { captureError } from "../lib/sentry";
 import ActiveProPill from "../components/ActiveProPill";
@@ -36,10 +36,8 @@ export default function BrowsePros() {
   const categoryParam = searchParams.get("category") ?? "All";
   const [localityFilter, setLocalityFilter] = useState("");
   const [towerFilter, setTowerFilter] = useState("");
-  const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
   const [svcCategoryGroup, setSvcCategoryGroup] = useState<string>(searchParams.get("serviceGroup") ?? "");
   const [svcCategory, setSvcCategory] = useState<string>(searchParams.get("service") ?? "");
-  const categories = ["All", ...serviceCategories];
   const [societies, setSocieties] = useState<{id: string, name: string}[]>([]);
   const [fallbackNotice, setFallbackNotice] = useState("");
   const loadSequenceRef = useRef(0);
@@ -74,8 +72,8 @@ export default function BrowsePros() {
     };
   };
 
-  const applyBusinessCategoryJoinFilter = async (pros: BrowsePro[]): Promise<BrowsePro[]> => {
-    const normalizedCategory = categoryParam.trim();
+  const applyBusinessCategoryJoinFilter = async (pros: BrowsePro[], catParam: string): Promise<BrowsePro[]> => {
+    const normalizedCategory = catParam.trim();
     const wantsBusiness =
       normalizedCategory !== "All" &&
       (normalizedCategory === "Business" ||
@@ -89,7 +87,6 @@ export default function BrowsePros() {
 
     const services = await getAllServicesUnpaginated();
 
-    // services.userId is the schema used by createService(...), so prefer it for reliable joins.
     const leafCatsLower = leafCats.map(c => String(c).trim().toLowerCase());
     const matchingProUids = new Set(
       services
@@ -104,31 +101,31 @@ export default function BrowsePros() {
     return pros.filter((p) => matchingProUids.has(String(p.uid).trim()));
   };
 
-  const applyServiceJoinFilter = async (pros: BrowsePro[]): Promise<BrowsePro[]> => {
-    // If no service filters selected, fall back to business-category join logic
-    const group = String(svcCategoryGroup || "").trim();
-    const service = String(svcCategory || "").trim();
-    if (!group && !service) return applyBusinessCategoryJoinFilter(pros);
+  const applyServiceJoinFilter = async (pros: BrowsePro[], group: string, service: string, catParam: string): Promise<BrowsePro[]> => {
+    const groupTrimmed = group.trim();
+    const serviceTrimmed = service.trim();
+
+    // If no service group/name filters, fall back to category-based join
+    if (!groupTrimmed && !serviceTrimmed) return applyBusinessCategoryJoinFilter(pros, catParam);
 
     try {
       const services = await getAllServicesUnpaginated();
 
-      // Determine allowed categories from group or specific service selection
       let allowedCategories: string[] = [];
-      if (service) {
-        allowedCategories = [service];
-      } else if (group && CATEGORY_GROUPS[group]) {
-        allowedCategories = CATEGORY_GROUPS[group] as string[];
+      if (serviceTrimmed) {
+        allowedCategories = [serviceTrimmed];
+      } else if (groupTrimmed && CATEGORY_GROUPS[groupTrimmed]) {
+        allowedCategories = CATEGORY_GROUPS[groupTrimmed] as string[];
       }
 
       const allowedLower = allowedCategories.map(c => String(c).trim().toLowerCase());
-      const serviceLower = service.toLowerCase();
-      
+      const serviceLower = serviceTrimmed.toLowerCase();
+
       const matchingProUids = new Set(
         services
           .filter(svc => {
             const categoryMatch = allowedLower.includes(String(svc.category || "").trim().toLowerCase());
-            const titleMatch = service && String(svc.title || "").trim().toLowerCase().includes(serviceLower);
+            const titleMatch = serviceTrimmed && String(svc.title || "").trim().toLowerCase().includes(serviceLower);
             return categoryMatch || titleMatch;
           })
           .map((svc) => {
@@ -145,10 +142,15 @@ export default function BrowsePros() {
     }
   };
 
-  const loadPage = async (reset = false) => {
+  const loadPage = async (reset = false, overrides?: { group?: string; service?: string; catParam?: string }) => {
     const loadSequence = ++loadSequenceRef.current;
     if (reset) { setLoading(true); cursorRef.current = null; }
     else setLoadingMore(true);
+
+    // Use overrides when provided (avoids stale closure values on filter change)
+    const currentGroup = overrides?.group !== undefined ? overrides.group : svcCategoryGroup;
+    const currentService = overrides?.service !== undefined ? overrides.service : svcCategory;
+    const currentCatParam = overrides?.catParam !== undefined ? overrides.catParam : categoryParam;
 
     try {
       const filters = buildServerFilters();
@@ -157,17 +159,11 @@ export default function BrowsePros() {
 
       cursorRef.current = nextCursor;
 
-      // Server-side pro filter applied - only exclude self
       let visiblePros = data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
 
-      // NEW: if service filters are selected, join against `services.category` to get accurate results.
-      visiblePros = await applyServiceJoinFilter(visiblePros);
+      visiblePros = await applyServiceJoinFilter(visiblePros, currentGroup, currentService, currentCatParam);
 
       if (nextCursor !== null) {
-        // If Business-category join filters out everything from the current page,
-        // the raw cursor may still be non-null, but UX "Load more" should reflect join results.
-        // We keep `hasMore` optimistic for non-reset loads; for reset loads with zero results,
-        // we rely on fallback logic below.
         setHasMore(visiblePros.length > 0 ? nextCursor !== null : reset ? false : nextCursor !== null);
       } else {
         setHasMore(false);
@@ -178,7 +174,7 @@ export default function BrowsePros() {
         visiblePros = fallback.data.filter(u => u.uid !== user?.uid) as unknown as BrowsePro[];
         cursorRef.current = fallback.nextCursor;
 
-        const fallbackVisiblePros = await applyBusinessCategoryJoinFilter(visiblePros);
+        const fallbackVisiblePros = await applyBusinessCategoryJoinFilter(visiblePros, currentCatParam);
         visiblePros = fallbackVisiblePros;
 
         setHasMore(fallbackVisiblePros.length > 0 ? fallback.nextCursor !== null : false);
@@ -207,7 +203,9 @@ export default function BrowsePros() {
   };
 
   useEffect(() => { loadPage(true); }, []);
-  useEffect(() => { loadPage(true); }, [localityFilter, towerFilter, categoryParam, svcCategoryGroup, svcCategory]);
+  useEffect(() => {
+    loadPage(true, { group: svcCategoryGroup, service: svcCategory, catParam: categoryParam });
+  }, [localityFilter, towerFilter, categoryParam, svcCategoryGroup, svcCategory]);
   useEffect(() => () => {
     loadSequenceRef.current += 1;
   }, []);
@@ -220,12 +218,11 @@ export default function BrowsePros() {
   useEffect(() => {
     let alive = true;
     getPlatformSettings()
-      .then((settings) => {
-        if (alive) setServiceCategories(normalizeServiceCategories(settings.serviceCategories));
+      .then(() => {
+        // Platform settings loaded (not used for category filtering anymore)
       })
       .catch((error: unknown) => {
         captureError(error, { operation: "browse.get_platform_settings" });
-        if (alive) setServiceCategories(DEFAULT_SERVICE_CATEGORIES);
       });
 
     getAllSocieties(100)
@@ -321,22 +318,17 @@ export default function BrowsePros() {
     syncSearchParams(val, category);
   };
 
-  const handleCategoryChange = (nextCategory: string) => {
-    setCategory(nextCategory);
-    syncSearchParams(search, nextCategory);
-  };
-
   const handleSvcGroupChange = (nextGroup: string) => {
     setSvcCategoryGroup(nextGroup);
     setSvcCategory("");
     syncSearchParams(search, category, nextGroup, "");
-    loadPage(true);
+    loadPage(true, { group: nextGroup, service: "", catParam: categoryParam });
   };
 
   const handleSvcCategoryChange = (nextSvc: string) => {
     setSvcCategory(nextSvc);
     syncSearchParams(search, category, svcCategoryGroup, nextSvc);
-    loadPage(true);
+    loadPage(true, { group: svcCategoryGroup, service: nextSvc, catParam: categoryParam });
   };
 
   // ── Mobile layout ──────────────────────────────────────────────────────
@@ -358,18 +350,8 @@ export default function BrowsePros() {
           {search && <button className="m-search-clear" onClick={() => handleSearch("")}>✕</button>}
         </div>
 
-        {/* Category, Service Group & Name, Locality Selects */}
+        {/* Service Group & Name, Locality Selects */}
         <div style={{ padding: "0 16px", marginTop: "12px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <select 
-            className="form-input" 
-            value={category} 
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            style={{ flex: 1, minWidth: 140, height: 48, borderRadius: 12, appearance: "none", background: "var(--surface)" }}
-          >
-            {categories.filter(c => c !== "All").map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
           <select
             className="form-input"
             value={svcCategoryGroup}
@@ -481,19 +463,6 @@ export default function BrowsePros() {
             onBlur={e => e.currentTarget.style.borderColor = "transparent"}
           />
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6, zIndex: 1 }}>📂</span>
-              <select
-                className="form-input"
-                value={category}
-                onChange={e => handleCategoryChange(e.target.value)}
-                style={{ width: 180, height: 56, borderRadius: 14, fontSize: 14, paddingLeft: 34, appearance: "none", background: "var(--surface)" }}
-              >
-                {categories.filter(c => c !== "All").map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
             <div style={{ position: "relative" }}>
               <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6, zIndex: 1 }}>🧩</span>
               <select
