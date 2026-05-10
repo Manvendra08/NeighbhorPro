@@ -63,6 +63,7 @@ export default function App() {
             <Route path="/bookings"         element={<ProtectedRoute userOnly><MyBookings /></ProtectedRoute>} />
             <Route path="/bookings/:id"     element={<ProtectedRoute userOnly><BookingDetail /></ProtectedRoute>} />
             <Route path="/wallet"           element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+            <Route path="/subscription"     element={<ProtectedRoute><SubscriptionManage /></ProtectedRoute>} />
             <Route path="/profile/subscription" element={<ProtectedRoute><SubscriptionManage /></ProtectedRoute>} />
             <Route path="/profile"          element={<Navigate to="/account" replace />} />
             <Route path="/account"          element={<ProtectedRoute><MyAccount /></ProtectedRoute>} />

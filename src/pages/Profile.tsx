@@ -188,7 +188,10 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
 
   useEffect(() => {
     if (!targetUid) return;
-    getServicesByUser(targetUid).then(setServices).catch(() => setServices([]));
+    getServicesByUser(targetUid).then(setServices).catch((err) => {
+      console.error("Failed to load services:", err);
+      setServices([]);
+    });
   }, [targetUid]);
 
   const fetchSub = async () => {
@@ -359,7 +362,10 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
       }
     }
 
-    const updated = await getServicesByUser(targetUid);
+    const updated = await getServicesByUser(targetUid).catch((err) => {
+      console.error("Failed to refresh services:", err);
+      return services;
+    });
     setServices(updated);
     setSvcTitle("");
     setSvcDesc("");
