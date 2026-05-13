@@ -109,12 +109,13 @@ function derivePublicProfile(uid: string, source: Record<string, unknown>): Reco
 }
 
 function normalizeAvailabilityDay(value: unknown): Record<string, unknown> {
-  const day = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const day = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 
   return {
-    ...day,
-    active: Boolean(day.active),
-    slots: normalizeStringArray(day.slots),
+    active: Boolean(day?.active),
+    slots: normalizeStringArray(day?.slots),
   };
 }
 
@@ -194,14 +195,6 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   const nextDisabled = typeof data.disabled === "boolean" ? data.disabled : currentData.disabled;
   const mutatesAdminControls = currentData.role === "admin" && (typeof data.role === "string" || typeof data.disabled === "boolean");
 
-  if (mutatesAdminControls && (nextRole !== "admin" || nextDisabled === true)) {
-    const rows = await getAllUserRows(500);
-    const activeAdmins = rows.filter(user => user.role === "admin" && !user.disabled).length;
-    if (activeAdmins <= 1) {
-      throw new Error("At least one active admin must remain");
-    }
-  }
-
   const nextData: Record<string, unknown> = { ...data };
   const nextDisplayName = (typeof data.displayName === "string" ? data.displayName : (currentData.displayName as string | undefined)) ?? "";
   const nextPhone = (typeof data.phoneNumber === "string" ? data.phoneNumber : (currentData.phoneNumber as string | undefined)) ?? "";
@@ -228,6 +221,17 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   if ("flatVisible" in mergedData && mergedData.flatVisible !== true) safe.flatNumber = deleteField();
 
   await runTransaction(db, async tx => {
+    // Admin safety check inside transaction to prevent race conditions where
+    // concurrent requests could both pass the check and leave zero active admins.
+    if (mutatesAdminControls && (nextRole !== "admin" || nextDisabled === true)) {
+      const usersSnap = await getDocs(
+        query(collection(db, "users"), where("role", "==", "admin"), where("disabled", "==", false), limit(2))
+      );
+      if (usersSnap.size <= 1) {
+        throw new Error("At least one active admin must remain");
+      }
+    }
+
     tx.update(userRef, { ...nextData, updatedAt: serverTimestamp() });
     if (Object.keys(safe).length > 1) {
       tx.set(doc(db, "publicProfiles", uid), { ...safe, updatedAt: serverTimestamp() }, { merge: true });
@@ -655,15 +659,29 @@ export async function createService(data: Record<string, unknown>) {
 }
 
 export async function getServicesByUser(userId: string) {
-  const constraints: QueryConstraint[] = [where("userId", "==", userId)];
   const isOwnerView = auth.currentUser?.uid === userId;
-  if (!isOwnerView) {
-    constraints.push(where("status", "in", ["approved", "featured"]));
+  const ownerFields = ["userId", "ownerId", "user_id"] as const;
+  const docsByOwnerField = await Promise.all(
+    ownerFields.map(async (field) => {
+      return safeGetDocs(query(collection(db, "services"), where(field, "==", userId)));
+    })
+  );
+
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const docs of docsByOwnerField) {
+    for (const docSnap of docs) {
+      merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as Record<string, unknown>);
+    }
   }
-  const q = query(collection(db, "services"), ...constraints);
-  const snap = await getDocs(q);
-  const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>));
-  return isOwnerView ? docs : docs.filter((d: any) => d.subStatus !== "paused_subscription");
+
+  const services = Array.from(merged.values());
+  if (isOwnerView) return services;
+
+  return services.filter((service: any) => {
+    const status = String(service.status || "").trim().toLowerCase();
+    const isPublicStatus = !status || status === "pending" || status === "approved" || status === "featured";
+    return isPublicStatus && service.subStatus !== "paused_subscription";
+  });
 }
 export async function getAllServices(
   limit_ = 50,
@@ -1499,4 +1517,3 @@ export async function getPublicStats() {
     };
   }
 }
-
