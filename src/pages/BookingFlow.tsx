@@ -7,7 +7,6 @@ import {
 } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
 import { BOOKING_BRIEF_MAX_CHARS, isBookingBriefValid } from "../utils/booking";
-import { getInitialServiceCategory, getServiceCategories, shouldShowCategoryFilter } from "../utils/serviceSelection";
 
 export default function BookingFlow() {
   const { id: proId } = useParams<{ id: string }>();
@@ -33,7 +32,6 @@ export default function BookingFlow() {
   const [availableSlots, setAvailSlots] = useState<string[]>([]);
   const [checkingAvail, setCA] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
-  const [selectedCat, setCat] = useState<string>("");
 
   const preselectedServiceId = searchParams.get("serviceId");
   const rebookDate = searchParams.get("date") ?? "";
@@ -60,7 +58,6 @@ export default function BookingFlow() {
           duration: "60 minutes",
         });
         setSvc(defaultSvc as Record<string, unknown>);
-        setCat(getInitialServiceCategory(s, preselectedServiceId));
         if (rebookDate) setDate(rebookDate);
       })
       .catch(() => setPNF(true));
@@ -107,27 +104,7 @@ export default function BookingFlow() {
   const balance = userProfile?.coinBalance ?? 0;
   const hasEnough = !requiresCoinHold || balance >= feeCoins;
 
-  const categories = useMemo(() => getServiceCategories(services), [services]);
-
-  const filteredServices = useMemo(
-    () => services.filter(service => !selectedCat || service.category === selectedCat),
-    [services, selectedCat],
-  );
-
-  useEffect(() => {
-    if (!services.length) return;
-    if (!selectedCat || !categories.includes(selectedCat)) {
-      setCat(categories[0] || "Other");
-    }
-  }, [categories, selectedCat, services.length]);
-
-  useEffect(() => {
-    if (!selectedSvc) return;
-    if (selectedCat && selectedSvc.category !== selectedCat) {
-      const nextSelected = filteredServices[0] || null;
-      setSvc(nextSelected);
-    }
-  }, [filteredServices, selectedCat, selectedSvc]);
+  const filteredServices = useMemo(() => services, [services]);
 
   const missingProfileItems: string[] = [];
   if (!String(userProfile?.displayName || "").trim()) missingProfileItems.push("Full name");
@@ -287,58 +264,33 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {services.length > 0 && shouldShowCategoryFilter(categories) && (
-            <div className="form-group">
-              <label className="form-label" htmlFor="service-category">Service Category</label>
-              <select
-                id="service-category"
-                className="form-input"
-                value={selectedCat}
-                onChange={(e) => {
-                  setCat(e.target.value);
-                  const filtered = services.filter(s => ((s.category as string) || "Other") === e.target.value);
-                  if (filtered.length > 0) setSvc(filtered[0]);
-                }}
-              >
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {services.length > 0 && (
             <div className="form-group">
-              <label className="form-label">Select Service</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {services
-                  .filter(svc => !selectedCat || svc.category === selectedCat)
-                  .map(svc => {
-                    const servicePrice = Number(svc.price) || 0;
-                    const serviceQuoteBased = Boolean(svc.quoteBased);
-                    const serviceIsFree = !serviceQuoteBased && servicePrice === 0;
-                    const serviceTotal = serviceQuoteBased || serviceIsFree
-                      ? 0
-                      : servicePrice + Math.round((servicePrice * commissionRate) / 100);
-
-                    return (
-                      <div key={svc.id as string} onClick={() => setSvc(svc)} style={{ padding: "12px 16px", border: `2px solid ${selectedSvc?.id === svc.id ? "var(--accent)" : "var(--border)"}`, background: selectedSvc?.id === svc.id ? "rgba(13,107,107,0.04)" : "var(--surface-2)", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{svc.title as string}</div>
-                          {(svc.duration as string) && <div className="text-muted text-sm">{svc.duration as string}</div>}
-                          {serviceQuoteBased ? (
-                            <div className="text-muted text-xs">Final NC shared after reviewing your requirement</div>
-                          ) : (
-                            null
-                          )}
-                        </div>
-                        <span style={{ fontWeight: 700, color: serviceQuoteBased ? "#1B6B8A" : serviceIsFree ? "var(--accent2)" : "var(--text)" }}>
-                          {serviceQuoteBased ? "Quote-based" : serviceIsFree ? "Free" : `${serviceTotal.toLocaleString("en-IN")} NC`}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
+              <label className="form-label" htmlFor="service-name">Service Name</label>
+              <select
+                id="service-name"
+                className="form-input"
+                value={String(selectedSvc?.id || "")}
+                onChange={(event) => {
+                  const nextService = services.find(service => String(service.id) === event.target.value) || null;
+                  setSvc(nextService);
+                }}
+              >
+                {filteredServices.map(svc => (
+                  <option key={svc.id as string} value={svc.id as string}>{svc.title as string}</option>
+                ))}
+              </select>
+              {selectedSvc && (
+                <div style={{ marginTop: 8, padding: "12px 16px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{selectedSvc.title as string}</div>
+                    {(selectedSvc.description as string) && <div className="text-muted text-sm">{(selectedSvc.description as string).slice(0, 90)}</div>}
+                  </div>
+                  <span style={{ fontWeight: 700, flexShrink: 0, color: isQuoteBased ? "#1B6B8A" : isFree ? "var(--accent2)" : "var(--text)" }}>
+                    {isQuoteBased ? "Quote-based" : isFree ? "Free" : `${feeCoins.toLocaleString("en-IN")} NC`}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
