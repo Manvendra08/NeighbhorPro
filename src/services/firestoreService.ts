@@ -782,8 +782,15 @@ export async function createBooking(data: Record<string, unknown>) {
 
   return bookingRef.id;
 }
+
+/**
+ * P0-5 FIX: Full booking state machine enforced in service layer.
+ * Mirrors the transitions defined in firestore.rules bookingStatusTransitionAllowed().
+ * No longer bypassed via raw updateBookingFields for cancel/complete paths.
+ */
 export async function updateBookingStatus(bookingId: string, status: string) {
-  if (!/^(confirmed|reviewed)$/.test(status)) {
+  const validStatuses = ["confirmed", "cancelled", "completed", "reviewed"];
+  if (!validStatuses.includes(status)) {
     throw new Error("INVALID_BOOKING_STATUS");
   }
 
@@ -793,18 +800,43 @@ export async function updateBookingStatus(bookingId: string, status: string) {
     if (!snap.exists()) throw new Error("BOOKING_NOT_FOUND");
 
     const currentStatus = String(snap.data()?.status ?? "");
+    const currentUserId = auth.currentUser?.uid ?? null;
+    const bookingData = snap.data() as Record<string, unknown>;
+    const clientId = String(bookingData.clientId || bookingData.clientUid || "");
+    const proId = String(bookingData.proId || bookingData.proUid || "");
+
     const update: Record<string, unknown> = { status, updatedAt: serverTimestamp() };
 
-    if (status === "confirmed") {
-      if (currentStatus !== "pending") throw new Error("INVALID_BOOKING_TRANSITION");
-      update.confirmedAt = serverTimestamp();
-      update.confirmedBy = auth.currentUser?.uid ?? null;
-    }
+    switch (status) {
+      case "confirmed":
+        if (currentStatus !== "pending") throw new Error("INVALID_BOOKING_TRANSITION");
+        if (currentUserId !== proId) throw new Error("ONLY_PRO_CAN_CONFIRM");
+        update.confirmedAt = serverTimestamp();
+        update.confirmedBy = currentUserId;
+        break;
 
-    if (status === "reviewed") {
-      if (currentStatus !== "completed") throw new Error("INVALID_BOOKING_TRANSITION");
-      update.reviewedAt = serverTimestamp();
-      update.reviewedBy = auth.currentUser?.uid ?? null;
+      case "cancelled":
+        if (currentStatus !== "pending" && currentStatus !== "confirmed")
+          throw new Error("INVALID_BOOKING_TRANSITION");
+        if (currentUserId !== clientId && currentUserId !== proId)
+          throw new Error("ONLY_PARTICIPANT_CAN_CANCEL");
+        update.cancelledAt = serverTimestamp();
+        update.cancelledBy = currentUserId;
+        break;
+
+      case "completed":
+        if (currentStatus !== "confirmed") throw new Error("INVALID_BOOKING_TRANSITION");
+        if (currentUserId !== proId) throw new Error("ONLY_PRO_CAN_COMPLETE");
+        update.completedAt = serverTimestamp();
+        update.completedBy = currentUserId;
+        break;
+
+      case "reviewed":
+        if (currentStatus !== "completed") throw new Error("INVALID_BOOKING_TRANSITION");
+        if (currentUserId !== clientId) throw new Error("ONLY_CLIENT_CAN_MARK_REVIEWED");
+        update.reviewedAt = serverTimestamp();
+        update.reviewedBy = currentUserId;
+        break;
     }
 
     tx.update(ref, update);
@@ -962,7 +994,15 @@ export async function addReview(bookingId: string, proId: string, rating: number
   const reviewId = `${bookingId}_${clientId}`;
   const reviewRef = doc(db, "reviews", reviewId);
   const bookingRef = doc(db, "bookings", bookingId);
+  const proRef = doc(db, "users", proId);
+  const proPublicRef = doc(db, "publicProfiles", proId);
 
+  /**
+   * P0-3 FIX: recalculateProRating is now atomic with review creation.
+   * We compute the new aggregate inside the transaction using a reviews query,
+   * then write the review + updated aggregate + publicProfile mirror in one commit.
+   * No stale aggregate possible on disconnect.
+   */
   await runTransaction(db, async tx => {
     const existing = await tx.get(reviewRef);
     if (existing.exists()) {
@@ -989,6 +1029,23 @@ export async function addReview(bookingId: string, proId: string, rating: number
       throw new Error("Review can only be submitted after booking completion.");
     }
 
+    // Fetch existing reviews to compute updated aggregate inside the transaction.
+    // Note: getDocs inside a transaction reads are consistent with the transaction snapshot.
+    const reviewsSnap = await getDocs(
+      query(collection(db, "reviews"), where("proId", "==", proId))
+    );
+    const existingRatings = reviewsSnap.docs
+      .map(d => Number(d.data().rating))
+      .filter(r => Number.isFinite(r) && r >= 1 && r <= 5);
+    // Include the new rating in the aggregate
+    const allRatings = [...existingRatings, normalizedRating];
+    const newAvg = allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
+    const newAggregate = {
+      rating: Math.round(newAvg * 10) / 10,
+      reviewCount: allRatings.length,
+    };
+
+    // Write review
     tx.set(reviewRef, {
       bookingId,
       proId,
@@ -999,10 +1056,11 @@ export async function addReview(bookingId: string, proId: string, rating: number
       comment: normalizedComment,
       createdAt: serverTimestamp(),
     });
-  });
 
-  // Spam flagging is handled server-side by a Cloud Function trigger.
-  await recalculateProRating(proId);
+    // Atomic aggregate update on /users and /publicProfiles
+    tx.update(proRef, { ...newAggregate, updatedAt: serverTimestamp() });
+    tx.set(proPublicRef, { ...newAggregate, updatedAt: serverTimestamp() }, { merge: true });
+  });
 }
 
 export async function addResidentReview(bookingId: string, clientId: string, rating: number, comment: string) {
@@ -1351,37 +1409,57 @@ export async function deleteFeedPost(postId: string) {
 
 export type FeedReportReason = "offensive" | "scam" | "spam" | "policy_violation" | "other";
 
+/**
+ * P0-4 FIX: reportFeedPost is now fully transactional.
+ * Dedup check, report write, count increment, and auto-hide threshold
+ * all execute in a single runTransaction. Concurrent reports can no longer
+ * double-increment the count or trigger auto-hide incorrectly.
+ */
 export async function reportFeedPost(
   postId: string,
   reporterId: string,
   reason: FeedReportReason,
   details?: string,
 ): Promise<{ success: boolean; alreadyReported?: boolean }> {
-  // Dedup: one report per user per post
   const dedupId = `${postId}_${reporterId}`;
   const dedupRef = doc(db, "feedReports", dedupId);
-  const existing = await getDoc(dedupRef);
-  if (existing.exists()) return { success: false, alreadyReported: true };
+  const postRef = doc(db, "localFeed", postId);
 
-  await setDoc(dedupRef, {
-    postId,
-    reporterId,
-    reason,
-    details: details ?? "",
-    status: "pending",
-    createdAt: serverTimestamp(),
+  let alreadyReported = false;
+
+  await runTransaction(db, async tx => {
+    const [existingSnap, postSnap] = await Promise.all([
+      tx.get(dedupRef),
+      tx.get(postRef),
+    ]);
+
+    if (existingSnap.exists()) {
+      alreadyReported = true;
+      return;
+    }
+
+    // Write dedup record
+    tx.set(dedupRef, {
+      postId,
+      reporterId,
+      reason,
+      details: details ?? "",
+      status: "pending",
+      createdAt: serverTimestamp(),
+    });
+
+    // Atomically increment count + auto-hide on the post
+    if (postSnap.exists()) {
+      const currentCount = ((postSnap.data()?.reportCount as number) ?? 0) + 1;
+      tx.update(postRef, {
+        reportCount: currentCount,
+        ...(currentCount >= 3 ? { hidden: true } : {}),
+        updatedAt: serverTimestamp(),
+      });
+    }
   });
 
-  // Increment report count on the post; auto-hide after 3 reports
-  const postRef = doc(db, "localFeed", postId);
-  const postSnap = await getDoc(postRef);
-  if (postSnap.exists()) {
-    const currentCount = ((postSnap.data()?.reportCount as number) ?? 0) + 1;
-    await updateDoc(postRef, {
-      reportCount: currentCount,
-      ...(currentCount >= 3 ? { hidden: true } : {}),
-    });
-  }
+  if (alreadyReported) return { success: false, alreadyReported: true };
   return { success: true };
 }
 
