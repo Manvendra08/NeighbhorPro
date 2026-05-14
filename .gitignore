@@ -12,15 +12,24 @@ dist
 dist-ssr
 *.local
 
-# Firebase service account key — NEVER commit this
+# Firebase service account key — NEVER commit
 scripts/serviceAccountKey.json
 .claude/settings.local.json
 
 # Build artifacts
 *.tsbuildinfo
+tsconfig.tsbuildinfo
 
-# Binary / media assets — must NEVER live in source control
-# Use Firebase Storage or Cloudinary instead.
+# Test output — generated, not source
+coverage/
+playwright-report/
+test-results/
+
+# Temporary / scratch dirs
+tmp/
+output/
+
+# Binary / media assets — use Firebase Storage or Cloudinary instead
 functions/*.jpeg
 functions/*.jpg
 functions/*.png
@@ -32,6 +41,22 @@ public/*.jpeg
 public/*.jpg
 public/*.png
 
+# Root-level documents — keep locally, not in source control
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+
+# AI agent / IDE tool dirs
+.agent/
+.agent_backup/
+_agent_backup/
+.kiro/
+.minimax/
+.blackbox/
+.planning/
+.playwright-mcp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -42,3 +67,6 @@ public/*.png
 *.njsproj
 *.sln
 *.sw?
+
+# Firebase hosting cache
+.firebase/
