@@ -16,6 +16,22 @@ dist-ssr
 scripts/serviceAccountKey.json
 .claude/settings.local.json
 
+# Build artifacts
+*.tsbuildinfo
+
+# Binary / media assets — must NEVER live in source control
+# Use Firebase Storage or Cloudinary instead.
+functions/*.jpeg
+functions/*.jpg
+functions/*.png
+functions/*.gif
+functions/*.pdf
+functions/*.mp4
+functions/*.webp
+public/*.jpeg
+public/*.jpg
+public/*.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

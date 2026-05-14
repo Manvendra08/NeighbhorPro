@@ -4,16 +4,42 @@
  * These Cloud Functions are not used in the Spark-plan client-only deployment.
  * Keep this file for future Blaze migration only. Do not rely on it in Spark.
  *
- * Firebase Cloud Functions â€” NeighbourCoins Ã— Razorpay
+ * Firebase Cloud Functions — NeighbourCoins × Razorpay
  *
  * Exports:
- *   createRazorpayOrder  â€” HTTPS callable: browser calls this to get an order_id
- *   razorpayWebhook      â€” HTTPS endpoint: Razorpay POSTs here on payment.captured
+ *   createRazorpayOrder           — HTTPS callable: browser calls this to get an order_id
+ *   razorpayWebhook               — HTTPS endpoint: Razorpay POSTs here on payment.captured
+ *   setAdminClaim                 — HTTPS callable: grant/revoke admin Custom Claim on a user
+ *   getResidencyProofDownloadUrl  — HTTPS callable: admin-only signed Cloudinary URL
+ *   generateCloudinarySignature   — HTTPS callable: signed upload params
+ *   logActivityFunction           — HTTPS callable: rate-limited activity logging
+ *   deleteUserAuth                — HTTPS callable: hard-delete a Firebase Auth account (admin)
+ *   flagSpamReviews               — Firestore trigger: auto-flag consecutive 1-star reviews
  *
  * Environment config (set via Firebase Functions config):
  *   firebase functions:secrets:set RAZORPAY_KEY_ID
  *   firebase functions:secrets:set RAZORPAY_KEY_SECRET
  *   firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET
+ *   firebase functions:secrets:set CLOUDINARY_API_KEY
+ *   firebase functions:secrets:set CLOUDINARY_API_SECRET
+ *
+ * ── Admin Role Migration ────────────────────────────────────────────────────
+ * Admin status is now stored as a Firebase Custom Claim (request.auth.token.admin === true)
+ * instead of a Firestore role read on every secured call.
+ *
+ * Benefits:
+ *  - No extra Firestore read per admin call (saves cost + latency)
+ *  - No TOCTOU window — claim is validated from the JWT, not a live DB lookup
+ *  - Token is refreshed automatically by the client every ~1 hour
+ *
+ * Migration steps (run once after deploying):
+ *  1. firebase deploy --only functions
+ *  2. For each existing admin UID:
+ *     firebase functions:call setAdminClaim --data '{"targetUid":"<uid>","isAdmin":true}'
+ *  3. Admins must sign out and back in so their token includes the new claim.
+ *
+ * The Firestore `users.role` field is retained for display/audit only.
+ * It is NOT the authoritative source for admin access.
  */
 
 import * as functions from "firebase-functions/v2/https";
@@ -24,13 +50,12 @@ import Razorpay from "razorpay";
 import * as crypto from "crypto";
 import {
   FieldValue,
-  Timestamp,
 } from "firebase-admin/firestore";
 
 admin.initializeApp();
 const db = admin.firestore();
 
-/* â”€â”€ Razorpay client (lazy-init so secrets are resolved at runtime) â”€â”€ */
+/* ── Razorpay client (lazy-init so secrets are resolved at runtime) ── */
 function getRazorpay() {
   return new Razorpay({
     key_id:     process.env.RAZORPAY_KEY_ID!,
@@ -38,7 +63,7 @@ function getRazorpay() {
   });
 }
 
-/* â”€â”€ Coin pack definitions (must match frontend COIN_PACKS) â”€â”€ */
+/* ── Coin pack definitions (must match frontend COIN_PACKS) ── */
 const COIN_PACKS: Record<string, { priceRs: number; coins: number; bonus: number; label: string }> = {
   Trial:   { priceRs: 50,   coins: 50,   bonus: 0,   label: "Trial"   },
   Starter: { priceRs: 200,  coins: 200,  bonus: 20,  label: "Starter" },
@@ -47,18 +72,76 @@ const COIN_PACKS: Record<string, { priceRs: number; coins: number; bonus: number
   Society: { priceRs: 2500, coins: 2500, bonus: 500, label: "Society" },
 };
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   1. createRazorpayOrder  â€” callable from browser
+/* ─────────────────────────────────────────────────────────────────────────
+   HELPER: isAdmin
+   Reads the Custom Claim from the verified JWT — zero Firestore reads.
+   Use this everywhere instead of fetching users/{uid} and checking role.
+───────────────────────────────────────────────────────────────────────── */
+function isAdmin(request: functions.CallableRequest): boolean {
+  return request.auth?.token?.admin === true;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   0. setAdminClaim  — grant or revoke the admin Custom Claim
+      Input:  { targetUid: string, isAdmin: boolean }
+      Auth:   Caller must already have admin claim (or be the first bootstrap).
+      Note:   For the very first admin, use the Firebase Admin SDK CLI:
+              node -e "require('firebase-admin').initializeApp(); require('firebase-admin').auth().setCustomUserClaims('<uid>', { admin: true })"
+═══════════════════════════════════════════════════════════════════════ */
+export const setAdminClaim = functions.onCall(
+  { region: "asia-south1" },
+  async (request: functions.CallableRequest) => {
+    // Only existing admins can promote/demote others.
+    if (!isAdmin(request)) {
+      throw new functions.HttpsError("permission-denied", "Admin only.");
+    }
+
+    const { targetUid, isAdmin: grantAdmin } = request.data as {
+      targetUid: string;
+      isAdmin: boolean;
+    };
+
+    if (!targetUid || typeof targetUid !== "string") {
+      throw new functions.HttpsError("invalid-argument", "targetUid is required.");
+    }
+    if (typeof grantAdmin !== "boolean") {
+      throw new functions.HttpsError("invalid-argument", "isAdmin must be a boolean.");
+    }
+    // Prevent self-demotion to avoid accidental lockout.
+    if (targetUid === request.auth?.uid && !grantAdmin) {
+      throw new functions.HttpsError("failed-precondition", "Cannot revoke your own admin claim.");
+    }
+
+    // Set/revoke the Custom Claim on the Auth token.
+    await admin.auth().setCustomUserClaims(targetUid, { admin: grantAdmin });
+
+    // Mirror to Firestore role field for display/audit (not authoritative).
+    await db.collection("users").doc(targetUid).update({
+      role: grantAdmin ? "admin" : "user",
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    logger.info("Admin claim updated", {
+      targetUid,
+      grantAdmin,
+      by: request.auth?.uid,
+    });
+
+    return { success: true };
+  }
+);
+
+/* ═══════════════════════════════════════════════════════════════════════
+   1. createRazorpayOrder  — callable from browser
       Input:  { packLabel: string }
       Output: { orderId, amount, currency, keyId }
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════════════════════════════════════ */
 export const createRazorpayOrder = functions.onCall(
   {
     secrets: ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"],
     region: "asia-south1",
   },
-  async (request: any) => {
-    // Auth guard
+  async (request: functions.CallableRequest) => {
     if (!request.auth) {
       throw new functions.HttpsError("unauthenticated", "Login required.");
     }
@@ -71,7 +154,6 @@ export const createRazorpayOrder = functions.onCall(
 
     const razorpay = getRazorpay();
 
-    // Create Razorpay order (amount in paise)
     const order = await razorpay.orders.create({
       amount:   pack.priceRs * 100,
       currency: "INR",
@@ -85,7 +167,6 @@ export const createRazorpayOrder = functions.onCall(
 
     logger.info("Razorpay order created", { orderId: order.id, uid: request.auth.uid });
 
-    // Store pending purchase so webhook can validate
     await db.collection("coinPurchases").doc(order.id).set({
       uid:          request.auth.uid,
       orderId:      order.id,
@@ -98,28 +179,27 @@ export const createRazorpayOrder = functions.onCall(
 
     return {
       orderId:  order.id,
-      amount:   pack.priceRs * 100,   // paise
+      amount:   pack.priceRs * 100,
       currency: "INR",
       keyId:    process.env.RAZORPAY_KEY_ID,
     };
   }
 );
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   2. razorpayWebhook  â€” HTTPS endpoint for Razorpay
-      Razorpay Dashboard â†’ Webhooks â†’ URL: /razorpayWebhook
+/* ═══════════════════════════════════════════════════════════════════════
+   2. razorpayWebhook  — HTTPS endpoint for Razorpay
+      Razorpay Dashboard → Webhooks → URL: /razorpayWebhook
       Events to enable: payment.captured
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════════════════════════════════════ */
 export const razorpayWebhook = functions.onRequest(
   {
     secrets: ["RAZORPAY_WEBHOOK_SECRET"],
     region: "asia-south1",
   },
   async (req: any, res: any) => {
-    // 1. Verify Razorpay signature
-    const signature  = req.headers["x-razorpay-signature"] as string;
+    const signature     = req.headers["x-razorpay-signature"] as string;
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET!;
-    const rawBody    = JSON.stringify(req.body);
+    const rawBody       = JSON.stringify(req.body);
 
     const expectedSig = crypto
       .createHmac("sha256", webhookSecret)
@@ -134,25 +214,23 @@ export const razorpayWebhook = functions.onRequest(
 
     const event = req.body;
 
-    // 2. Handle payment.captured only
     if (event.event !== "payment.captured") {
       res.status(200).send("Ignored");
       return;
     }
 
-    const payment  = event.payload.payment.entity;
-    const orderId  = payment.order_id as string;
+    const payment   = event.payload.payment.entity;
+    const orderId   = payment.order_id as string;
     const paymentId = payment.id as string;
 
     logger.info("Payment captured", { orderId, paymentId });
 
-    // 3. Idempotency â€” check if already processed
-    const purchaseRef = db.collection("coinPurchases").doc(orderId);
+    const purchaseRef  = db.collection("coinPurchases").doc(orderId);
     const purchaseSnap = await purchaseRef.get();
 
     if (!purchaseSnap.exists) {
       logger.error("Purchase doc not found", { orderId });
-      res.status(200).send("Order not found â€” ignored");
+      res.status(200).send("Order not found — ignored");
       return;
     }
 
@@ -169,7 +247,6 @@ export const razorpayWebhook = functions.onRequest(
     const packLabel    = purchase.packLabel as string;
     const amountPaid   = purchase.amountPaid as number;
 
-    // 4. Atomic: credit coins + ledger + mark purchase complete
     await db.runTransaction(async (tx) => {
       const userRef  = db.collection("users").doc(uid);
       const userSnap = await tx.get(userRef);
@@ -179,32 +256,29 @@ export const razorpayWebhook = functions.onRequest(
       const currentBalance = (userSnap.data()?.coinBalance as number) ?? 0;
       const newBalance     = currentBalance + coinsGranted;
 
-      // Update user balance
       tx.update(userRef, {
         coinBalance: newBalance,
         updatedAt:   FieldValue.serverTimestamp(),
       });
 
-      // Mark purchase complete
       tx.update(purchaseRef, {
         status:      "completed",
         paymentId,
         completedAt: FieldValue.serverTimestamp(),
       });
 
-      // Append immutable ledger entry
       const ledgerRef = db
         .collection("coinLedger")
         .doc(uid)
         .collection("entries")
-        .doc(); // auto-id
+        .doc();
 
       tx.set(ledgerRef, {
         uid,
         type:         "topup",
         amount:       coinsGranted,
         balanceAfter: newBalance,
-        description:  `${packLabel} Pack â€” â‚¹${amountPaid} â†’ ${coinsGranted} NC`,
+        description:  `${packLabel} Pack — ₹${amountPaid} → ${coinsGranted} NC`,
         refId:        orderId,
         paymentId,
         createdAt:    FieldValue.serverTimestamp(),
@@ -216,34 +290,27 @@ export const razorpayWebhook = functions.onRequest(
   }
 );
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   3. generateCloudinarySignature â€” Signed Uploads Validation
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════
+   3. generateCloudinarySignature  — Signed Uploads
+═══════════════════════════════════════════════════════════════════════ */
 export const generateCloudinarySignature = functions.onCall(
   {
     secrets: ["CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
     region: "asia-south1",
   },
-  async (request: any) => {
+  async (request: functions.CallableRequest) => {
     if (!request.auth) {
       throw new functions.HttpsError("unauthenticated", "Login required.");
     }
     const timestamp = Math.round(new Date().getTime() / 1000);
-    const folder = "ProNeighbor/residency-proofs";
-    const apiKey = process.env.CLOUDINARY_API_KEY!;
+    const folder    = "ProNeighbor/residency-proofs";
+    const apiKey    = process.env.CLOUDINARY_API_KEY!;
     const apiSecret = process.env.CLOUDINARY_API_SECRET!;
-    
-    // Cloudinary signature does NOT include api_key or file in the string
-    // Format: folder=MyFolder&timestamp=12345678MySecret
+
     const strToSign = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
     const signature = crypto.createHash("sha1").update(strToSign).digest("hex");
 
-    return { 
-      signature, 
-      timestamp, 
-      folder, 
-      apiKey 
-    };
+    return { signature, timestamp, folder, apiKey };
   }
 );
 
@@ -258,16 +325,17 @@ function parseCloudinaryProofUrl(url: string): ParsedCloudinaryProof | null {
   const clean = url.split("?")[0]?.split("#")[0]?.trim();
   if (!clean) return null;
 
-  const withVersion = clean.match(/^https?:\/\/res\.cloudinary\.com\/([^/]+)\/(image|raw|video)\/upload\/(?:[^/]+\/)*v\d+\/(.+)\.([a-zA-Z0-9]+)$/);
+  const withVersion    = clean.match(/^https?:\/\/res\.cloudinary\.com\/([^/]+)\/(image|raw|video)\/upload\/(?:[^/]+\/)*v\d+\/(.+)\.([a-zA-Z0-9]+)$/);
   const withoutVersion = clean.match(/^https?:\/\/res\.cloudinary\.com\/([^/]+)\/(image|raw|video)\/upload\/(?:[^/]+\/)*(.+)\.([a-zA-Z0-9]+)$/);
   const match = withVersion || withoutVersion;
   if (!match) return null;
 
-  const cloudName = match[1];
-  const resourceType = (match[2] as "image" | "raw" | "video");
-  const publicId = decodeURIComponent(match[3]);
-  const format = match[4].toLowerCase();
-  return { cloudName, resourceType, publicId, format };
+  return {
+    cloudName:    match[1],
+    resourceType: match[2] as "image" | "raw" | "video",
+    publicId:     decodeURIComponent(match[3]),
+    format:       match[4].toLowerCase(),
+  };
 }
 
 function signCloudinaryParams(params: Record<string, string>, apiSecret: string): string {
@@ -284,13 +352,12 @@ export const getResidencyProofDownloadUrl = functions.onCall(
     secrets: ["CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"],
     region: "asia-south1",
   },
-  async (request: any) => {
+  async (request: functions.CallableRequest) => {
     if (!request.auth) {
       throw new functions.HttpsError("unauthenticated", "Login required.");
     }
-
-    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
-    if (!callerDoc.exists || callerDoc.data()?.role !== "admin") {
+    // ✅ Custom Claim check — no Firestore read needed
+    if (!isAdmin(request)) {
       throw new functions.HttpsError("permission-denied", "Admin only.");
     }
 
@@ -304,7 +371,6 @@ export const getResidencyProofDownloadUrl = functions.onCall(
       throw new functions.HttpsError("invalid-argument", "Invalid Cloudinary proof URL.");
     }
 
-    // Only allow residency-proof assets and only PDF full-document downloads.
     if (!parsed.publicId.startsWith("ProNeighbor/residency-proofs/")) {
       throw new functions.HttpsError("permission-denied", "Asset not in residency-proofs folder.");
     }
@@ -312,31 +378,31 @@ export const getResidencyProofDownloadUrl = functions.onCall(
       throw new functions.HttpsError("invalid-argument", "Only PDF download signing is allowed.");
     }
 
-    const timestamp = Math.floor(Date.now() / 1000);
-    const expiresAt = timestamp + 300;
+    const timestamp  = Math.floor(Date.now() / 1000);
+    const expiresAt  = timestamp + 300;
     const paramsToSign: Record<string, string> = {
-      attachment: "true",
-      expires_at: String(expiresAt),
-      format: parsed.format,
-      public_id: parsed.publicId,
+      attachment:    "true",
+      expires_at:    String(expiresAt),
+      format:        parsed.format,
+      public_id:     parsed.publicId,
       resource_type: parsed.resourceType,
-      timestamp: String(timestamp),
-      type: "upload",
+      timestamp:     String(timestamp),
+      type:          "upload",
     };
 
-    const apiKey = process.env.CLOUDINARY_API_KEY!;
+    const apiKey    = process.env.CLOUDINARY_API_KEY!;
     const apiSecret = process.env.CLOUDINARY_API_SECRET!;
     const signature = signCloudinaryParams(paramsToSign, apiSecret);
 
     const query = new URLSearchParams({
-      api_key: apiKey,
-      attachment: "true",
-      expires_at: String(expiresAt),
-      format: parsed.format,
-      public_id: parsed.publicId,
+      api_key:     apiKey,
+      attachment:  "true",
+      expires_at:  String(expiresAt),
+      format:      parsed.format,
+      public_id:   parsed.publicId,
       signature,
-      timestamp: String(timestamp),
-      type: "upload",
+      timestamp:   String(timestamp),
+      type:        "upload",
     });
 
     const downloadUrl = `https://api.cloudinary.com/v1_1/${parsed.cloudName}/${parsed.resourceType}/download?${query.toString()}`;
@@ -344,16 +410,14 @@ export const getResidencyProofDownloadUrl = functions.onCall(
   }
 );
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   4. logActivityFunction â€” Rate-limited server-side logging
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════
+   4. logActivityFunction  — Rate-limited server-side logging
+═══════════════════════════════════════════════════════════════════════ */
 const activityRateLimitCache = new Map<string, number>();
 
 export const logActivityFunction = functions.onCall(
-  {
-    region: "asia-south1",
-  },
-  async (request: any) => {
+  { region: "asia-south1" },
+  async (request: functions.CallableRequest) => {
     if (!request.auth) {
       throw new functions.HttpsError("unauthenticated", "Login required.");
     }
@@ -362,28 +426,25 @@ export const logActivityFunction = functions.onCall(
       throw new functions.HttpsError("invalid-argument", "Missing required fields.");
     }
 
-    const uid = request.auth.uid;
-    const now = Date.now();
+    const uid     = request.auth.uid;
+    const now     = Date.now();
     const lastTime = activityRateLimitCache.get(uid);
 
-    // Enforce 2-second rate limit per instance to prevent spam
     if (lastTime && now - lastTime < 2000) {
       logger.warn("Activity log rate limited for user", { uid, event });
       throw new functions.HttpsError("resource-exhausted", "Too many requests. Please wait.");
     }
-    
-    // Prune the map occasionally to prevent memory leaks in long-running instances
+
     if (activityRateLimitCache.size > 1000) {
       activityRateLimitCache.clear();
     }
     activityRateLimitCache.set(uid, now);
 
-    // Bypass client-side security rules by writing via Admin SDK
     await db.collection("activityLogs").add({
-      userId: uid,
+      userId:    uid,
       event,
       details,
-      metadata: metadata || {},
+      metadata:  metadata || {},
       timestamp: FieldValue.serverTimestamp(),
     });
 
@@ -391,27 +452,24 @@ export const logActivityFunction = functions.onCall(
   }
 );
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   6. deleteUserAuth â€” Hard-delete Firebase Auth account
-      Called by admin after cascade Firestore deletion.
-      Admin SDK bypasses client auth restrictions.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════
+   5. deleteUserAuth  — Hard-delete Firebase Auth account (admin only)
+═══════════════════════════════════════════════════════════════════════ */
 export const deleteUserAuth = functions.onCall(
   { region: "asia-south1" },
-  async (request: any) => {
+  async (request: functions.CallableRequest) => {
     if (!request.auth) {
       throw new functions.HttpsError("unauthenticated", "Login required.");
     }
-    // Verify caller is admin
-    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
-    if (!callerDoc.exists || callerDoc.data()?.role !== "admin") {
+    // ✅ Custom Claim check — no Firestore read needed
+    if (!isAdmin(request)) {
       throw new functions.HttpsError("permission-denied", "Admin only.");
     }
+
     const { uid } = request.data as { uid: string };
     if (!uid || typeof uid !== "string") {
       throw new functions.HttpsError("invalid-argument", "uid required.");
     }
-    // Prevent self-deletion
     if (uid === request.auth.uid) {
       throw new functions.HttpsError("failed-precondition", "Cannot delete own account.");
     }
@@ -420,7 +478,6 @@ export const deleteUserAuth = functions.onCall(
       logger.info("Auth account deleted", { uid, by: request.auth.uid });
       return { success: true };
     } catch (err: any) {
-      // user-not-found = already deleted, treat as success
       if (err?.code === "auth/user-not-found") {
         return { success: true, alreadyDeleted: true };
       }
@@ -429,7 +486,10 @@ export const deleteUserAuth = functions.onCall(
     }
   }
 );
-/* ------------------------------------------------------------------------- */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   6. flagSpamReviews  — Firestore trigger
+═══════════════════════════════════════════════════════════════════════ */
 export const flagSpamReviews = onDocumentCreated(
   {
     document: "reviews/{reviewId}",
@@ -437,11 +497,9 @@ export const flagSpamReviews = onDocumentCreated(
   },
   async (event: any) => {
     const review = event.data?.data();
-    const proId = review?.proId;
+    const proId  = review?.proId;
 
-    if (typeof proId !== "string" || !proId) {
-      return;
-    }
+    if (typeof proId !== "string" || !proId) return;
 
     const recentReviews = await db
       .collection("reviews")
@@ -450,18 +508,12 @@ export const flagSpamReviews = onDocumentCreated(
       .limit(3)
       .get();
 
-    if (recentReviews.size < 3) {
-      return;
-    }
+    if (recentReviews.size < 3) return;
 
-    const allOneStar = recentReviews.docs.every(doc => {
-      const rating = Number(doc.data().rating ?? 0);
-      return rating <= 1;
-    });
-
-    if (!allOneStar) {
-      return;
-    }
+    const allOneStar = recentReviews.docs.every(
+      (doc) => Number(doc.data().rating ?? 0) <= 1
+    );
+    if (!allOneStar) return;
 
     const existingFlag = await db
       .collection("reports")
@@ -471,23 +523,26 @@ export const flagSpamReviews = onDocumentCreated(
       .limit(1)
       .get();
 
-    if (!existingFlag.empty) {
-      return;
-    }
+    if (!existingFlag.empty) return;
 
     await db.collection("reports").add({
       proId,
-      reason: "Automated Spam Flag",
-      comment: "3 consecutive 1-star reviews detected rapidly.",
+      reason:     "Automated Spam Flag",
+      comment:    "3 consecutive 1-star reviews detected rapidly.",
       reporterId: "system",
-      source: "review_spam_trigger",
-      status: "pending",
-      createdAt: FieldValue.serverTimestamp(),
+      source:     "review_spam_trigger",
+      status:     "pending",
+      createdAt:  FieldValue.serverTimestamp(),
     });
 
     logger.info("Automated spam review flag created", { proId });
   }
 );
 
-// ── Subscription Cloud Functions (Phase 2 — Blaze) ──────────────────────────
-export { subscribeWithNCCallable, activateTrialCallable, dailyRenewalSweep, adminSubscriptionAction } from './subscriptions';
+/* ── Subscription Cloud Functions (Phase 2 — Blaze) ── */
+export {
+  subscribeWithNCCallable,
+  activateTrialCallable,
+  dailyRenewalSweep,
+  adminSubscriptionAction,
+} from "./subscriptions";
