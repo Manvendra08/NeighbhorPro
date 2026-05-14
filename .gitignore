@@ -28,6 +28,7 @@ test-results/
 # Temporary / scratch dirs
 tmp/
 output/
+token-efficiency/
 
 # Binary / media assets — use Firebase Storage or Cloudinary instead
 functions/*.jpeg
@@ -46,8 +47,9 @@ public/*.png
 *.docx
 *.xlsx
 *.pptx
+Personas.txt
 
-# AI agent / IDE tool dirs
+# AI agent / IDE tool dirs and config files
 .agent/
 .agent_backup/
 _agent_backup/
@@ -56,6 +58,11 @@ _agent_backup/
 .blackbox/
 .planning/
 .playwright-mcp/
+blackbox_mcp_settings.json
+skills-lock.json
+mcp-browser-use
+chat-*.txt
+implementation_plan.md
 
 # Editor directories and files
 .vscode/*
