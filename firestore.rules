@@ -6,9 +6,8 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isOwner(userId) { return request.auth.uid == userId; }
 
-    // ✅ P1 FIX: Use JWT Custom Claim instead of Firestore get().
-    // Zero Firestore reads, no TOCTOU window.
-    // To grant admin: call setAdminClaim Cloud Function (Blaze) or Admin SDK bootstrap script.
+    // Uses JWT Custom Claim — zero Firestore reads, no TOCTOU window.
+    // Grant admin: node scripts/setAdminClaim.js <uid>  (Admin SDK, works on Spark)
     function isAdmin() {
       return isSignedIn() && request.auth.token.admin == true;
     }
@@ -84,11 +83,11 @@ service cloud.firestore {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       return changed.hasOnly(["status", "updatedAt", "confirmedAt", "confirmedBy", "completedAt", "completedBy", "reviewedAt", "reviewedBy", "cancelledAt", "cancelledBy", "declinedAt", "declinedBy", "escrowStatus", "coinsPaid", "paidInCoins", "platformFee", "proEarning"])
         && (
-          (resource.data.status == "pending" && request.resource.data.status == "confirmed" && request.auth.uid == resource.data.proId)
-          || (resource.data.status == "pending" && request.resource.data.status == "cancelled" && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
-          || (resource.data.status == "confirmed" && request.resource.data.status == "cancelled" && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
-          || (resource.data.status == "confirmed" && request.resource.data.status == "completed" && request.auth.uid == resource.data.proId)
-          || (resource.data.status == "completed" && request.resource.data.status == "reviewed" && request.auth.uid == resource.data.clientId)
+          (resource.data.status == "pending"   && request.resource.data.status == "confirmed"  && request.auth.uid == resource.data.proId)
+          || (resource.data.status == "pending"   && request.resource.data.status == "cancelled"  && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
+          || (resource.data.status == "confirmed" && request.resource.data.status == "cancelled"  && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
+          || (resource.data.status == "confirmed" && request.resource.data.status == "completed"  && request.auth.uid == resource.data.proId)
+          || (resource.data.status == "completed" && request.resource.data.status == "reviewed"   && request.auth.uid == resource.data.clientId)
         );
     }
 
@@ -98,11 +97,6 @@ service cloud.firestore {
           && (!('email' in data) || (data.email is string))
           && (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000))
           && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20));
-    }
-
-    function rateLimitPassed(collectionName) {
-      return !exists(/databases/$(database)/documents/activityRateLimits/$(request.auth.uid)) ||
-             request.time > get(/databases/$(database)/documents/activityRateLimits/$(request.auth.uid)).data.lastWrite + duration.value(2, 's');
     }
 
     function validLedgerEntry(uid) {
@@ -138,13 +132,6 @@ service cloud.firestore {
           && participants.size() == 2
           && participants.hasAll([clientId, proId])
           && participants.hasOnly([clientId, proId]);
-    }
-
-    function publicUserFields() {
-      return ['uid', 'displayName', 'photoURL', 'bio', 'skills', 'isServiceProvider',
-              'rating', 'reviewCount', 'society', 'locality', 'tower',
-              'residentVerificationStatus', 'hourlyRate', 'isFreeConsultation',
-              'priceAfterQuote', 'role', 'disabled', 'createdAt'];
     }
 
     // ── referralCodes ──────────────────────────────────────
@@ -218,17 +205,24 @@ service cloud.firestore {
     }
 
     // ── bookings ───────────────────────────────────────────
+    // P3 FIX: explicit parens on participant OR-check — CEL && binds tighter than ||
     match /bookings/{bookingId} {
-      allow read: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.clientId == request.auth.uid
+        || resource.data.proId == request.auth.uid
+        || isAdmin()
+      );
       allow create: if isSignedIn()
         && request.resource.data.clientId != request.resource.data.proId
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.escrowCoins >= 0;
       allow update: if isSignedIn() && (
-        isAdmin() || (
-          resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid
-        ) && bookingStatusTransitionAllowed()
+        isAdmin()
+        || (
+          (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid)
+          && bookingStatusTransitionAllowed()
+        )
       );
     }
 
@@ -372,9 +366,6 @@ service cloud.firestore {
     }
 
     // ── Referrals ──────────────────────────────────────────
-    // ✅ P2 FIX: Removed self-promotion loophole.
-    // Users could previously self-write status=rewarded from status=pending.
-    // Referral reward status is now admin-only; client only reads and creates.
     match /referrals/{uid} {
       allow get:    if isSignedIn();
       allow list:   if isSignedIn() && (isOwner(uid) || isAdmin());
@@ -398,7 +389,6 @@ service cloud.firestore {
           && conversationMatchesBooking(request.resource.data.bookingId, request.resource.data.participants)
         )
       );
-      // ✅ P2 FIX: Restrict update to safe metadata fields only.
       allow update: if isSignedIn()
         && request.auth.uid in resource.data.participants
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -418,8 +408,6 @@ service cloud.firestore {
     match /tickets/{ticketId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      // ✅ P2 FIX: Restrict user updates to safe fields only (subject, description, updatedAt).
-      // Admin can update any field (for status changes, assignment, resolution).
       allow update: if isSignedIn() && (
         isAdmin()
         || (
@@ -479,14 +467,12 @@ service cloud.firestore {
     }
 
     // ── localFeed ──────────────────────────────────────────
-    // ✅ P1 FIX: Removed per-read get(/users/...) call.
-    // Locality filtering is now client-side (query constraint) — enforced in the app.
-    // Server-side locality enforcement via Custom Claim requires setLocalityClaim CF (Blaze).
+    // Locality filtering is client-side (query constraint in app).
+    // Server-side enforcement via custom claim requires Blaze plan.
     match /localFeed/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
       allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
-      // ✅ P2 FIX: Add upper bound on likeCount to prevent integer overflow abuse.
       allow update: if isAdmin() || (
         isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
