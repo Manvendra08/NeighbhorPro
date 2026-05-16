@@ -1,3 +1,8 @@
+// CHANGELOG:
+// [Task 2] fix(getAllServicesUnpaginated): replaced unbounded while(true) loop with a
+//          hard-capped for loop (MAX_ITERATIONS=3, ~600 docs max). Added JSDoc admin-only
+//          warning. Throws if cap is hit to prevent silent quota exhaustion.
+
 import {
   collection,
   doc,
@@ -694,17 +699,44 @@ export async function getAllServices(
   const nextCursor = snap.docs.length === limit_ ? snap.docs[snap.docs.length - 1] : null;
   return { data, nextCursor };
 }
+
+/**
+ * @admin-only — Do NOT call from user-facing UI.
+ *
+ * Fetches all service documents in paginated batches.
+ * Hard-capped at 3 iterations (~600 documents maximum) to prevent
+ * Firestore read quota exhaustion and UI hangs at scale.
+ *
+ * If your dataset exceeds 600 services, use getAllServices() with
+ * cursor-based pagination in an admin export flow instead.
+ *
+ * @throws Error if the hard cap of 600 documents is reached.
+ */
 export async function getAllServicesUnpaginated(): Promise<Record<string, unknown>[]> {
+  // [Task 2] Hard cap: maximum 3 iterations = 600 docs.
+  // Previous implementation used while(true) with no limit — a read quota bomb at scale.
+  const MAX_ITERATIONS = 3;
+  const PAGE_SIZE = 200;
   const all: Record<string, unknown>[] = [];
   let cursor: QueryDocumentSnapshot | null = null;
-  while (true) {
-    const { data, nextCursor } = await getAllServices(200, cursor);
+
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    const { data, nextCursor } = await getAllServices(PAGE_SIZE, cursor);
     all.push(...data);
     if (!nextCursor) break;
     cursor = nextCursor;
+
+    if (i === MAX_ITERATIONS - 1 && nextCursor) {
+      throw new Error(
+        `getAllServicesUnpaginated() hard cap reached (${MAX_ITERATIONS * PAGE_SIZE} docs). ` +
+        "Use getAllServices() with cursor-based pagination for larger datasets."
+      );
+    }
   }
+
   return all;
 }
+
 export async function updateService(id: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, "services", id), { ...data, updatedAt: serverTimestamp() });
 }
