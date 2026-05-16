@@ -5,8 +5,13 @@ service cloud.firestore {
     // ── Helper Functions ────────────────────────────────
     function isSignedIn() { return request.auth != null; }
     function isOwner(userId) { return request.auth.uid == userId; }
+
+    // Uses JWT Custom Claim — zero Firestore reads, no TOCTOU window.
+    // Grant admin : node scripts/setAdminClaim.js <uid>  (Admin SDK, works on Spark)
+    // Revoke admin: node scripts/setAdminClaim.js <uid> --revoke
+    // Claim key is `admin` (bool), NOT `role` — consistent with setAdminClaim.js.
     function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
     function isFcmTokenOnlyUpdate() {
@@ -15,7 +20,6 @@ service cloud.firestore {
 
     function isResidencyProofUpdate() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      // Check final document state (not diff) so re-uploads where status is already 'pending' still pass
       let uploadProof = request.resource.data.residencyProofUrl is string
         && request.resource.data.residentVerificationStatus == 'pending'
         && request.resource.data.verificationSubmittedAt != null;
@@ -33,8 +37,11 @@ service cloud.firestore {
       return (uploadProof || deleteProof)
         && !changed.hasAny(['role', 'coinBalance', 'disabled', 'deleted', 'fcmToken', 'lastLedgerEntryId']);
     }
+
     function noSensitiveFieldChange() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role", "coinBalance", "fcmToken", "disabled", "deleted", "lastLedgerEntryId"]);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ["role", "coinBalance", "fcmToken", "disabled", "deleted", "lastLedgerEntryId"]
+      );
     }
 
     function bookingClientId(bookingId) {
@@ -78,17 +85,19 @@ service cloud.firestore {
 
     function bookingStatusTransitionAllowed() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return changed.hasOnly(["status", "updatedAt", "confirmedAt", "confirmedBy", "completedAt", "completedBy", "reviewedAt", "reviewedBy", "cancelledAt", "cancelledBy", "declinedAt", "declinedBy", "escrowStatus", "coinsPaid", "paidInCoins", "platformFee", "proEarning"])
+      return changed.hasOnly(["status", "updatedAt", "confirmedAt", "confirmedBy", "completedAt",
+        "completedBy", "reviewedAt", "reviewedBy", "cancelledAt", "cancelledBy",
+        "declinedAt", "declinedBy", "escrowStatus", "coinsPaid", "paidInCoins",
+        "platformFee", "proEarning"])
         && (
-          (resource.data.status == "pending" && request.resource.data.status == "confirmed" && request.auth.uid == resource.data.proId)
-          || (resource.data.status == "pending" && request.resource.data.status == "cancelled" && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
-          || (resource.data.status == "confirmed" && request.resource.data.status == "cancelled" && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
-          || (resource.data.status == "confirmed" && request.resource.data.status == "completed" && request.auth.uid == resource.data.proId)
-          || (resource.data.status == "completed" && request.resource.data.status == "reviewed" && request.auth.uid == resource.data.clientId)
+          (resource.data.status == "pending"   && request.resource.data.status == "confirmed"  && request.auth.uid == resource.data.proId)
+          || (resource.data.status == "pending"   && request.resource.data.status == "cancelled"  && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
+          || (resource.data.status == "confirmed" && request.resource.data.status == "cancelled"  && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
+          || (resource.data.status == "confirmed" && request.resource.data.status == "completed"  && request.auth.uid == resource.data.proId)
+          || (resource.data.status == "completed" && request.resource.data.status == "reviewed"   && request.auth.uid == resource.data.clientId)
         );
     }
-    
-    // Check missing fields and types for base user document
+
     function validUserDoc() {
       let data = request.resource.data;
       return (data.displayName is string && data.displayName.size() <= 100)
@@ -96,16 +105,9 @@ service cloud.firestore {
           && (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000))
           && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20));
     }
-    // Check if the user is writing too fast (spammer protection).
-    // Note: requires the document being updated/created to include an updatedAt / createdAt field matching request.time.
-    function rateLimitPassed(collectionName) {
-      return !exists(/databases/$(database)/documents/activityRateLimits/$(request.auth.uid)) ||
-             request.time > get(/databases/$(database)/documents/activityRateLimits/$(request.auth.uid)).data.lastWrite + duration.value(2, 's');
-    }
-    // Enforces: uid matches auth, amount is an integer, balanceAfter is non-negative.
+
     function validLedgerEntry(uid) {
       return request.resource.data.uid == uid
-        // Remove strict auth uid check here, so we can allow specific cross-user writes below
         && request.resource.data.type in [
           'topup', 'booking_debit', 'booking_refund', 'booking_escrow',
           'booking_escrow_release', 'payout', 'payout_cancelled',
@@ -139,16 +141,7 @@ service cloud.firestore {
           && participants.hasOnly([clientId, proId]);
     }
 
-    // Public-safe fields any signed-in user may read on another user's profile.
-    // Sensitive fields (phone, flat, coinBalance, fcmToken, etc.) are owner/admin only.
-    function publicUserFields() {
-      return ['uid', 'displayName', 'photoURL', 'bio', 'skills', 'isServiceProvider',
-              'rating', 'reviewCount', 'society', 'locality', 'tower',
-              'residentVerificationStatus', 'hourlyRate', 'isFreeConsultation',
-              'priceAfterQuote', 'role', 'disabled', 'createdAt'];
-    }
-
-    // Referral code index used for code -> uid resolution without querying /users.
+    // ── referralCodes ──────────────────────────────────────
     match /referralCodes/{code} {
       allow get: if isSignedIn();
       allow list: if false;
@@ -160,30 +153,41 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ── users ──────────────────────────────────────────────
+    // [Task 4] Hardened: role and disabled fields are exclusively admin-writable.
+    // noSensitiveFieldChange() already blocked role/coinBalance; adding explicit
+    // hasAny(['role','disabled']) guard as defence-in-depth per task spec.
     match /users/{userId} {
-      // Full document (incl. sensitive fields): owner or admin only.
-      // All other callers must read from /publicProfiles/{userId} instead.
       allow get:    if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list:   if isAdmin();
       allow create: if isSignedIn() && isOwner(userId) && validUserDoc() && request.resource.data.role == "user";
-      allow update: if isAdmin() || (isSignedIn() && isOwner(userId) && (
-        isFcmTokenOnlyUpdate() ||
-        isResidencyProofUpdate() ||
-        (noSensitiveFieldChange() && validUserDoc()) ||
-        ownerWalletMutationAllowed(userId) ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trialUsed', 'subscription', 'updatedAt'])
-          && request.resource.data.trialUsed == true
-          && request.resource.data.subscription.status == 'trial'
-          && request.resource.data.subscription.plan == 'business_trial_v1')
-      ));
+      allow update: if isAdmin()
+                    || (
+                      isSignedIn() && isOwner(userId)
+                      // Block role and disabled mutations for non-admin owners.
+                      && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'disabled'])
+                      && (
+                        isFcmTokenOnlyUpdate()
+                        || isResidencyProofUpdate()
+                        || (noSensitiveFieldChange() && validUserDoc())
+                        || ownerWalletMutationAllowed(userId)
+                        || (
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trialUsed', 'subscription', 'updatedAt'])
+                          && request.resource.data.trialUsed == true
+                          && request.resource.data.subscription.status == 'trial'
+                          && request.resource.data.subscription.plan == 'business_trial_v1'
+                        )
+                      )
+                    );
       allow delete: if isAdmin();
     }
 
+    // ── publicProfiles ─────────────────────────────────────
     // Public-safe profile mirror — only the fields safe to expose to any neighbor.
     // Written by the owner on profile save; readable by anyone (no auth required) for Browse/ProDetail.
     // Sensitive fields (phone, flat, coinBalance, fcmToken, referralCode, role, disabled) are never written here by owners.
     match /publicProfiles/{userId} {
-      allow list:   if true;  // Required for getCountFromServer aggregation queries
+      allow list:   if true;
       allow read:   if true;
       allow create: if isSignedIn() && (
         (isOwner(userId)
@@ -198,9 +202,10 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ── services ───────────────────────────────────────────
     match /services/{serviceId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() 
+      allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
@@ -220,22 +225,28 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
+    // ── bookings ───────────────────────────────────────────
     match /bookings/{bookingId} {
-      allow read: if isSignedIn() && (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.clientId == request.auth.uid
+        || resource.data.proId == request.auth.uid
+        || isAdmin()
+      );
       allow create: if isSignedIn()
         && request.resource.data.clientId != request.resource.data.proId
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.escrowCoins >= 0;
       allow update: if isSignedIn() && (
-        isAdmin() || (
-          resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid
-        ) && bookingStatusTransitionAllowed()
+        isAdmin()
+        || (
+          (resource.data.clientId == request.auth.uid || resource.data.proId == request.auth.uid)
+          && bookingStatusTransitionAllowed()
+        )
       );
     }
 
-    // FIX 2: Restored status == 'completed' guard to prevent review fabrication
-    // on undelivered bookings.
+    // ── reviews ────────────────────────────────────────────
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
@@ -257,7 +268,7 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Pro -> Client resident rating after completed booking.
+    // ── residentReviews ────────────────────────────────────
     match /residentReviews/{reviewId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
@@ -279,6 +290,7 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ── reports ────────────────────────────────────────────
     match /reports/{reportId} {
       allow read, update, delete: if isAdmin();
       allow create: if isSignedIn()
@@ -295,6 +307,7 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // ── subscriptions ──────────────────────────────────────
     match /subscriptions/{subId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && (
@@ -323,75 +336,62 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── NeighbourCoins ──────────────────────────────────
-    // FIX 1 (Path A — Spark plan): Client writes allowed with field-level validation.
-    // Upgrade to Cloud Functions (Blaze) to lock this down further.
-    // Entries are append-only: update and delete remain blocked.
+    // ── NeighbourCoins ─────────────────────────────────────
+    // [Task 4] coinLedger: users read own entries; admin reads all.
+    // Direct client writes are blocked entirely — all mutations must
+    // go through server-side transactions in the service layer.
     match /coinLedger/{uid}/entries/{entryId} {
-      allow get:           if isSignedIn() && (isOwner(uid) || isAdmin());
-      allow list:          if isSignedIn() && (isOwner(uid) || isAdmin());
-      // Allow the owner to write entries to their own ledger
-      allow create:        if isSignedIn() && (
-        (isOwner(uid) && validLedgerEntry(uid))
-        && request.resource.data.type in [
-          'booking_debit', 'booking_refund', 'booking_escrow',
-          'booking_escrow_release', 'payout', 'payout_cancelled',
-          'earn_signup_bonus', 'earn_profile', 'earn_referral',
-          'earn_review', 'earn_free_consult', 'subscription_debit'
-        ]
-        // Allow admins to post manual wallet adjustment entries for any user.
-        || (
-          isAdmin()
-          && request.resource.data.type in ['admin_credit', 'admin_debit']
-          && validLedgerEntry(uid)
-        )
-      );
-      allow update, delete: if false;
+      allow get:  if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow list: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow write: if false; // All writes via transactions only through service layer
     }
-    // collectionGroup read for admin wallet dashboard — writes always blocked client-side.
+    // Wildcard catch-all for admin export reads across all sub-collections
     match /{path=**}/entries/{entryId} {
       allow read:  if isAdmin();
       allow write: if false;
     }
+
     match /coinPurchases/{purchaseId} {
       allow list: if isAdmin();
       allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isAdmin();
       allow update, delete: if isAdmin();
     }
+
+    // ── coinPayouts ────────────────────────────────────────
+    // [Task 4] Only admin can set status to "processed" or "failed".
+    // User may only self-cancel a pending payout; all monetary fields are locked.
     match /coinPayouts/{payoutId} {
       allow list: if isAdmin();
       allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isAdmin()
-                    || (isSignedIn()
-                        && resource.data.uid == request.auth.uid
-                        && resource.data.status == "pending"
-                        && request.resource.data.uid == resource.data.uid
-                        && request.resource.data.status == "cancelled_by_user"
-                        && request.resource.data.coinsRedeemed == resource.data.coinsRedeemed
-                        && request.resource.data.amountRs == resource.data.amountRs
-                        && request.resource.data.upiId == resource.data.upiId
-                        && request.resource.data.displayName == resource.data.displayName);
+                    || (
+                      isSignedIn()
+                      && resource.data.uid == request.auth.uid
+                      && resource.data.status == "pending"
+                      && request.resource.data.uid == resource.data.uid
+                      && request.resource.data.status == "cancelled_by_user"
+                      && request.resource.data.coinsRedeemed == resource.data.coinsRedeemed
+                      && request.resource.data.amountRs == resource.data.amountRs
+                      && request.resource.data.upiId == resource.data.upiId
+                      && request.resource.data.displayName == resource.data.displayName
+                    );
       allow delete: if false;
     }
 
-    // ── Referrals ────────────────────────────────────────
+    // ── Referrals ──────────────────────────────────────────
     match /referrals/{uid} {
-      allow get:  if isSignedIn();
-      allow list: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow get:    if isSignedIn();
+      allow list:   if isSignedIn() && (isOwner(uid) || isAdmin());
       allow create: if isSignedIn() && isOwner(uid);
-      allow update: if isSignedIn() && (isAdmin() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
-        resource.data.status == 'pending' &&
-        request.resource.data.status == 'rewarded'
-      ));
+      allow update: if isAdmin();
     }
 
-    // ── Messages ─────────────────────────────────────────
+    // ── Messages ───────────────────────────────────────────
     match /messages/{convId} {
       allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
-      allow get: if isSignedIn() && resource != null && request.auth.uid in resource.data.participants;
+      allow get:  if isSignedIn() && resource != null && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn() && (
         (isAdmin() && request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
         || (
@@ -404,27 +404,50 @@ service cloud.firestore {
           && conversationMatchesBooking(request.resource.data.bookingId, request.resource.data.participants)
         )
       );
-      allow update: if isSignedIn() && request.auth.uid in resource.data.participants && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'participantNames', 'participantPhotos', 'bookingId', 'lastReadAt']);
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             'lastMessage', 'lastMessageAt', 'lastSenderId',
+             'participantNames', 'participantPhotos', 'bookingId', 'lastReadAt'
+           ])
+        && (!('lastReadAt' in request.resource.data) || request.resource.data.lastReadAt is map);
       match /chats/{msgId} {
         allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants;
-        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants && request.resource.data.senderId == request.auth.uid;
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/messages/$(convId)).data.participants
+          && request.resource.data.senderId == request.auth.uid;
       }
     }
 
-    // ── Support tickets (new collection) ─────────────────
+    // ── Support tickets ────────────────────────────────────
     match /tickets/{ticketId} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (
+        isAdmin()
+        || (
+          resource.data.uid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+               'subject', 'description', 'updatedAt'
+             ])
+        )
+      );
       match /messages/{msgId} {
-        allow read, create: if isSignedIn() && (get(/databases/$(database)/documents/tickets/$(ticketId)).data.uid == request.auth.uid || isAdmin());
+        allow read, create: if isSignedIn() && (
+          get(/databases/$(database)/documents/tickets/$(ticketId)).data.uid == request.auth.uid
+          || isAdmin()
+        );
         allow update, delete: if isAdmin();
       }
     }
 
-    // ── Disputes ─────────────────────────────────────────
+    // ── Disputes ───────────────────────────────────────────
     match /disputes/{disputeId} {
-      allow read: if isSignedIn() && (resource.data.raisedByUid == request.auth.uid || resource.data.againstUid == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.raisedByUid == request.auth.uid
+        || resource.data.againstUid == request.auth.uid
+        || isAdmin()
+      );
       allow create: if isSignedIn()
         && request.resource.data.raisedByUid == request.auth.uid
         && request.resource.data.status == 'raised'
@@ -433,13 +456,11 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
-    // ── FAQs ─────────────────────────────────────────────
     match /faqs/{faqId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // ── App Settings ──────────────────────────────────────
     match /appSettings/{settingId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
@@ -450,7 +471,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ── Legacy support tickets ────────────────────────────
+    // ── Legacy support tickets ─────────────────────────────
     match /supportTickets/{ticketId} {
       allow read, update: if isSignedIn() && (ticketId == "support_" + request.auth.uid || isAdmin());
       allow create: if isSignedIn() && ticketId == "support_" + request.auth.uid;
@@ -460,22 +481,19 @@ service cloud.firestore {
       }
     }
 
+    // ── localFeed ──────────────────────────────────────────
     match /localFeed/{postId} {
-      // Locality-based visibility: only users in the same locality can read posts.
-      // Posts without a locality field are visible to all signed-in users.
-      allow read: if isSignedIn() && (
-        !resource.data.keys().hasAny(['locality']) ||
-        resource.data.locality == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.locality
-      );
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
       allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
       allow update: if isAdmin() || (
-        isSignedIn() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'reactions', 'likes', 'likeCount', 'updatedAt'
-        ]) &&
-        request.resource.data.likeCount is int &&
-        request.resource.data.likeCount >= 0
+        isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             'reactions', 'likes', 'likeCount', 'updatedAt'
+           ])
+        && request.resource.data.likeCount is int
+        && request.resource.data.likeCount >= 0
+        && request.resource.data.likeCount <= 100000
       );
     }
 
@@ -484,24 +502,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // auditLogs (plural) — matches collection name used in code
     match /auditLogs/{logId} {
       allow read:   if isAdmin();
       allow create: if isAdmin();
       allow update, delete: if false;
     }
 
-    // ── Activity Logs ─────────────────────────────────────
-    // Users write their own events; only admins can read any log.
-    // Update and delete are permanently blocked (append-only).
+    // ── activityLogs ───────────────────────────────────────
     match /activityLogs/{logId} {
-      allow read:          if isAdmin();
-      allow create:        if isSignedIn()
-                             && request.resource.data.userId == request.auth.uid
-                             && request.resource.data.keys().hasAll(['userId', 'event', 'details', 'timestamp'])
-                             && request.resource.data.userId is string
-                             && request.resource.data.event is string
-                             && request.resource.data.details is string;
+      allow read: if isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'event', 'details', 'timestamp'])
+        && request.resource.data.userId is string
+        && request.resource.data.event is string
+        && request.resource.data.details is string;
       allow update, delete: if false;
     }
 
