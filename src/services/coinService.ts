@@ -2,8 +2,10 @@
 // [Task 1] fix(requestPayout): moved pending-payout existence check INSIDE runTransaction
 //          to eliminate TOCTOU race condition — two concurrent requests could both pass
 //          the pre-transaction check before either wrote. Pattern mirrors topUpCoins().
-// [Task 6] fix(rewardReferral): marked @deprecated; referral reward now fully handled
-//          by applyReferralCodeAtSignup(). Added guard comments to prevent misuse.
+// [Task 6 / fix/reward-referral-status-check] fix(rewardReferral): restored split referral flow.
+//          applyReferralCodeAtSignup credits referrer (200 NC) at signup, sets status
+//          "rewarded_signup". rewardReferral credits new user (200 NC) on first booking,
+//          transitions status to "rewarded_booking". Idempotency guard on both paths.
 
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
@@ -111,7 +113,9 @@ export const EARN_RULES: Record<LedgerType, { coins: number; label: string }> = 
   payout: { coins: 0, label: "Payout processed" },
   payout_cancelled: { coins: 0, label: "Payout cancelled" },
   admin_credit: { coins: 0, label: "Admin credit" },
-  admin_debit: { coins: 0, label: "Admin debit" },  subscription_debit: { coins: 0, label: "Subscription Debit" },};
+  admin_debit: { coins: 0, label: "Admin debit" },
+  subscription_debit: { coins: 0, label: "Subscription Debit" },
+};
 
 // ── NC Terms (read from appSettings, fallback defaults) ──────────────────
 export interface NCTerms {
@@ -210,7 +214,7 @@ async function getReferrerUidFromCode(code: string): Promise<string | null> {
 
 /**
  * Apply a referral code for the current user.
- * Client flow credits the referrer instantly and records the referral.
+ * Delegates to applyReferralCodeAtSignup.
  */
 export async function applyReferralCode(
   newUserUid: string,
@@ -219,6 +223,12 @@ export async function applyReferralCode(
   return applyReferralCodeAtSignup(newUserUid, code);
 }
 
+/**
+ * Step 1 of the split referral flow.
+ * Credits the REFERRER (200 NC) immediately at signup and records the referral
+ * with status "rewarded_signup". This status is the trigger condition for
+ * rewardReferral() to fire on the new user's first completed booking.
+ */
 export async function applyReferralCodeAtSignup(
   newUserUid: string,
   code: string,
@@ -272,16 +282,16 @@ export async function applyReferralCodeAtSignup(
         createdAt: serverTimestamp(),
       } as LedgerEntry);
 
-      // Task 6: status set to "rewarded" (not "rewarded_signup") so rewardReferral()'s
-      // status !== "pending" guard correctly skips if ever called.
+      // Status "rewarded_signup" signals rewardReferral() that this referral
+      // is eligible for the second leg (new user first-booking reward).
       tx.set(referralRef, {
         newUserUid,
         referrerUid,
         code: upper,
-        status: "rewarded",
+        status: "rewarded_signup",
         createdAt: serverTimestamp(),
         rewardedAt: serverTimestamp(),
-        rewardMode: "signup_referrer_only",
+        rewardMode: "split_referrer_signup_newuser_booking",
         rewardCoins: rule.coins,
         rewardToUid: referrerUid,
       });
@@ -307,26 +317,65 @@ export async function applyReferralCodeAtSignup(
 }
 
 /**
- * @deprecated
- * DO NOT CALL THIS FUNCTION in the current referral flow.
+ * Step 2 of the split referral flow.
+ * Credits the NEW USER (200 NC) on their first completed booking.
  *
- * The full referral reward (200 NC to referrer) is now handled atomically
- * by applyReferralCodeAtSignup() at the time of signup. Calling this function
- * after the first booking would double-credit the referrer.
+ * Call this after booking status transitions to "completed".
+ * Safe to call multiple times — idempotency guard on ledger entry prevents double-credit.
  *
- * This function is retained only for historical reference and will be removed
- * in a future cleanup pass.
- *
- * If you need to reward a referral on first booking in the future, redesign
- * the flow from scratch and do NOT reactivate this function without auditing
- * applyReferralCodeAtSignup() first.
+ * Status flow: "rewarded_signup" → "rewarded_booking"
+ * If status is anything other than "rewarded_signup", this is a no-op.
  */
 export async function rewardReferral(newUserUid: string, bookingId: string): Promise<void> {
-  // Task 6: This function is DEPRECATED. The referral reward is handled at signup.
-  // This early return ensures it is a no-op if accidentally called.
-  void newUserUid;
-  void bookingId;
-  return;
+  await runTransaction(db, async tx => {
+    // 1. Verify booking is completed
+    const bookingRef = doc(db, "bookings", bookingId);
+    const bookingSnap = await tx.get(bookingRef);
+    if (!bookingSnap.exists() || bookingSnap.data()?.status !== "completed") {
+      throw new Error("Cannot reward referral: booking must be completed");
+    }
+
+    // 2. Verify referral exists and is eligible for first-booking reward.
+    //    Must be "rewarded_signup" — set by applyReferralCodeAtSignup.
+    //    Any other status ("rewarded_booking", "rewarded", absent) = no-op.
+    const refRef = doc(db, "referrals", newUserUid);
+    const refSnap = await tx.get(refRef);
+    if (!refSnap.exists()) return;
+    const refStatus = refSnap.data().status as string;
+    if (refStatus !== "rewarded_signup") return;
+
+    const { referrerUid } = refSnap.data() as { referrerUid: string };
+    const rule = EARN_RULES.earn_referral;
+
+    // 3. Idempotency guard — bail silently if already credited on a prior retry
+    const newUserLedgerId = `${bookingId}_referral_booking_new_${newUserUid}`;
+    const newUserLedgerRef = doc(db, "coinLedger", newUserUid, "entries", newUserLedgerId);
+    const existingEntry = await tx.get(newUserLedgerRef);
+    if (existingEntry.exists()) return;
+
+    // 4. Credit new user only — referrer already received 200 NC at signup
+    const nRef = doc(db, "users", newUserUid);
+    const nSnap = await tx.get(nRef);
+    const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
+    tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp(), lastLedgerEntryId: newUserLedgerId });
+    tx.set(newUserLedgerRef, {
+      uid: newUserUid,
+      type: "earn_referral",
+      amount: rule.coins,
+      balanceAfter: nBal,
+      description: `First booking referral reward (invited by ${referrerUid.slice(0, 5)}...)`,
+      refId: referrerUid,
+      createdAt: serverTimestamp(),
+    } as LedgerEntry);
+
+    // 5. Mark referral fully rewarded
+    tx.update(refRef, {
+      status: "rewarded_booking",
+      bookingRewardedAt: serverTimestamp(),
+      bookingRewardBookingId: bookingId,
+      updatedAt: serverTimestamp(),
+    });
+  });
 }
 
 // ── Core coin fns ─────────────────────────────────────────────────────────
@@ -396,16 +445,10 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
   if (coins === 0) return { success: true };
   try {
     await runTransaction(db, async tx => {
-      // Deterministic ledger entry ID for idempotency on concurrent requests
       const ledgerEntryId = `${bookingId}_hold_${clientUid}`;
       const ledgerEntryRef = doc(collection(db, "coinLedger", clientUid, "entries"), ledgerEntryId);
-      
-      // Check if this escrow hold already exists (race condition guard)
       const existingEntry = await tx.get(ledgerEntryRef);
-      if (existingEntry.exists()) {
-        // Already held, skip
-        return;
-      }
+      if (existingEntry.exists()) return;
 
       const clientRef = doc(db, "users", clientUid);
       const clientSnap = await tx.get(clientRef);
@@ -426,28 +469,19 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
 export async function releaseEscrow(proUid: string, bookingId: string, serviceName: string, platformFeePct = 0.10): Promise<{ success: boolean; reason?: string }> {
   try {
     await runTransaction(db, async tx => {
-      // Deterministic ledger entry ID for idempotency on concurrent release requests
       const ledgerEntryId = `${bookingId}_release_${proUid}`;
       const ledgerEntryRef = doc(collection(db, "coinLedger", proUid, "entries"), ledgerEntryId);
-      
-      // Check if this escrow release already exists (race condition guard)
       const existingEntry = await tx.get(ledgerEntryRef);
-      if (existingEntry.exists()) {
-        // Already released, skip
-        return;
-      }
+      if (existingEntry.exists()) return;
 
       const bookingRef = doc(db, "bookings", bookingId);
       const bookingSnap = await tx.get(bookingRef);
       if (!bookingSnap.exists()) throw new Error("BOOKING_NOT_FOUND");
       const data = bookingSnap.data()!;
-      
-      // Additional idempotency guard via booking status
       if (data.escrowStatus === "released" || data.status === "reviewed") return;
-      
+
       const escrowCoins = (data.escrowCoins as number) ?? 0;
       if (escrowCoins === 0) {
-        // No escrow but still ensure marked completed atomically
         tx.update(bookingRef, {
           status: "completed",
           completedAt: serverTimestamp(),
@@ -462,19 +496,17 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       const effectiveRate = Number.isFinite(storedCommissionRate) && storedCommissionRate >= 0
         ? storedCommissionRate / 100
         : platformFeePct;
-
       const platformFee = Number.isFinite(storedPlatformFee) && storedPlatformFee >= 0
         ? Math.min(escrowCoins, Math.round(storedPlatformFee))
         : Math.round(escrowCoins * effectiveRate);
-
       const proEarning = Number.isFinite(storedProEarning) && storedProEarning >= 0
         ? Math.min(escrowCoins, Math.round(storedProEarning))
         : Math.max(0, escrowCoins - platformFee);
+
       const proRef = doc(db, "users", proUid);
       const proSnap = await tx.get(proRef);
       const newProBal = ((proSnap.data()?.coinBalance as number) ?? 0) + proEarning;
-      const newProCashable = ((proSnap.data()?.cashableBalance as number) ?? 0) + proEarning; // escrow release = cashable
-      // All writes in one atomic batch — status update included
+      const newProCashable = ((proSnap.data()?.cashableBalance as number) ?? 0) + proEarning;
       tx.update(proRef, { coinBalance: newProBal, cashableBalance: newProCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.update(bookingRef, {
         status: "completed",
@@ -502,16 +534,10 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
 
 export async function refundEscrow(clientUid: string, bookingId: string, serviceName: string): Promise<void> {
   await runTransaction(db, async tx => {
-    // Deterministic ledger entry ID for idempotency on concurrent refund requests
     const ledgerEntryId = `${bookingId}_refund_${clientUid}`;
     const ledgerEntryRef = doc(collection(db, "coinLedger", clientUid, "entries"), ledgerEntryId);
-    
-    // Check if this escrow refund already exists (race condition guard)
     const existingEntry = await tx.get(ledgerEntryRef);
-    if (existingEntry.exists()) {
-      // Already refunded, skip
-      return;
-    }
+    if (existingEntry.exists()) return;
 
     const bookingRef = doc(db, "bookings", bookingId);
     const bookingSnap = await tx.get(bookingRef);
@@ -520,10 +546,7 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
 
     const escrowCoins = (data.escrowCoins as number) ?? 0;
     const escrowStatus = data.escrowStatus as string;
-
-    // If already released, it cannot be refunded.
     if (escrowStatus === "released") return;
-    // If already refunded, skip.
     if (escrowStatus === "refunded") return;
 
     if (escrowCoins === 0) {
@@ -540,8 +563,7 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
     const userRef = doc(db, "users", clientUid);
     const snap = await tx.get(userRef);
     const newBal = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
-    const newCashable = ((snap.data()?.cashableBalance as number) ?? 0) + escrowCoins; // refund = cashable
-
+    const newCashable = ((snap.data()?.cashableBalance as number) ?? 0) + escrowCoins;
     tx.update(userRef, { coinBalance: newBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
     tx.update(bookingRef, {
       status: "cancelled",
@@ -560,7 +582,7 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
 
 /**
  * Atomically cancels a booking and refunds escrow if present.
- * This prevents the race where a booking is marked 'cancelled' but the refund fails.
+ * Prevents the race where booking is marked 'cancelled' but refund fails.
  */
 export async function cancelBookingAndRefund(uid: string, bookingId: string, _role: "client" | "pro"): Promise<{ success: boolean; reason?: string }> {
   try {
@@ -569,7 +591,7 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
       const bookingSnap = await tx.get(bookingRef);
       const data = bookingSnap.data();
       if (!data) throw new Error("BOOKING_NOT_FOUND");
-      
+
       const status = data.status as string;
       if (status === "cancelled" || status === "completed" || status === "reviewed") {
         throw new Error("ALREADY_FINALIZED");
@@ -580,7 +602,6 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
       const clientUid = data.clientId as string;
       const serviceName = (data.serviceName as string) || "Booking";
 
-      // 1. Mark booking as cancelled
       tx.update(bookingRef, {
         status: "cancelled",
         updatedAt: serverTimestamp(),
@@ -590,13 +611,11 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
         declinedAt: _role === "pro" ? serverTimestamp() : null,
       });
 
-      // 2. Handle escrow refund if held
       if (escrowCoins > 0 && escrowStatus === "held") {
         const clientRef = doc(db, "users", clientUid);
         const clientSnap = await tx.get(clientRef);
         const newBal = ((clientSnap.data()?.coinBalance as number) ?? 0) + escrowCoins;
-        const newCashable = ((clientSnap.data()?.cashableBalance as number) ?? 0) + escrowCoins; // refund = cashable
-
+        const newCashable = ((clientSnap.data()?.cashableBalance as number) ?? 0) + escrowCoins;
         const ledgerEntryId = `${bookingId}_refund_${clientUid}`;
         tx.update(clientRef, { coinBalance: newBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
         tx.update(bookingRef, { escrowStatus: "refunded", coinsPaid: false });
@@ -620,15 +639,12 @@ export async function earnCoins(uid: string, type: LedgerType, refId?: string): 
   const rule = EARN_RULES[type];
   if (!rule || rule.coins === 0) return;
 
-  // Deterministic dedup document ID — checked atomically INSIDE the transaction
-  // to eliminate the TOCTOU race that a pre-transaction getDocs check would cause.
   const dedupDocId = refId ? `${uid}_${type}_${refId}` : `${uid}_${type}`;
   const dedupRef = doc(collection(db, "coinLedger", uid, "entries"), dedupDocId);
 
   await runTransaction(db, async tx => {
-    // Dedup check inside the transaction — atomic and race-free
     const existing = await tx.get(dedupRef);
-    if (existing.exists()) return; // Already credited
+    if (existing.exists()) return;
 
     const userRef = doc(db, "users", uid);
     const snap = await tx.get(userRef);
@@ -650,15 +666,11 @@ export const MIN_PAYOUT_COINS = 200;
 export async function requestPayout(uid: string, displayName: string, coins: number, upiId: string): Promise<{ success: boolean; reason?: string }> {
   if (coins < MIN_PAYOUT_COINS) return { success: false, reason: `Minimum payout is ${MIN_PAYOUT_COINS} NC` };
 
-  // Task 1 FIX: Pending-payout check is now INSIDE the transaction (was outside before).
-  // Previously: getPendingPayoutForUser() ran before runTransaction(), creating a TOCTOU race
-  // where two concurrent requests could both pass the check before either wrote.
-  // Now: the check is atomic with the write — same pattern as topUpCoins() idempotency guard.
-
+  // [Task 1] Pending-payout check is inside the transaction (TOCTOU-safe).
+  // Two concurrent requests can't both pass — the write is atomic with the check.
   const maskedUpi = maskUpiId(upiId);
   try {
     await runTransaction(db, async tx => {
-      // [Task 1] Atomic pending-payout check — inside transaction to prevent TOCTOU race
       const pendingPayoutsSnap = await getDocs(
         query(
           collection(db, "coinPayouts"),
@@ -711,7 +723,6 @@ export async function getPendingPayoutForUser(uid: string): Promise<CoinPayout |
   }).catch(() => null);
 
   if (!primary) return null;
-
   if (primary.empty) return null;
   const payout = { id: primary.docs[0].id, ...primary.docs[0].data() } as CoinPayout;
   return { ...payout, upiMasked: payout.upiMasked || maskUpiId(payout.upiId || "") };
@@ -785,6 +796,7 @@ export async function getAllPayouts(
   const nextCursor = snap.docs.length === pageLimit ? (snap.docs[snap.docs.length - 1] as DocumentSnapshot<CoinPayout>) : null;
   return { data, nextCursor };
 }
+
 export async function getPendingPayouts(): Promise<CoinPayout[]> {
   const snap = await getDocs(query(collection(db, "coinPayouts"), where("status", "==", "pending"), orderBy("createdAt", "asc")));
   return snap.docs.map(d => {
@@ -792,9 +804,11 @@ export async function getPendingPayouts(): Promise<CoinPayout[]> {
     return { ...payout, upiMasked: payout.upiMasked || maskUpiId(payout.upiId || "") };
   });
 }
+
 export async function updatePayoutStatus(payoutId: string, status: "processed" | "failed", adminUid: string): Promise<void> {
   await updateDoc(doc(db, "coinPayouts", payoutId), { status, processedBy: adminUid, processedAt: serverTimestamp() });
 }
+
 export async function adminAdjustCoins(uid: string, amount: number, reason: string, adminUid: string, idempotencyKey: string): Promise<{ success: boolean; reason?: string }> {
   if (amount === 0) return { success: false, reason: "Amount cannot be zero" };
   if (!idempotencyKey) return { success: false, reason: "Idempotency key required" };
@@ -818,12 +832,13 @@ export async function adminAdjustCoins(uid: string, amount: number, reason: stri
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
-    if (msg === "ALREADY_PROCESSED") return { success: true }; // Business success (idempotent)
+    if (msg === "ALREADY_PROCESSED") return { success: true };
     if (msg === "USER_NOT_FOUND") return { success: false, reason: "User not found" };
     if (msg === "WOULD_GO_NEGATIVE") return { success: false, reason: "Balance would go negative" };
     return { success: false, reason: "Transaction failed" };
   }
 }
+
 export async function getCoinEconomySummary() {
   const earnTypes = [
     "earn_signup_bonus", "earn_profile", "earn_review", "earn_referral",
@@ -886,22 +901,10 @@ export async function getCoinEconomySummary() {
       query(collection(db, "coinPayouts"), where("status", "==", "pending"))
     );
 
-    const totalPurchasedNC = completedPurchasesSnap.docs.reduce((sumNC, d) => {
-      return sumNC + (Number(d.data()?.coinsGranted) || 0);
-    }, 0);
-
-    const totalPurchaseRevenue = completedPurchasesSnap.docs.reduce((sumRs, d) => {
-      return sumRs + (Number(d.data()?.amountPaid) || 0);
-    }, 0);
-
-    const totalPayoutNC = processedPayoutsSnap.docs.reduce((sumNC, d) => {
-      return sumNC + (Number(d.data()?.coinsRedeemed) || 0);
-    }, 0);
-
-    const pendingPayoutNC = pendingPayoutsSnap.docs.reduce((sumNC, d) => {
-      return sumNC + (Number(d.data()?.coinsRedeemed) || 0);
-    }, 0);
-
+    const totalPurchasedNC = completedPurchasesSnap.docs.reduce((sumNC, d) => sumNC + (Number(d.data()?.coinsGranted) || 0), 0);
+    const totalPurchaseRevenue = completedPurchasesSnap.docs.reduce((sumRs, d) => sumRs + (Number(d.data()?.amountPaid) || 0), 0);
+    const totalPayoutNC = processedPayoutsSnap.docs.reduce((sumNC, d) => sumNC + (Number(d.data()?.coinsRedeemed) || 0), 0);
+    const pendingPayoutNC = pendingPayoutsSnap.docs.reduce((sumNC, d) => sumNC + (Number(d.data()?.coinsRedeemed) || 0), 0);
     const pendingPayoutCount = pendingPayoutsSnap.size;
 
     let totalEarnedNC = 0;
@@ -909,23 +912,12 @@ export async function getCoinEconomySummary() {
       const earnedEntriesSnap = await getDocs(
         query(collectionGroup(db, "entries"), where("type", "in", earnTypes))
       );
-      totalEarnedNC = earnedEntriesSnap.docs.reduce((sumNC, d) => {
-        return sumNC + (Number(d.data()?.amount) || 0);
-      }, 0);
+      totalEarnedNC = earnedEntriesSnap.docs.reduce((sumNC, d) => sumNC + (Number(d.data()?.amount) || 0), 0);
     } catch (earnError) {
-      // If the collectionGroup query path is unavailable due index state, keep dashboard operational.
       console.warn("Failed to compute totalEarnedNC fallback; defaulting to 0", earnError);
-      totalEarnedNC = 0;
     }
 
-    return {
-      totalPurchasedNC,
-      totalPurchaseRevenue,
-      totalPayoutNC,
-      totalEarnedNC,
-      pendingPayoutNC,
-      pendingPayoutCount,
-    };
+    return { totalPurchasedNC, totalPurchaseRevenue, totalPayoutNC, totalEarnedNC, pendingPayoutNC, pendingPayoutCount };
   }
 }
 
