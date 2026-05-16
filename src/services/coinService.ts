@@ -298,52 +298,63 @@ export async function applyReferralCodeAtSignup(
 }
 
 /**
- * Reward referral — called when new user completes their first booking.
- * Now requires bookingId parameter and verifies booking.status === "completed" within transaction.
+ * Reward new user on their first completed booking.
+ *
+ * FIX: Previously checked `status !== "pending"` which never matched because
+ * `applyReferralCodeAtSignup` sets status = "rewarded_signup". This caused
+ * the first-booking reward to silently bail on every call — no new user ever
+ * received their first-booking referral bonus.
+ *
+ * FIX: Referrer is already credited at signup (200 NC). This function now
+ * only credits the new user to avoid double-rewarding the referrer.
+ *
+ * Requires bookingId and verifies booking.status === "completed" within transaction.
  */
 export async function rewardReferral(newUserUid: string, bookingId: string): Promise<void> {
   await runTransaction(db, async tx => {
-    // 1. Verify booking is completed (booking completion check)
+    // 1. Verify booking is completed
     const bookingRef = doc(db, "bookings", bookingId);
     const bookingSnap = await tx.get(bookingRef);
     if (!bookingSnap.exists() || bookingSnap.data()?.status !== "completed") {
       throw new Error("Cannot reward referral: booking must be completed");
     }
 
-    // 2. Verify referral is pending
+    // 2. Verify referral exists and is eligible for first-booking reward.
+    //    Status must be "rewarded_signup" — set by applyReferralCodeAtSignup.
+    //    "rewarded_booking" means already processed; bail silently (idempotent).
     const refRef = doc(db, "referrals", newUserUid);
     const refSnap = await tx.get(refRef);
-    if (!refSnap.exists() || refSnap.data().status !== "pending") return;
+    if (!refSnap.exists()) return;
+    const refStatus = refSnap.data().status as string;
+    if (refStatus !== "rewarded_signup") return; // already rewarded or not applicable
 
     const { referrerUid } = refSnap.data() as { referrerUid: string };
     const rule = EARN_RULES.earn_referral;
 
-    // 3. Reward Referrer
-    const rRef = doc(db, "users", referrerUid);
-    const rSnap = await tx.get(rRef);
-    const rBal = ((rSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    const referrerLedgerId = `${bookingId}_referral_referrer_${referrerUid}`;
-    tx.update(rRef, { coinBalance: rBal, updatedAt: serverTimestamp(), lastLedgerEntryId: referrerLedgerId });
-    tx.set(doc(db, "coinLedger", referrerUid, "entries", referrerLedgerId), {
-      uid: referrerUid, type: "earn_referral", amount: rule.coins, balanceAfter: rBal,
-      description: `Referral reward (for inviting ${newUserUid.slice(0, 5)}...)`,
-      refId: newUserUid, createdAt: serverTimestamp()
-    } as LedgerEntry);
+    // 3. Idempotency guard on new user ledger entry
+    const newUserLedgerId = `${bookingId}_referral_booking_new_${newUserUid}`;
+    const newUserLedgerRef = doc(db, "coinLedger", newUserUid, "entries", newUserLedgerId);
+    const existingEntry = await tx.get(newUserLedgerRef);
+    if (existingEntry.exists()) return; // already credited on a previous retry
 
-    // 4. Reward New User
+    // 4. Credit new user only (referrer already received 200 NC at signup)
     const nRef = doc(db, "users", newUserUid);
     const nSnap = await tx.get(nRef);
     const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    const newUserLedgerId = `${bookingId}_referral_new_${newUserUid}`;
     tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp(), lastLedgerEntryId: newUserLedgerId });
-    tx.set(doc(db, "coinLedger", newUserUid, "entries", newUserLedgerId), {
+    tx.set(newUserLedgerRef, {
       uid: newUserUid, type: "earn_referral", amount: rule.coins, balanceAfter: nBal,
-      description: `Referral reward (invited by ${referrerUid.slice(0, 5)}...)`,
+      description: `First booking referral reward (invited by ${referrerUid.slice(0, 5)}...)`,
       refId: referrerUid, createdAt: serverTimestamp()
     } as LedgerEntry);
 
-    // 5. Mark referral as rewarded
-    tx.update(refRef, { status: "rewarded", updatedAt: serverTimestamp() });
+    // 5. Mark referral as fully rewarded
+    tx.update(refRef, {
+      status: "rewarded_booking",
+      bookingRewardedAt: serverTimestamp(),
+      bookingRewardBookingId: bookingId,
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
