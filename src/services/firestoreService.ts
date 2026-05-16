@@ -1029,20 +1029,22 @@ export async function addReview(bookingId: string, proId: string, rating: number
       throw new Error("Review can only be submitted after booking completion.");
     }
 
-    // Fetch existing reviews to compute updated aggregate inside the transaction.
-    // Note: getDocs inside a transaction reads are consistent with the transaction snapshot.
-    const reviewsSnap = await getDocs(
-      query(collection(db, "reviews"), where("proId", "==", proId))
-    );
-    const existingRatings = reviewsSnap.docs
-      .map(d => Number(d.data().rating))
-      .filter(r => Number.isFinite(r) && r >= 1 && r <= 5);
-    // Include the new rating in the aggregate
-    const allRatings = [...existingRatings, normalizedRating];
-    const newAvg = allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
+    // Read the aggregate document through the transaction so Firestore can
+    // detect contention and retry with a consistent snapshot.
+    const proSnap = await tx.get(proRef);
+    const proData = proSnap.data() || {};
+    const currentReviewCount = Number.isFinite(Number(proData.reviewCount))
+      ? Number(proData.reviewCount)
+      : 0;
+    const currentRating = Number.isFinite(Number(proData.rating))
+      ? Number(proData.rating)
+      : 0;
+    const newReviewCount = currentReviewCount + 1;
+    const newAvg =
+      ((currentRating * currentReviewCount) + normalizedRating) / newReviewCount;
     const newAggregate = {
       rating: Math.round(newAvg * 10) / 10,
-      reviewCount: allRatings.length,
+      reviewCount: newReviewCount,
     };
 
     // Write review
