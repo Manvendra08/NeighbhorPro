@@ -7,7 +7,9 @@ service cloud.firestore {
     function isOwner(userId) { return request.auth.uid == userId; }
 
     // Uses JWT Custom Claim — zero Firestore reads, no TOCTOU window.
-    // Grant admin: node scripts/setAdminClaim.js <uid>  (Admin SDK, works on Spark)
+    // Grant admin : node scripts/setAdminClaim.js <uid>  (Admin SDK, works on Spark)
+    // Revoke admin: node scripts/setAdminClaim.js <uid> --revoke
+    // Claim key is `admin` (bool), NOT `role` — consistent with setAdminClaim.js.
     function isAdmin() {
       return isSignedIn() && request.auth.token.admin == true;
     }
@@ -37,7 +39,9 @@ service cloud.firestore {
     }
 
     function noSensitiveFieldChange() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role", "coinBalance", "fcmToken", "disabled", "deleted", "lastLedgerEntryId"]);
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ["role", "coinBalance", "fcmToken", "disabled", "deleted", "lastLedgerEntryId"]
+      );
     }
 
     function bookingClientId(bookingId) {
@@ -81,7 +85,10 @@ service cloud.firestore {
 
     function bookingStatusTransitionAllowed() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return changed.hasOnly(["status", "updatedAt", "confirmedAt", "confirmedBy", "completedAt", "completedBy", "reviewedAt", "reviewedBy", "cancelledAt", "cancelledBy", "declinedAt", "declinedBy", "escrowStatus", "coinsPaid", "paidInCoins", "platformFee", "proEarning"])
+      return changed.hasOnly(["status", "updatedAt", "confirmedAt", "confirmedBy", "completedAt",
+        "completedBy", "reviewedAt", "reviewedBy", "cancelledAt", "cancelledBy",
+        "declinedAt", "declinedBy", "escrowStatus", "coinsPaid", "paidInCoins",
+        "platformFee", "proEarning"])
         && (
           (resource.data.status == "pending"   && request.resource.data.status == "confirmed"  && request.auth.uid == resource.data.proId)
           || (resource.data.status == "pending"   && request.resource.data.status == "cancelled"  && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.proId))
@@ -147,20 +154,31 @@ service cloud.firestore {
     }
 
     // ── users ──────────────────────────────────────────────
+    // [Task 4] Hardened: role and disabled fields are exclusively admin-writable.
+    // noSensitiveFieldChange() already blocked role/coinBalance; adding explicit
+    // hasAny(['role','disabled']) guard as defence-in-depth per task spec.
     match /users/{userId} {
       allow get:    if isSignedIn() && (isOwner(userId) || isAdmin());
       allow list:   if isAdmin();
       allow create: if isSignedIn() && isOwner(userId) && validUserDoc() && request.resource.data.role == "user";
-      allow update: if isAdmin() || (isSignedIn() && isOwner(userId) && (
-        isFcmTokenOnlyUpdate() ||
-        isResidencyProofUpdate() ||
-        (noSensitiveFieldChange() && validUserDoc()) ||
-        ownerWalletMutationAllowed(userId) ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trialUsed', 'subscription', 'updatedAt'])
-          && request.resource.data.trialUsed == true
-          && request.resource.data.subscription.status == 'trial'
-          && request.resource.data.subscription.plan == 'business_trial_v1')
-      ));
+      allow update: if isAdmin()
+                    || (
+                      isSignedIn() && isOwner(userId)
+                      // Block role and disabled mutations for non-admin owners.
+                      && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'disabled'])
+                      && (
+                        isFcmTokenOnlyUpdate()
+                        || isResidencyProofUpdate()
+                        || (noSensitiveFieldChange() && validUserDoc())
+                        || ownerWalletMutationAllowed(userId)
+                        || (
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trialUsed', 'subscription', 'updatedAt'])
+                          && request.resource.data.trialUsed == true
+                          && request.resource.data.subscription.status == 'trial'
+                          && request.resource.data.subscription.plan == 'business_trial_v1'
+                        )
+                      )
+                    );
       allow delete: if isAdmin();
     }
 
@@ -205,7 +223,6 @@ service cloud.firestore {
     }
 
     // ── bookings ───────────────────────────────────────────
-    // P3 FIX: explicit parens on participant OR-check — CEL && binds tighter than ||
     match /bookings/{bookingId} {
       allow read: if isSignedIn() && (
         resource.data.clientId == request.auth.uid
@@ -317,25 +334,15 @@ service cloud.firestore {
     }
 
     // ── NeighbourCoins ─────────────────────────────────────
+    // [Task 4] coinLedger: users read own entries; admin reads all.
+    // Direct client writes are blocked entirely — all mutations must
+    // go through server-side transactions in the service layer.
     match /coinLedger/{uid}/entries/{entryId} {
-      allow get:    if isSignedIn() && (isOwner(uid) || isAdmin());
-      allow list:   if isSignedIn() && (isOwner(uid) || isAdmin());
-      allow create: if isSignedIn() && (
-        (isOwner(uid) && validLedgerEntry(uid)
-          && request.resource.data.type in [
-            'booking_debit', 'booking_refund', 'booking_escrow',
-            'booking_escrow_release', 'payout', 'payout_cancelled',
-            'earn_signup_bonus', 'earn_profile', 'earn_referral',
-            'earn_review', 'earn_free_consult', 'subscription_debit'
-          ]
-        )
-        || (isAdmin()
-            && request.resource.data.type in ['admin_credit', 'admin_debit']
-            && validLedgerEntry(uid)
-        )
-      );
-      allow update, delete: if false;
+      allow get:  if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow list: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow write: if false; // All writes via transactions only through service layer
     }
+    // Wildcard catch-all for admin export reads across all sub-collections
     match /{path=**}/entries/{entryId} {
       allow read:  if isAdmin();
       allow write: if false;
@@ -348,20 +355,25 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ── coinPayouts ────────────────────────────────────────
+    // [Task 4] Only admin can set status to "processed" or "failed".
+    // User may only self-cancel a pending payout; all monetary fields are locked.
     match /coinPayouts/{payoutId} {
       allow list: if isAdmin();
       allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isAdmin()
-                    || (isSignedIn()
-                        && resource.data.uid == request.auth.uid
-                        && resource.data.status == "pending"
-                        && request.resource.data.uid == resource.data.uid
-                        && request.resource.data.status == "cancelled_by_user"
-                        && request.resource.data.coinsRedeemed == resource.data.coinsRedeemed
-                        && request.resource.data.amountRs == resource.data.amountRs
-                        && request.resource.data.upiId == resource.data.upiId
-                        && request.resource.data.displayName == resource.data.displayName);
+                    || (
+                      isSignedIn()
+                      && resource.data.uid == request.auth.uid
+                      && resource.data.status == "pending"
+                      && request.resource.data.uid == resource.data.uid
+                      && request.resource.data.status == "cancelled_by_user"
+                      && request.resource.data.coinsRedeemed == resource.data.coinsRedeemed
+                      && request.resource.data.amountRs == resource.data.amountRs
+                      && request.resource.data.upiId == resource.data.upiId
+                      && request.resource.data.displayName == resource.data.displayName
+                    );
       allow delete: if false;
     }
 
@@ -467,8 +479,6 @@ service cloud.firestore {
     }
 
     // ── localFeed ──────────────────────────────────────────
-    // Locality filtering is client-side (query constraint in app).
-    // Server-side enforcement via custom claim requires Blaze plan.
     match /localFeed/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
