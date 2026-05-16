@@ -193,7 +193,12 @@ export async function getLastCompletedBookingForUser(uid: string) {
 }
 
 export async function updateBookingFields(bookingId: string, data: Record<string, unknown>) {
-  if ("status" in data) throw new Error("Use updateBookingStatus for booking status updates.");
+  const allowedKeys = new Set(["cancellationComment", "cancellationCommentBy", "cancellationCommentRole"]);
+  for (const key of Object.keys(data)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error("Unsupported booking field update.");
+    }
+  }
   await updateDoc(doc(db, "bookings", bookingId), { ...data, updatedAt: serverTimestamp() });
 }
 
