@@ -55,7 +55,9 @@ export async function addReview(
       createdAt: serverTimestamp(),
     });
   });
-  await recalculateProRating(proId);
+  // Rating recalculation is now handled server-side by the onReviewWrite
+  // Cloud Function trigger (functions/src/index.ts). Removed client-side
+  // recalculateProRating(proId) call — eliminates N reads per browse page.
 }
 
 export async function addResidentReview(
@@ -110,6 +112,15 @@ export async function getReviewDistribution(proId: string): Promise<Record<numbe
   return distribution;
 }
 
+/**
+ * Recalculates and persists the pro's rating aggregate.
+ *
+ * @deprecated
+ * In production, rating recalculation is handled server-side by the
+ * `onReviewWrite` Cloud Function trigger (functions/src/index.ts).
+ * This function is retained as a fallback for local emulator testing
+ * or one-off admin backfills only. Do NOT call it from user-facing flows.
+ */
 export async function recalculateProRating(
   proId: string
 ): Promise<{ rating: number; reviewCount: number }> {
