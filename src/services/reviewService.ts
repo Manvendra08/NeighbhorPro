@@ -49,17 +49,20 @@ export async function addReview(
       throw new Error("Review can only be submitted after booking completion.");
     }
 
-    const reviewsSnap = await getDocs(
-      query(collection(db, "reviews"), where("proId", "==", proId))
-    );
-    const existingRatings = reviewsSnap.docs
-      .map(d => Number(d.data().rating))
-      .filter(r => Number.isFinite(r) && r >= 1 && r <= 5);
-    const allRatings = [...existingRatings, normalizedRating];
-    const averageRating = allRatings.reduce((sum, value) => sum + value, 0) / allRatings.length;
+    const proSnap = await tx.get(proRef);
+    const proData = proSnap.data() || {};
+    const currentReviewCount = Number.isFinite(Number(proData.reviewCount))
+      ? Number(proData.reviewCount)
+      : 0;
+    const currentRating = Number.isFinite(Number(proData.rating))
+      ? Number(proData.rating)
+      : 0;
+    const nextReviewCount = currentReviewCount + 1;
+    const nextAverageRating =
+      ((currentRating * currentReviewCount) + normalizedRating) / nextReviewCount;
     const aggregateUpdate = {
-      rating: Math.round(averageRating * 10) / 10,
-      reviewCount: allRatings.length,
+      rating: Math.round(nextAverageRating * 10) / 10,
+      reviewCount: nextReviewCount,
     };
 
     tx.set(reviewRef, {
