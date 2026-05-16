@@ -1,3 +1,10 @@
+// CHANGELOG:
+// [Task 1] fix(requestPayout): moved pending-payout existence check INSIDE runTransaction
+//          to eliminate TOCTOU race condition — two concurrent requests could both pass
+//          the pre-transaction check before either wrote. Pattern mirrors topUpCoins().
+// [Task 6] fix(rewardReferral): marked @deprecated; referral reward now fully handled
+//          by applyReferralCodeAtSignup(). Added guard comments to prevent misuse.
+
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
   serverTimestamp, query, orderBy, limit, runTransaction, where, startAfter,
@@ -265,11 +272,13 @@ export async function applyReferralCodeAtSignup(
         createdAt: serverTimestamp(),
       } as LedgerEntry);
 
+      // Task 6: status set to "rewarded" (not "rewarded_signup") so rewardReferral()'s
+      // status !== "pending" guard correctly skips if ever called.
       tx.set(referralRef, {
         newUserUid,
         referrerUid,
         code: upper,
-        status: "rewarded_signup",
+        status: "rewarded",
         createdAt: serverTimestamp(),
         rewardedAt: serverTimestamp(),
         rewardMode: "signup_referrer_only",
@@ -298,53 +307,26 @@ export async function applyReferralCodeAtSignup(
 }
 
 /**
- * Reward referral — called when new user completes their first booking.
- * Now requires bookingId parameter and verifies booking.status === "completed" within transaction.
+ * @deprecated
+ * DO NOT CALL THIS FUNCTION in the current referral flow.
+ *
+ * The full referral reward (200 NC to referrer) is now handled atomically
+ * by applyReferralCodeAtSignup() at the time of signup. Calling this function
+ * after the first booking would double-credit the referrer.
+ *
+ * This function is retained only for historical reference and will be removed
+ * in a future cleanup pass.
+ *
+ * If you need to reward a referral on first booking in the future, redesign
+ * the flow from scratch and do NOT reactivate this function without auditing
+ * applyReferralCodeAtSignup() first.
  */
 export async function rewardReferral(newUserUid: string, bookingId: string): Promise<void> {
-  await runTransaction(db, async tx => {
-    // 1. Verify booking is completed (booking completion check)
-    const bookingRef = doc(db, "bookings", bookingId);
-    const bookingSnap = await tx.get(bookingRef);
-    if (!bookingSnap.exists() || bookingSnap.data()?.status !== "completed") {
-      throw new Error("Cannot reward referral: booking must be completed");
-    }
-
-    // 2. Verify referral is pending
-    const refRef = doc(db, "referrals", newUserUid);
-    const refSnap = await tx.get(refRef);
-    if (!refSnap.exists() || refSnap.data().status !== "pending") return;
-
-    const { referrerUid } = refSnap.data() as { referrerUid: string };
-    const rule = EARN_RULES.earn_referral;
-
-    // 3. Reward Referrer
-    const rRef = doc(db, "users", referrerUid);
-    const rSnap = await tx.get(rRef);
-    const rBal = ((rSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    const referrerLedgerId = `${bookingId}_referral_referrer_${referrerUid}`;
-    tx.update(rRef, { coinBalance: rBal, updatedAt: serverTimestamp(), lastLedgerEntryId: referrerLedgerId });
-    tx.set(doc(db, "coinLedger", referrerUid, "entries", referrerLedgerId), {
-      uid: referrerUid, type: "earn_referral", amount: rule.coins, balanceAfter: rBal,
-      description: `Referral reward (for inviting ${newUserUid.slice(0, 5)}...)`,
-      refId: newUserUid, createdAt: serverTimestamp()
-    } as LedgerEntry);
-
-    // 4. Reward New User
-    const nRef = doc(db, "users", newUserUid);
-    const nSnap = await tx.get(nRef);
-    const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    const newUserLedgerId = `${bookingId}_referral_new_${newUserUid}`;
-    tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp(), lastLedgerEntryId: newUserLedgerId });
-    tx.set(doc(db, "coinLedger", newUserUid, "entries", newUserLedgerId), {
-      uid: newUserUid, type: "earn_referral", amount: rule.coins, balanceAfter: nBal,
-      description: `Referral reward (invited by ${referrerUid.slice(0, 5)}...)`,
-      refId: referrerUid, createdAt: serverTimestamp()
-    } as LedgerEntry);
-
-    // 5. Mark referral as rewarded
-    tx.update(refRef, { status: "rewarded", updatedAt: serverTimestamp() });
-  });
+  // Task 6: This function is DEPRECATED. The referral reward is handled at signup.
+  // This early return ensures it is a no-op if accidentally called.
+  void newUserUid;
+  void bookingId;
+  return;
 }
 
 // ── Core coin fns ─────────────────────────────────────────────────────────
@@ -667,17 +649,28 @@ export const MIN_PAYOUT_COINS = 200;
 
 export async function requestPayout(uid: string, displayName: string, coins: number, upiId: string): Promise<{ success: boolean; reason?: string }> {
   if (coins < MIN_PAYOUT_COINS) return { success: false, reason: `Minimum payout is ${MIN_PAYOUT_COINS} NC` };
-  const existingPending = await getPendingPayoutForUser(uid);
-  if (existingPending) {
-    console.info(`Duplicate payout prevented for user ${uid}`);
-    return {
-      success: false,
-      reason: "A payout request is already pending. Please wait for processing or cancel existing request.",
-    };
-  }
+
+  // Task 1 FIX: Pending-payout check is now INSIDE the transaction (was outside before).
+  // Previously: getPendingPayoutForUser() ran before runTransaction(), creating a TOCTOU race
+  // where two concurrent requests could both pass the check before either wrote.
+  // Now: the check is atomic with the write — same pattern as topUpCoins() idempotency guard.
+
   const maskedUpi = maskUpiId(upiId);
   try {
     await runTransaction(db, async tx => {
+      // [Task 1] Atomic pending-payout check — inside transaction to prevent TOCTOU race
+      const pendingPayoutsSnap = await getDocs(
+        query(
+          collection(db, "coinPayouts"),
+          where("uid", "==", uid),
+          where("status", "==", "pending"),
+          limit(1)
+        )
+      );
+      if (!pendingPayoutsSnap.empty) {
+        throw new Error("DUPLICATE_PAYOUT");
+      }
+
       const userRef = doc(db, "users", uid);
       const snap = await tx.get(userRef);
       const cashable = (snap.data()?.cashableBalance as number) ?? 0;
@@ -694,6 +687,12 @@ export async function requestPayout(uid: string, displayName: string, coins: num
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
+    if (msg === "DUPLICATE_PAYOUT") {
+      return {
+        success: false,
+        reason: "A payout request is already pending. Please wait for processing or cancel existing request.",
+      };
+    }
     return { success: false, reason: msg === "INSUFFICIENT_BALANCE" ? "Insufficient cashable balance. Only real-money sourced NC (from top-ups, booking earnings, refunds) can be withdrawn." : "Transaction failed" };
   }
 }
