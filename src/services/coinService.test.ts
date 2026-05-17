@@ -264,7 +264,7 @@ describe("coinService", () => {
       referrerUid: "referrer-1",
       code: "PNABC123",
       status: "rewarded_signup",
-      rewardMode: "signup_referrer_only",
+      rewardMode: "split_referrer_signup_newuser_booking",
       rewardCoins: referralReward,
       rewardToUid: "referrer-1",
     });
