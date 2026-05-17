@@ -183,17 +183,20 @@ service cloud.firestore {
     }
 
     // ── publicProfiles ─────────────────────────────────────
+    // Public-safe profile mirror — only the fields safe to expose to any neighbor.
+    // Written by the owner on profile save; readable by anyone (no auth required) for Browse/ProDetail.
+    // Sensitive fields (phone, flat, coinBalance, fcmToken, referralCode, role, disabled) are never written here by owners.
     match /publicProfiles/{userId} {
       allow list:   if true;
       allow read:   if true;
       allow create: if isSignedIn() && (
         (isOwner(userId)
-          && !request.resource.data.keys().hasAny(['coinBalance', 'fcmToken', 'referralCode']))
+          && !request.resource.data.keys().hasAny(['coinBalance', 'fcmToken', 'referralCode', 'role', 'disabled']))
         || isAdmin()
       );
       allow update: if isSignedIn() && (
         (isOwner(userId)
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coinBalance', 'fcmToken', 'referralCode']))
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['coinBalance', 'fcmToken', 'referralCode', 'role', 'disabled']))
         || isAdmin()
       );
       allow delete: if isAdmin();

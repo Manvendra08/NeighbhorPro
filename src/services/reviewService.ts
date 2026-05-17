@@ -31,6 +31,8 @@ export async function addReview(
   const reviewId = `${bookingId}_${clientId}`;
   const reviewRef = doc(db, "reviews", reviewId);
   const bookingRef = doc(db, "bookings", bookingId);
+  const proRef = doc(db, "users", proId);
+  const proPublicRef = doc(db, "publicProfiles", proId);
 
   await runTransaction(db, async tx => {
     const existing = await tx.get(reviewRef);
@@ -46,6 +48,23 @@ export async function addReview(
     if (!['completed', 'reviewed'].includes(bookingStatus)) {
       throw new Error("Review can only be submitted after booking completion.");
     }
+
+    const proSnap = await tx.get(proRef);
+    const proData = proSnap.data() || {};
+    const currentReviewCount = Number.isFinite(Number(proData.reviewCount))
+      ? Number(proData.reviewCount)
+      : 0;
+    const currentRating = Number.isFinite(Number(proData.rating))
+      ? Number(proData.rating)
+      : 0;
+    const nextReviewCount = currentReviewCount + 1;
+    const nextAverageRating =
+      ((currentRating * currentReviewCount) + normalizedRating) / nextReviewCount;
+    const aggregateUpdate = {
+      rating: Math.round(nextAverageRating * 10) / 10,
+      reviewCount: nextReviewCount,
+    };
+
     tx.set(reviewRef, {
       bookingId, proId, clientId,
       clientName: auth.currentUser?.displayName || "User",
@@ -54,10 +73,9 @@ export async function addReview(
       comment: normalizedComment,
       createdAt: serverTimestamp(),
     });
+    tx.update(proRef, { ...aggregateUpdate, updatedAt: serverTimestamp() });
+    tx.set(proPublicRef, { ...aggregateUpdate, updatedAt: serverTimestamp() }, { merge: true });
   });
-  // Rating recalculation is now handled server-side by the onReviewWrite
-  // Cloud Function trigger (functions/src/index.ts). Removed client-side
-  // recalculateProRating(proId) call — eliminates N reads per browse page.
 }
 
 export async function addResidentReview(

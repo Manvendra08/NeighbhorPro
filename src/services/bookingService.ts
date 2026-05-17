@@ -83,22 +83,47 @@ export async function createBooking(data: Record<string, unknown>) {
 }
 
 export async function updateBookingStatus(bookingId: string, status: string) {
-  if (!/^(confirmed|reviewed)$/.test(status)) throw new Error("INVALID_BOOKING_STATUS");
+  const validStatuses = ["confirmed", "cancelled", "completed", "reviewed"];
+  if (!validStatuses.includes(status)) throw new Error("INVALID_BOOKING_STATUS");
   await runTransaction(db, async tx => {
     const ref = doc(db, "bookings", bookingId);
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("BOOKING_NOT_FOUND");
     const currentStatus = String(snap.data()?.status ?? "");
+    const currentUserId = auth.currentUser?.uid ?? null;
+    const bookingData = snap.data() as Record<string, unknown>;
+    const clientId = String(bookingData.clientId || bookingData.clientUid || "");
+    const proId = String(bookingData.proId || bookingData.proUid || "");
     const update: Record<string, unknown> = { status, updatedAt: serverTimestamp() };
-    if (status === "confirmed") {
-      if (currentStatus !== "pending") throw new Error("INVALID_BOOKING_TRANSITION");
-      update.confirmedAt = serverTimestamp();
-      update.confirmedBy = auth.currentUser?.uid ?? null;
-    }
-    if (status === "reviewed") {
-      if (currentStatus !== "completed") throw new Error("INVALID_BOOKING_TRANSITION");
-      update.reviewedAt = serverTimestamp();
-      update.reviewedBy = auth.currentUser?.uid ?? null;
+    switch (status) {
+      case "confirmed":
+        if (currentStatus !== "pending") throw new Error("INVALID_BOOKING_TRANSITION");
+        if (currentUserId !== proId) throw new Error("ONLY_PRO_CAN_CONFIRM");
+        update.confirmedAt = serverTimestamp();
+        update.confirmedBy = currentUserId;
+        break;
+      case "cancelled":
+        if (currentStatus !== "pending" && currentStatus !== "confirmed") {
+          throw new Error("INVALID_BOOKING_TRANSITION");
+        }
+        if (currentUserId !== clientId && currentUserId !== proId) {
+          throw new Error("ONLY_PARTICIPANT_CAN_CANCEL");
+        }
+        update.cancelledAt = serverTimestamp();
+        update.cancelledBy = currentUserId;
+        break;
+      case "completed":
+        if (currentStatus !== "confirmed") throw new Error("INVALID_BOOKING_TRANSITION");
+        if (currentUserId !== proId) throw new Error("ONLY_PRO_CAN_COMPLETE");
+        update.completedAt = serverTimestamp();
+        update.completedBy = currentUserId;
+        break;
+      case "reviewed":
+        if (currentStatus !== "completed") throw new Error("INVALID_BOOKING_TRANSITION");
+        if (currentUserId !== clientId) throw new Error("ONLY_CLIENT_CAN_MARK_REVIEWED");
+        update.reviewedAt = serverTimestamp();
+        update.reviewedBy = currentUserId;
+        break;
     }
     tx.update(ref, update);
   });
@@ -168,6 +193,12 @@ export async function getLastCompletedBookingForUser(uid: string) {
 }
 
 export async function updateBookingFields(bookingId: string, data: Record<string, unknown>) {
+  const allowedKeys = new Set(["cancellationComment", "cancellationCommentBy", "cancellationCommentRole"]);
+  for (const key of Object.keys(data)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error("Unsupported booking field update.");
+    }
+  }
   await updateDoc(doc(db, "bookings", bookingId), { ...data, updatedAt: serverTimestamp() });
 }
 

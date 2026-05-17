@@ -61,23 +61,34 @@ export async function reportFeedPost(
 ): Promise<{ success: boolean; alreadyReported?: boolean }> {
   const dedupId = `${postId}_${reporterId}`;
   const dedupRef = doc(db, "feedReports", dedupId);
-  const existing = await getDoc(dedupRef);
-  if (existing.exists()) return { success: false, alreadyReported: true };
-  await setDoc(dedupRef, {
-    postId, reporterId, reason,
-    details: details ?? "",
-    status: "pending",
-    createdAt: serverTimestamp(),
-  });
   const postRef = doc(db, "localFeed", postId);
-  const postSnap = await getDoc(postRef);
-  if (postSnap.exists()) {
-    const currentCount = ((postSnap.data()?.reportCount as number) ?? 0) + 1;
-    await updateDoc(postRef, {
-      reportCount: currentCount,
-      ...(currentCount >= 3 ? { hidden: true } : {}),
+  let alreadyReported = false;
+
+  await runTransaction(db, async tx => {
+    const [existingSnap, postSnap] = await Promise.all([tx.get(dedupRef), tx.get(postRef)]);
+    if (existingSnap.exists()) {
+      alreadyReported = true;
+      return;
+    }
+    tx.set(dedupRef, {
+      postId,
+      reporterId,
+      reason,
+      details: details ?? "",
+      status: "pending",
+      createdAt: serverTimestamp(),
     });
-  }
+    if (postSnap.exists()) {
+      const currentCount = ((postSnap.data()?.reportCount as number) ?? 0) + 1;
+      tx.update(postRef, {
+        reportCount: currentCount,
+        ...(currentCount >= 3 ? { hidden: true } : {}),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  });
+
+  if (alreadyReported) return { success: false, alreadyReported: true };
   return { success: true };
 }
 
