@@ -113,6 +113,10 @@ service cloud.firestore {
           && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20));
     }
 
+    // [Fix #6] Raised amount cap from ±5000 to ±10000.
+    // Society pack yields 2500 + 500 bonus = 3000 coins in a single topup entry.
+    // Any future pack above 5000 coins would have been silently rejected at ±5000.
+    // ±10000 covers all current packs with headroom for expansion.
     function validLedgerEntry(uid) {
       return request.resource.data.uid == uid
         && request.resource.data.type in [
@@ -125,8 +129,8 @@ service cloud.firestore {
         && request.resource.data.type is string
         && request.resource.data.description is string
         && request.resource.data.amount is int
-        && request.resource.data.amount >= -5000
-        && request.resource.data.amount <= 5000
+        && request.resource.data.amount >= -10000
+        && request.resource.data.amount <= 10000
         && request.resource.data.balanceAfter is int
         && request.resource.data.balanceAfter >= 0;
     }
@@ -513,6 +517,10 @@ service cloud.firestore {
     }
 
     // ── localFeed ──────────────────────────────────────────
+    // [Fix #7] likeCount is now constrained to increment by exactly 1 per update.
+    // The previous rule allowed any signed-in user to set likeCount to any int
+    // 0–100000, making it trivially gameable. The new constraint ensures each
+    // client update can only bump likeCount by 1 (decrement/admin path unchanged).
     match /localFeed/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
@@ -525,6 +533,7 @@ service cloud.firestore {
         && request.resource.data.likeCount is int
         && request.resource.data.likeCount >= 0
         && request.resource.data.likeCount <= 100000
+        && request.resource.data.likeCount == resource.data.likeCount + 1
       );
     }
 
