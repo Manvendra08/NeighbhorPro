@@ -13,6 +13,9 @@
 //          "refunded" or "released" to prevent re-completing a cancelled booking.
 // [Fix #5] fix(rewardReferral): added nSnap.exists() guard before tx.update() to
 //          prevent silent transaction failure on partially-created user docs.
+// [Fix #9] fix(coinService): removed payForBooking alias — it was cast from holdEscrow
+//          via `as unknown as` with a mismatched signature (extra proUid param that
+//          holdEscrow does not accept, silently dropped at runtime). No callers existed.
 
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
@@ -650,7 +653,10 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
   }
 }
 
-export const payForBooking = holdEscrow as unknown as (clientUid: string, proUid: string, bookingId: string, coins: number, serviceName: string) => Promise<{ success: boolean; reason?: string }>;
+// [Fix #9] payForBooking alias removed — it was an `as unknown as` cast from holdEscrow
+// with a mismatched signature (included proUid which holdEscrow does not accept).
+// The extra arg was silently dropped at runtime. No callers existed in the codebase.
+// Use holdEscrow() directly.
 export const refundBooking = (clientUid: string, bookingId: string, _coins: number, serviceName: string) => refundEscrow(clientUid, bookingId, serviceName);
 
 export async function earnCoins(uid: string, type: LedgerType, refId?: string): Promise<void> {
