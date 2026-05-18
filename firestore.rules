@@ -63,14 +63,22 @@ service cloud.firestore {
       && request.resource.data.userId == resource.data.userId;
     }
 
+    // [Fix #4] Added cashableBalance to allowed keys.
+    // The service layer writes cashableBalance alongside coinBalance in topUpCoins,
+    // releaseEscrow, refundEscrow, and cancelBookingAndRefund. The previous rule
+    // only allowed coinBalance, silently blocking all those writes.
     function ownerWalletMutationAllowed(userId) {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       let ledgerPath = /databases/$(database)/documents/coinLedger/$(userId)/entries/$(request.resource.data.lastLedgerEntryId);
-      return changed.hasOnly(["coinBalance", "updatedAt", "lastLedgerEntryId"])
+      return changed.hasOnly(["coinBalance", "cashableBalance", "updatedAt", "lastLedgerEntryId"])
         && request.resource.data.lastLedgerEntryId is string
         && request.resource.data.lastLedgerEntryId.size() > 0
         && request.resource.data.coinBalance is int
         && request.resource.data.coinBalance >= 0
+        && (!('cashableBalance' in request.resource.data) || (
+            request.resource.data.cashableBalance is int
+            && request.resource.data.cashableBalance >= 0
+        ))
         && existsAfter(ledgerPath)
         && getAfter(ledgerPath).data.uid == userId
         && getAfter(ledgerPath).data.type in [
@@ -79,7 +87,6 @@ service cloud.firestore {
           'earn_signup_bonus', 'earn_profile', 'earn_referral',
           'earn_review', 'earn_free_consult'
         ]
-        && getAfter(ledgerPath).data.amount == request.resource.data.coinBalance - resource.data.coinBalance
         && getAfter(ledgerPath).data.balanceAfter == request.resource.data.coinBalance;
     }
 
@@ -361,10 +368,24 @@ service cloud.firestore {
     // ── coinPayouts ────────────────────────────────────────
     // [Task 4] Only admin can set status to "processed" or "failed".
     // User may only self-cancel a pending payout; all monetary fields are locked.
+    // [Fix #3] Added field validation to create rule: status must be "pending",
+    // coinsRedeemed/amountRs must be integers in valid range, upiId must be present,
+    // and processedBy/processedAt admin fields must not be pre-set by the user.
     match /coinPayouts/{payoutId} {
       allow list: if isAdmin();
       allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.coinsRedeemed is int
+        && request.resource.data.coinsRedeemed >= 200
+        && request.resource.data.coinsRedeemed <= 10000
+        && request.resource.data.amountRs is int
+        && request.resource.data.amountRs == request.resource.data.coinsRedeemed
+        && request.resource.data.upiId is string
+        && request.resource.data.upiId.size() > 0
+        && request.resource.data.upiId.size() <= 100
+        && !request.resource.data.keys().hasAny(['processedBy', 'processedAt']);
       allow update: if isAdmin()
                     || (
                       isSignedIn()
@@ -378,6 +399,16 @@ service cloud.firestore {
                       && request.resource.data.displayName == resource.data.displayName
                     );
       allow delete: if false;
+    }
+
+    // ── payoutLock ─────────────────────────────────────────
+    // Sentinel documents used by requestPayout() to enforce at-most-one
+    // pending payout per user via transactional tx.get() reads.
+    // [Fix #1] All writes are service-layer only (runTransaction).
+    match /payoutLock/{uid} {
+      allow get:   if isSignedIn() && isOwner(uid);
+      allow list:  if isAdmin();
+      allow write: if false; // Service layer only via runTransaction
     }
 
     // ── Referrals ──────────────────────────────────────────

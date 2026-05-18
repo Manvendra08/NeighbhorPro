@@ -6,6 +6,13 @@
 //          applyReferralCodeAtSignup credits referrer (200 NC) at signup, sets status
 //          "rewarded_signup". rewardReferral credits new user (200 NC) on first booking,
 //          transitions status to "rewarded_booking". Idempotency guard on both paths.
+// [Fix #1] fix(requestPayout): replaced non-transactional getDocs with tx.get() on
+//          payoutLock/{uid} sentinel doc. Previous getDocs() inside runTransaction was
+//          NOT part of the transaction read set — TOCTOU was not actually fixed.
+// [Fix #2] fix(releaseEscrow): guard zero-escrow early return against escrowStatus
+//          "refunded" or "released" to prevent re-completing a cancelled booking.
+// [Fix #5] fix(rewardReferral): added nSnap.exists() guard before tx.update() to
+//          prevent silent transaction failure on partially-created user docs.
 
 import {
   collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
@@ -353,9 +360,14 @@ export async function rewardReferral(newUserUid: string, bookingId: string): Pro
     const existingEntry = await tx.get(newUserLedgerRef);
     if (existingEntry.exists()) return;
 
-    // 4. Credit new user only — referrer already received 200 NC at signup
+    // 4. Credit new user only — referrer already received 200 NC at signup.
+    //    [Fix #5] Guard against partially-created user docs to prevent silent
+    //    transaction failure (tx.update on non-existent doc throws in Firestore).
     const nRef = doc(db, "users", newUserUid);
     const nSnap = await tx.get(nRef);
+    if (!nSnap.exists()) {
+      throw new Error("USER_NOT_FOUND");
+    }
     const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
     tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp(), lastLedgerEntryId: newUserLedgerId });
     tx.set(newUserLedgerRef, {
@@ -481,6 +493,12 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       if (data.escrowStatus === "released" || data.status === "reviewed") return;
 
       const escrowCoins = (data.escrowCoins as number) ?? 0;
+      const escrowStatus = data.escrowStatus as string | undefined;
+
+      // [Fix #2] Guard zero-escrow early return: a booking with 0 escrow that was
+      // already refunded/released must not be re-completed by the pro.
+      if (escrowStatus === "refunded" || escrowStatus === "released") return;
+
       if (escrowCoins === 0) {
         tx.update(bookingRef, {
           status: "completed",
@@ -663,23 +681,33 @@ export async function earnCoins(uid: string, type: LedgerType, refId?: string): 
 
 export const MIN_PAYOUT_COINS = 200;
 
+/**
+ * Request a coin payout.
+ *
+ * [Fix #1] TOCTOU fix: pending-payout check now uses tx.get() on a
+ * payoutLock/{uid} sentinel document instead of getDocs(). The previous
+ * getDocs() call inside runTransaction was NOT part of the transaction's
+ * read set — Firestore does not track non-tx reads for conflict detection.
+ * Two concurrent requests could both pass the getDocs check before either
+ * wrote, creating duplicate pending payouts.
+ *
+ * The sentinel pattern: payoutLock/{uid} is written atomically with the
+ * payout document. Any concurrent transaction reading the same sentinel
+ * will conflict and retry/fail, guaranteeing at-most-one pending payout.
+ */
 export async function requestPayout(uid: string, displayName: string, coins: number, upiId: string): Promise<{ success: boolean; reason?: string }> {
   if (coins < MIN_PAYOUT_COINS) return { success: false, reason: `Minimum payout is ${MIN_PAYOUT_COINS} NC` };
 
-  // [Task 1] Pending-payout check is inside the transaction (TOCTOU-safe).
-  // Two concurrent requests can't both pass — the write is atomic with the check.
   const maskedUpi = maskUpiId(upiId);
   try {
     await runTransaction(db, async tx => {
-      const pendingPayoutsSnap = await getDocs(
-        query(
-          collection(db, "coinPayouts"),
-          where("uid", "==", uid),
-          where("status", "==", "pending"),
-          limit(1)
-        )
-      );
-      if (!pendingPayoutsSnap.empty) {
+      // [Fix #1] Transactional pending-payout check via sentinel doc.
+      // tx.get() participates in Firestore's read set — concurrent writes
+      // to this doc will cause the transaction to retry/abort, preventing
+      // duplicate payouts. getDocs() does NOT provide this guarantee.
+      const sentinelRef = doc(db, "payoutLock", uid);
+      const sentinelSnap = await tx.get(sentinelRef);
+      if (sentinelSnap.exists() && sentinelSnap.data()?.status === "pending") {
         throw new Error("DUPLICATE_PAYOUT");
       }
 
@@ -692,9 +720,12 @@ export async function requestPayout(uid: string, displayName: string, coins: num
       const newCoinBal = Math.max(0, coinBal - coins);
       const payoutRef = doc(collection(db, "coinPayouts"));
       const ledgerEntryId = `${payoutRef.id}_payout_${uid}`;
+
       tx.update(userRef, { coinBalance: newCoinBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.set(payoutRef, { uid, displayName, coinsRedeemed: coins, amountRs: coins, upiId, upiMasked: maskedUpi, status: "pending", createdAt: serverTimestamp() } as CoinPayout);
       tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), { uid, type: "payout", amount: -coins, balanceAfter: newCoinBal, description: `Payout ₹${coins} -> ${maskedUpi}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
+      // Write sentinel atomically with the payout document.
+      tx.set(sentinelRef, { uid, status: "pending", payoutId: payoutRef.id, createdAt: serverTimestamp() });
     });
     return { success: true };
   } catch (e: unknown) {
@@ -758,6 +789,8 @@ export async function cancelPayoutRequest(uid: string, payoutId: string): Promis
         refId: payoutId,
         createdAt: serverTimestamp(),
       } as LedgerEntry);
+      // Clear sentinel so user can request a new payout after cancellation.
+      tx.set(doc(db, "payoutLock", uid), { uid, status: "idle", updatedAt: serverTimestamp() });
     });
     return { success: true };
   } catch (e: unknown) {
@@ -807,6 +840,27 @@ export async function getPendingPayouts(): Promise<CoinPayout[]> {
 
 export async function updatePayoutStatus(payoutId: string, status: "processed" | "failed", adminUid: string): Promise<void> {
   await updateDoc(doc(db, "coinPayouts", payoutId), { status, processedBy: adminUid, processedAt: serverTimestamp() });
+}
+
+/**
+ * Admin: mark payout as processed and clear the user's payoutLock sentinel.
+ * Call this instead of updatePayoutStatus when the payout is finalized so the
+ * user can submit a new payout request.
+ */
+export async function adminFinalizePayoutStatus(
+  payoutId: string,
+  status: "processed" | "failed",
+  adminUid: string
+): Promise<void> {
+  await runTransaction(db, async tx => {
+    const payoutRef = doc(db, "coinPayouts", payoutId);
+    const payoutSnap = await tx.get(payoutRef);
+    if (!payoutSnap.exists()) throw new Error("PAYOUT_NOT_FOUND");
+    const { uid } = payoutSnap.data() as CoinPayout;
+    tx.update(payoutRef, { status, processedBy: adminUid, processedAt: serverTimestamp() });
+    // Clear sentinel so user can submit a new payout after this one is finalized.
+    tx.set(doc(db, "payoutLock", uid), { uid, status: "idle", updatedAt: serverTimestamp() });
+  });
 }
 
 export async function adminAdjustCoins(uid: string, amount: number, reason: string, adminUid: string, idempotencyKey: string): Promise<{ success: boolean; reason?: string }> {
