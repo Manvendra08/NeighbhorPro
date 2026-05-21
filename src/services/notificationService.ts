@@ -62,10 +62,10 @@ export async function registerPushNotifications(uid: string): Promise<boolean> {
     // if the previous token was rotated. The registration guard in usePushNotifications
     // (registeredRef) ensures this only runs once per session, not on every render.
 
-    console.log("[FCM] Token registered successfully.");
+    // Issue #6 fix: Removed console.log from production code
     return true;
   } catch (error) {
-    console.error("[FCM] Error registering push notifications:", error);
+    // Issue #6 fix: Removed console.error, using captureError only
     captureError(error, { operation: "register_push_notifications", uid });
     return false;
   }

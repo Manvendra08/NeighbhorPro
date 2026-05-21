@@ -79,7 +79,9 @@ export async function generateTicketNumber(): Promise<string> {
     const seq = String(snap.size + 1).padStart(3, "0");
     return `NP${dateStr}${seq}`;
   } catch {
-    const seq = String(Math.floor(Math.random() * 900) + 100);
+    // Issue #5 fix: Use crypto.getRandomValues instead of Math.random
+    const randomBytes = crypto.getRandomValues(new Uint8Array(2));
+    const seq = String(randomBytes[0] % 900 + 100);
     return `NP${dateStr}${seq}`;
   }
 }

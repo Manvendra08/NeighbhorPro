@@ -54,7 +54,8 @@ export async function getServicesByUser(userId: string) {
   }
   const services = Array.from(merged.values());
   if (isOwnerView) return services;
-  return services.filter((service: any) => {
+  // Issue #1 fix: Replace any with Record<string, unknown>
+  return services.filter((service: Record<string, unknown>) => {
     const status = String(service.status || "").trim().toLowerCase();
     const isPublicStatus = !status || status === "pending" || status === "approved" || status === "featured";
     return isPublicStatus && service.subStatus !== "paused_subscription";

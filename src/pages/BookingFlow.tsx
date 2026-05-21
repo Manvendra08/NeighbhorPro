@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -7,6 +7,8 @@ import {
 } from "../services/firestoreService";
 import { logActivity } from "../services/activityService";
 import { BOOKING_BRIEF_MAX_CHARS, isBookingBriefValid } from "../utils/booking";
+import { captureError } from "../lib/sentry";
+
 
 export default function BookingFlow() {
   const { id: proId } = useParams<{ id: string }>();
@@ -27,7 +29,7 @@ export default function BookingFlow() {
   const [convId, setConvId] = useState<string | null>(null); // for success screen
   const [postBookingWarning, setPostBookingWarning] = useState("");
 
-  const [proAvail, setProAvail] = useState<Record<string, any> | null>(null);
+  const [proAvail, setProAvail] = useState<Record<string, { active: boolean; slots: string[] }> | null>(null);
   const [commissionRate, setCommissionRate] = useState(10);
   const [availableSlots, setAvailSlots] = useState<string[]>([]);
   const [checkingAvail, setCA] = useState(false);
@@ -45,7 +47,8 @@ export default function BookingFlow() {
         if (!p) { setPNF(true); return; }
         setPro(p);
         setServices(s);
-        setProAvail(a);
+        // Issue #3 fix: Cast to proper type since getProAvailability returns Record<string, unknown>
+        setProAvail(a as Record<string, { active: boolean; slots: string[] }> | null);
         const configuredRate = Number(settings.commissionRate);
         setCommissionRate(Number.isFinite(configuredRate) && configuredRate >= 0 ? configuredRate : 10);
 
@@ -93,6 +96,7 @@ export default function BookingFlow() {
     if (availableSlots.includes(rebookTimeSlot)) setTS(rebookTimeSlot);
   }, [availableSlots, rebookTimeSlot, timeSlot]);
 
+  // Bug #9 fix: Removed no-op useMemo - use services directly
   const isSelf = user?.uid === proId;
   const selectedServicePrice = Number(selectedSvc?.price) || 0;
   const isQuoteBased = Boolean(selectedSvc?.quoteBased);
@@ -103,8 +107,6 @@ export default function BookingFlow() {
   const requiresCoinHold = feeCoins > 0;
   const balance = userProfile?.coinBalance ?? 0;
   const hasEnough = !requiresCoinHold || balance >= feeCoins;
-
-  const filteredServices = useMemo(() => services, [services]);
 
   const missingProfileItems: string[] = [];
   if (!String(userProfile?.displayName || "").trim()) missingProfileItems.push("Full name");
@@ -132,11 +134,7 @@ export default function BookingFlow() {
     try {
       const serviceName = selectedSvc.title as string;
 
-      let attachData;
-      if (attachment) {
-        attachData = await uploadBookingAttachment(null, attachment);
-      }
-
+      // Bug #7 fix: Create booking first, then upload attachment with bookingId
       // 1. Create booking in pending state — escrow NOT yet released to pro
       const bookingId = await createBooking({
         clientId: user.uid,
@@ -157,8 +155,14 @@ export default function BookingFlow() {
         escrowCoins: feeCoins,
         escrowStatus: requiresCoinHold ? "held" : "none",
         quoteBased: isQuoteBased,
-        ...(attachData && { attachmentUrl: attachData.url, attachmentName: attachData.name, attachmentType: attachData.type })
       });
+
+      // Upload attachment after booking exists (prevents orphaned files)
+      if (attachment) {
+        await uploadBookingAttachment(bookingId, attachment).catch((error: unknown) => {
+          captureError(error, { operation: "upload_booking_attachment", uid: user.uid, bookingId: bookingId as string });
+        });
+      }
 
       // 2. Auto-create conversation so client and pro can chat immediately.
       // Booking should remain successful even if chat bootstrap fails.
@@ -276,7 +280,7 @@ export default function BookingFlow() {
                   setSvc(nextService);
                 }}
               >
-                {filteredServices.map(svc => (
+                {services.map(svc => (
                   <option key={svc.id as string} value={svc.id as string}>{svc.title as string}</option>
                 ))}
               </select>

@@ -63,7 +63,8 @@ export async function createBooking(data: Record<string, unknown>) {
       const balance = Math.max(0, Math.trunc(Number(userSnap.data()?.coinBalance ?? 0) || 0));
       if (balance < escrowCoins) throw new Error("INSUFFICIENT_BALANCE");
       const newBal = balance - escrowCoins;
-      const ledgerEntryId = `${bookingRef.id}_hold_${clientId}`;
+      // Bug #2 fix: Use distinct ledger key to prevent collision with holdEscrow
+      const ledgerEntryId = `${bookingRef.id}_create_hold_${clientId}`;
       tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.set(bookingRef, bookingDoc);
       tx.set(doc(collection(db, "coinLedger", clientId, "entries"), ledgerEntryId), {
@@ -223,52 +224,8 @@ export async function uploadBookingAttachment(bookingId: string | null, file: Fi
   return { url: fileUrl, name: file.name, type: file.type };
 }
 
-/**
- * Cancels a booking and refunds escrow coins to the client.
- * Status must be pending or confirmed to cancel.
- */
-export async function cancelBookingAndRefund(bookingId: string): Promise<void> {
-  await runTransaction(db, async tx => {
-    const bookingRef = doc(db, "bookings", bookingId);
-    const snap = await tx.get(bookingRef);
-    if (!snap.exists()) throw new Error("BOOKING_NOT_FOUND");
-    const booking = snap.data() as Record<string, unknown>;
-    const currentStatus = String(booking.status ?? "");
-    if (!["pending", "confirmed"].includes(currentStatus)) {
-      throw new Error("BOOKING_CANNOT_BE_CANCELLED");
-    }
-    const escrowCoins = Math.max(0, Math.trunc(Number(booking.escrowCoins ?? 0) || 0));
-    const clientId = String(booking.clientId || booking.clientUid || "");
-    const escrowStatus = String(booking.escrowStatus ?? "");
-    const update: Record<string, unknown> = {
-      status: "cancelled",
-      cancelledAt: serverTimestamp(),
-      cancelledBy: auth.currentUser?.uid ?? null,
-      updatedAt: serverTimestamp(),
-    };
-    if (escrowCoins > 0 && escrowStatus === "held" && clientId) {
-      const userRef = doc(db, "users", clientId);
-      const userSnap = await tx.get(userRef);
-      if (userSnap.exists()) {
-        const currentBalance = Math.max(0, Math.trunc(Number(userSnap.data()?.coinBalance ?? 0) || 0));
-        const newBalance = currentBalance + escrowCoins;
-        const ledgerEntryId = `${bookingId}_refund_${clientId}`;
-        tx.update(userRef, { coinBalance: newBalance, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
-        tx.set(doc(collection(db, "coinLedger", clientId, "entries"), ledgerEntryId), {
-          uid: clientId,
-          type: "booking_refund",
-          amount: escrowCoins,
-          balanceAfter: newBalance,
-          description: `Refund: ${String(booking.serviceName || "Booking")}`,
-          refId: bookingId,
-          createdAt: serverTimestamp(),
-        });
-        update.escrowStatus = "refunded";
-      }
-    }
-    tx.update(bookingRef, update);
-  });
-}
+// Bug #1 fix: Removed duplicate cancelBookingAndRefund from bookingService.
+// Use coinService.cancelBookingAndRefund instead (enforces role, updates cashableBalance).
 
 export async function getLastBookedPro(uid: string): Promise<string | null> {
   const lastBooking = await getLastCompletedBookingForUser(uid);

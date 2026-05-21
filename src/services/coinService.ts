@@ -481,7 +481,8 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
   }
 }
 
-export async function releaseEscrow(proUid: string, bookingId: string, serviceName: string, platformFeePct = 0.10): Promise<{ success: boolean; reason?: string }> {
+// Bug #4 fix: Changed default platformFeePct from 0.10 to 0.15 to match NC_TERMS_DEFAULTS
+export async function releaseEscrow(proUid: string, bookingId: string, serviceName: string, platformFeePct = 0.15): Promise<{ success: boolean; reason?: string }> {
   try {
     await runTransaction(db, async tx => {
       const ledgerEntryId = `${bookingId}_release_${proUid}`;

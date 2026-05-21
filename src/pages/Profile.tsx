@@ -281,8 +281,10 @@ export default function Profile({ profileOverride, uidOverride, isAdminViewAs = 
     } else {
       try {
         await createService(payload);
-      } catch (err: any) {
-        alert(err.message || "Failed to create service.");
+      } catch (err: unknown) {
+        // Issue #2 fix: Replace any with unknown + type guard
+        const message = err instanceof Error ? err.message : "Failed to create service.";
+        alert(message);
         return;
       }
     }

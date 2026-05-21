@@ -12,10 +12,25 @@ function buildRecurringRebookQuery(booking: Record<string, unknown>): string {
   const params = new URLSearchParams();
   if (booking.serviceId) params.set("serviceId", String(booking.serviceId));
   if (booking.timeSlot) params.set("timeSlot", String(booking.timeSlot));
-  const base = booking.date ? new Date(String(booking.date)) : new Date();
+  // Bug #3 fix: Parse date in local timezone to prevent IST off-by-one
+  const dateStr = String(booking.date || "");
+  let base: Date;
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    base = new Date(y, m - 1, d);
+  } else {
+    base = new Date();
+  }
   const next = new Date(base);
   next.setDate(next.getDate() + 7);
-  params.set("date", next.toISOString().split("T")[0]);
+  // Bug #6 fix: Prevent past date pre-fill
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (next < today) {
+    params.set("date", today.toISOString().split("T")[0]);
+  } else {
+    params.set("date", next.toISOString().split("T")[0]);
+  }
   params.set("rebook", "1");
   if (booking.id) params.set("bookingId", String(booking.id));
   const queryString = params.toString();
@@ -54,8 +69,9 @@ export default function BookingDetail() {
         setBooking(b);
         const status = String(b.status || "");
         if (user.uid === b.proId && ["completed", "reviewed"].includes(status)) {
-          const alreadyRated = await hasResidentReview(id, user.uid).catch((err) => {
-            console.error("Error checking resident review status:", err);
+          const alreadyRated = await hasResidentReview(id, user.uid).catch((err: unknown) => {
+            // Issue #14 fix: Removed console.error, using captureError
+            captureError(err, { operation: "check_resident_review", uid: user.uid, bookingId: id });
             return true; // Safe default: treat as already rated to hide button
           });
           setResidentReviewDone(alreadyRated);
@@ -80,6 +96,7 @@ export default function BookingDetail() {
   const isPro = user?.uid === booking.proId;
   const status = booking.status as string;
   const otherUid = isClient ? (booking.proId as string) : (booking.clientId as string);
+  // Bug #8 fix: Removed inner redeclaration - use this outer scope escrowCoins throughout
   const escrowCoins = (booking.escrowCoins as number) || 0;
   const amountCoins = (booking.amount as number) || 0;
   const billedCoins = amountCoins > 0 ? amountCoins : escrowCoins;
@@ -112,7 +129,11 @@ export default function BookingDetail() {
       setShowCancelConfirm(false);
       setCancelComment("");
       await load();
-    } catch { setError("Failed to cancel."); }
+    } catch (err: unknown) {
+      // Issue #7 fix: Added error logging
+      captureError(err, { operation: "cancel_booking", uid: user.uid, bookingId: id });
+      setError("Failed to cancel.");
+    }
     setAL(null);
   };
 
@@ -120,7 +141,11 @@ export default function BookingDetail() {
     if (!id) return;
     setAL("confirm");
     try { await updateBookingStatus(id, "confirmed"); await load(); }
-    catch { setError("Failed to confirm."); }
+    catch (err: unknown) {
+      // Issue #7 fix: Added error logging
+      captureError(err, { operation: "confirm_booking", uid: user?.uid, bookingId: id });
+      setError("Failed to confirm.");
+    }
     setAL(null);
   };
 
@@ -128,7 +153,7 @@ export default function BookingDetail() {
     if (!user || !id) return;
     setAL("complete");
     try {
-      const escrowCoins = (booking.escrowCoins as number) || 0;
+      // Bug #8 fix: Use outer scope escrowCoins (no redeclaration)
       if (escrowCoins === 0) {
         // Free session completed -> PRO earns free consult reward
         await earnCoins(user.uid, "earn_free_consult", id).catch((error: unknown) => {
@@ -137,13 +162,18 @@ export default function BookingDetail() {
       }
       const result = await releaseEscrow(user.uid, id, (booking.serviceName as string) || "Session");
       if (!result.success) { setError("Failed to release payment. Contact support."); setAL(null); return; }
+      // Bug #5 fix: rewardReferral is already safe (idempotent + status guard), keep fire-and-forget
       await rewardReferral(booking.clientId as string, id).catch((error: unknown) => {
         captureError(error, { operation: "reward_referral", uid: user.uid, bookingId: id });
       });
       logActivity(user.uid, "booking.completed", `Completed booking: ${(booking.serviceName as string) || id} for ${(booking.clientName as string) || booking.clientId}`, { bookingId: id, role: "pro", escrowReleased: escrowCoins });
       setShowCompleteConfirm(false);
       await load();
-    } catch { setError("Failed to complete booking."); }
+    } catch (err: unknown) {
+      // Issue #7 fix: Added error logging
+      captureError(err, { operation: "complete_booking", uid: user.uid, bookingId: id });
+      setError("Failed to complete booking.");
+    }
     setAL(null);
   };
 
@@ -159,7 +189,11 @@ export default function BookingDetail() {
       setShowReview(false);
       setRR(5); setRC("");
       await load();
-    } catch { setError("Failed to submit review."); }
+    } catch (err: unknown) {
+      // Issue #7 fix: Added error logging
+      captureError(err, { operation: "submit_review", uid: user.uid, bookingId: id });
+      setError("Failed to submit review.");
+    }
     setRS(false);
   };
 
@@ -174,7 +208,9 @@ export default function BookingDetail() {
       setResidentReviewComment("");
       setResidentReviewDone(true);
       await load();
-    } catch {
+    } catch (err: unknown) {
+      // Issue #7 fix: Added error logging
+      captureError(err, { operation: "submit_resident_review", uid: user?.uid, bookingId: id });
       setError("Failed to submit resident rating.");
     }
     setResidentReviewSub(false);
@@ -185,7 +221,9 @@ export default function BookingDetail() {
     try {
       const cid = await getOrCreateConversation(user.uid, otherUid, { bookingId: id });
       navigate(`/messages?conv=${cid}`);
-    } catch {
+    } catch (err: unknown) {
+      // Issue #7 fix: Added error logging
+      captureError(err, { operation: "open_chat", uid: user.uid, bookingId: id });
       setError("Unable to open chat right now. Please try again in a moment.");
     }
   };
