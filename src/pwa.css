@@ -24,8 +24,32 @@
   min-height: 36px; /* exception for compact UI */
 }
 
-/* Remove 300ms tap delay on mobile */
-* { touch-action: manipulation; }
+/* Remove 300ms tap delay and tap highlights on mobile */
+* {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent full viewport elastic scroll reloading */
+html, body {
+  overscroll-behavior-y: none;
+}
+
+/* Local scroll container overscroll containment */
+.mobile-content,
+.chat-messages-body,
+.m-category-scroll {
+  overscroll-behavior-y: contain;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 /* Prevent text selection on interactive elements */
 .btn, .chip, .tab, .nav-link, .mobile-nav-item, .pro-card {
@@ -64,7 +88,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  /* Bug fix: padding-bottom removed here — defined in mobile.css as calc(80px + env(safe-area-inset-bottom)).
+     Previously this 64px value overrode mobile.css's larger value (load order: mobile.css → pwa.css),
+     causing the Save Profile button to be hidden behind the tab bar on devices with a home indicator. */
 }
 
 /* ── Mobile responsive tweaks ───────────────────────── */
@@ -112,5 +138,19 @@
 
   /* Topbar ticker area */
   .topbar-ticker { max-width: 140px; }
+}
+
+/* Bottom-sheet modal handle for mobile views */
+@media (max-width: 768px) {
+  .modal::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    margin: 8px auto 0;
+    flex-shrink: 0;
+  }
 }
 

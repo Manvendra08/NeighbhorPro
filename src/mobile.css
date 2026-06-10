@@ -196,7 +196,11 @@
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(68px + env(safe-area-inset-bottom));
+  /* 80px = ~60px tab bar + 20px breathing room so bottom buttons (e.g. Save Profile)
+     are never obscured by the fixed tab bar, including on devices with a home indicator
+     where env(safe-area-inset-bottom) adds up to 34px extra.
+     Previously this was 68px but overridden by pwa.css at 64px — see pwa.css fix. */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 
 /* ── Mobile tab bar ───────────────────────────────────────────── */
@@ -941,5 +945,35 @@
 
   .mobile-header {
     display: none !important;
+  }
+}
+
+/* Interactive touch feedback scaling and transitions */
+@media (max-width: 768px) {
+  .btn:active,
+  .mobile-tab-item:active,
+  .m-quick-item:active,
+  .m-action-card:active,
+  .m-pro-card:active,
+  .m-coin-chip:active,
+  .m-browse-cta:active,
+  .mobile-avatar:active,
+  .mobile-icon-btn:active {
+    transform: scale(0.96) !important;
+    opacity: 0.88 !important;
+    filter: brightness(0.95);
+    transition: transform 0.08s cubic-bezier(0, 0, 0.2, 1), opacity 0.08s ease, filter 0.08s ease;
+  }
+
+  .btn,
+  .mobile-tab-item,
+  .m-quick-item,
+  .m-action-card,
+  .m-pro-card,
+  .m-coin-chip,
+  .m-browse-cta,
+  .mobile-avatar,
+  .mobile-icon-btn {
+    transition: transform 0.15s cubic-bezier(0, 0, 0.2, 1), opacity 0.15s ease, filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
   }
 }
