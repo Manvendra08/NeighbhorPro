@@ -44,6 +44,21 @@ export default function Messages() {
   const [conversationBookingStatus, setConversationBookingStatus] = useState<Record<string, string>>({});
   const [reportingConversation, setReportingConversation] = useState(false);
 
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("button") && target.closest("button")?.innerHTML.includes("😀")) {
+        return;
+      }
+      setShowEmojiPicker(false);
+    };
+
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [showEmojiPicker]);
+
   // Find the nearest scrollable ancestor for the virtualizer. On mobile the
   // outer `.mobile-content` may be the actual scroll container, so we walk up
   // the DOM to find an element with overflow auto/scroll. This ensures the
@@ -665,7 +680,10 @@ export default function Messages() {
               ) : (
                 <div className="chat-input-bar" style={{ position: "relative", gap: 8 }}>
                   {showEmojiPicker && (
-                    <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, zIndex: 10 }}>
+                    <div 
+                      style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, zIndex: 10 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <EmojiPicker onEmojiClick={onEmojiClick} />
                     </div>
                   )}

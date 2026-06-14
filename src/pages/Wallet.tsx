@@ -192,6 +192,14 @@ export default function Wallet() {
     const coins = parseInt(payoutCoins, 10);
     const normalizedUpiId = upiId.trim();
     if (!coins || isNaN(coins))  { setPayoutMsg({ type: "error", text: "Enter a valid amount." }); return; }
+    if (coins < MIN_PAYOUT_COINS) {
+      setPayoutMsg({ type: "error", text: `Minimum payout is ${MIN_PAYOUT_COINS} NC.` });
+      return;
+    }
+    if (coins > cashableBalance) {
+      setPayoutMsg({ type: "error", text: `Insufficient balance: you have ${cashableBalance} NC.` });
+      return;
+    }
     if (!normalizedUpiId.includes("@"))    { setPayoutMsg({ type: "error", text: "Enter a valid UPI ID." }); return; }
     setPayoutRequest({ coins, upiId: normalizedUpiId });
     setShowPayoutConfirm(true);

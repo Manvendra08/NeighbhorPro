@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getServicesByUser } from '../serviceService';
 
 // Mock Firebase
 vi.mock('../../firebase', () => ({

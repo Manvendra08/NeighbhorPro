@@ -28,7 +28,7 @@ describe('notificationService - Console Removal', () => {
   describe('Issue #6: Remove console.log from production code', () => {
     it('should not call console.log on successful FCM registration', async () => {
       // Simulate the fixed implementation
-      const registerPushNotifications = async (uid: string) => {
+      const registerPushNotifications = async (_uid: string) => {
         try {
           // Simulate successful registration
           // Issue #6 fix: Removed console.log("[FCM] Token registered successfully.")
@@ -45,7 +45,7 @@ describe('notificationService - Console Removal', () => {
     });
 
     it('should not call console.error on FCM registration failure', async () => {
-      const registerPushNotifications = async (uid: string) => {
+      const registerPushNotifications = async (_uid: string) => {
         try {
           throw new Error('FCM registration failed');
         } catch (error) {

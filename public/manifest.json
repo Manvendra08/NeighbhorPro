@@ -24,7 +24,22 @@
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [],
+  "screenshots": [
+    {
+      "src": "/images/how-browse.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Browse & discover local professionals in your gated society"
+    },
+    {
+      "src": "/images/how-book.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Book consultations and pay securely using NeighbourCoins"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Browse Professionals",

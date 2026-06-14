@@ -1,0 +1,652 @@
+PS C:\Users\manve\Downloads\ProNeighbor> npm run test
+
+> pro-neighbor@0.1.0 pretest
+> node -e "require('fs').mkdirSync('coverage/.tmp',{recursive:true})"
+
+
+> pro-neighbor@0.1.0 test
+> vitest run --coverage --pool=threads
+
+
+ RUN  v4.1.2 C:/Users/manve/Downloads/ProNeighbor
+      Coverage enabled with v8
+
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/services/coinService.test.ts (8 tests) 71ms
+stderr | src/components/dashboard/WeekStrip.test.tsx > WeekStrip > shows actionable empty state when no upcoming bookings
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/dashboard/WeekStrip.test.tsx (2 tests) 1108ms
+     ✓ shows actionable empty state when no upcoming bookings  1024ms
+ ✓ src/components/common/ProCard.test.tsx (5 tests) 1447ms
+     ✓ shows verified resident tooltip text exactly and supports tap/click  1242ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/__tests__/SubscriptionManage.test.tsx > formatTs integration with UI components > should handle mixed valid/invalid timestamps in same display
+Invalid timestamp seconds value: -1000
+
+stderr | src/pages/__tests__/SubscriptionManage.test.tsx > formatTs integration with UI components > should not crash when rendering with corrupted subscription data
+formatTs received unsupported type: string
+
+stderr | src/pages/__tests__/SubscriptionManage.test.tsx > formatTs security and robustness > should not execute arbitrary code from input
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: string
+formatTs received unsupported type: string
+formatTs received unsupported type: string
+
+stderr | src/pages/__tests__/SubscriptionManage.test.tsx > formatTs security and robustness > should handle extremely large numbers gracefully
+Invalid timestamp seconds value: 9007199254740991
+Invalid timestamp seconds value: Infinity
+formatTs produced invalid date
+
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/pages/__tests__/SubscriptionManage.test.tsx > formatTs performance characteristics > should handle invalid inputs without significant overhead
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+formatTs received unsupported type: string
+formatTs received unsupported type: number
+formatTs received unsupported type: object
+formatTs received unsupported type: object
+
+ ✓ src/pages/__tests__/SubscriptionManage.test.tsx (25 tests) 549ms
+     ✓ should complete formatting in reasonable time  406ms
+ ✓ src/lib/validation.test.ts (20 tests) 151ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/admin/AdminUsers.bugfix.test.ts (6 tests) 136ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/__tests__/BookingDetail.test.tsx (8 tests) 60ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/services/__tests__/serviceService.test.ts (3 tests) 29ms
+ ✓ src/services/__tests__/subscriptionService.test.ts (31 tests) 67ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/services/razorpayService.test.ts (4 tests) 59ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/time.test.ts (2 tests) 48ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/account.test.ts (1 test) 27ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/services/supportService.test.ts (3 tests) 30ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/browse.test.ts (2 tests) 29ms
+ ✓ src/services/firestoreService.test.ts (5 tests) 34ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/services/__tests__/notificationService.test.ts (3 tests) 42ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/services/auditService.test.ts (4 tests) 81ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/booking.test.ts (2 tests) 23ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/rating.test.ts (2 tests) 30ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/services/activityService.test.ts (3 tests) 37ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/serviceSelection.test.ts (2 tests) 27ms
+ ✓ src/services/firestoreService.ux.test.ts (3 tests) 29ms
+(node:20304) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/services/__tests__/supportService.test.ts (4 tests) 27ms
+
+ Test Files  23 passed (23)
+      Tests  148 passed (148)
+   Start at  13:10:03
+   Duration  125.73s (transform 4.88s, setup 46.92s, import 31.97s, tests 4.14s, environment 218.14s)
+
+ % Coverage report from v8
+-----------------------------|---------|----------|---------|---------|-------------------------------------------------------------------------------------
+File                         | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-----------------------------|---------|----------|---------|---------|-------------------------------------------------------------------------------------
+All files                    |    5.89 |     4.19 |    4.48 |     6.4 |
+ src                         |   35.71 |    38.23 |      25 |   36.84 |
+  App.tsx                    |       0 |        0 |       0 |       0 | 43-108
+  firebase.ts                |   53.57 |    54.16 |      50 |      56 | 26,35-45,79-81
+  main.tsx                   |       0 |        0 |       0 |       0 | 14-29
+ src/components              |       0 |        0 |       0 |       0 |
+  ActiveProPill.tsx          |       0 |        0 |       0 |       0 | 6-76
+  ErrorBoundary.tsx          |       0 |        0 |       0 |       0 | 18-70
+  PWAInstallBanner.tsx       |       0 |        0 |       0 |       0 | 9-76
+  PWASplashScreen.tsx        |       0 |        0 |       0 |       0 | 11-101
+  ProAvailabilityEditor.tsx  |       0 |        0 |       0 |       0 | 6-143
+  SubscribeSheet.tsx         |       0 |        0 |       0 |       0 | 14-302
+  SubscriptionBanner.tsx     |       0 |        0 |       0 |       0 | 27-226
+ src/components/auth         |       0 |        0 |       0 |       0 |
+  AuthPages.tsx              |       0 |        0 |       0 |       0 | 9-262
+  EmailVerifiedPage.tsx      |       0 |        0 |       0 |       0 | 9-123
+  ForgotPasswordPage.tsx     |       0 |        0 |       0 |       0 | 7-66
+  ProtectedRoute.tsx         |       0 |        0 |       0 |       0 | 13-63
+ src/components/common       |   54.54 |    48.68 |   40.74 |   54.54 |
+  Avatar.tsx                 |     100 |       50 |     100 |     100 | 31-40
+  EmptyState.tsx             |       0 |        0 |       0 |       0 | 14
+  FormField.tsx              |       0 |        0 |       0 |       0 | 18-20
+  InfoTooltip.tsx            |      80 |      100 |   66.66 |      80 | 19,21
+  ProCard.tsx                |   53.12 |    57.44 |   30.76 |   53.12 | 57,97-98,111,189-305
+  SkeletonLoader.tsx         |       0 |        0 |       0 |       0 | 12-38
+ src/components/dashboard    |    7.59 |     2.71 |    4.82 |    8.97 |
+  BookingPipeline.tsx        |       0 |        0 |       0 |       0 | 12-95
+  CategoryBrowseChips.tsx    |       0 |        0 |       0 |       0 | 5-8
+  DashboardSection.tsx       |       0 |        0 |       0 |       0 | 25-44
+  DesktopDashboard.tsx       |       0 |        0 |       0 |       0 | 29-355
+  EarningsHeroCard.tsx       |       0 |        0 |       0 |       0 | 20
+  EmojiPicker.tsx            |       0 |        0 |       0 |       0 | 3-32
+  EnhancedStatsCards.tsx     |       0 |        0 |       0 |       0 | 21-41
+  FeedComposer.tsx           |       0 |        0 |       0 |       0 | 13-82
+  FeedPostCard.tsx           |       0 |        0 |       0 |       0 | 14-196
+  MobileDashboard.tsx        |       0 |        0 |       0 |       0 | 29-225
+  PerformanceMetrics.tsx     |       0 |        0 |       0 |       0 | 14-40
+  ProfileCompletionNudge.tsx |       0 |        0 |       0 |       0 | 9-46
+  RecommendedPros.tsx        |       0 |        0 |       0 |       0 | 17-90
+  ReportModal.tsx            |       0 |        0 |       0 |       0 | 4-59
+  SmartGreeting.tsx          |       0 |        0 |       0 |       0 | 21-115
+  SparklineChart.tsx         |       0 |        0 |       0 |       0 | 12-25
+  StatsStrip.tsx             |       0 |        0 |       0 |       0 | 13-92
+  WeekStrip.tsx              |    92.1 |    68.18 |     100 |     100 | 17-36
+ src/components/layout       |       0 |        0 |       0 |       0 |
+  Layout.tsx                 |       0 |        0 |       0 |       0 | 11-248
+  NotificationCenter.tsx     |       0 |        0 |       0 |       0 | 11-184
+  Sidebar.tsx                |       0 |        0 |       0 |       0 | 4-67
+  Toast.tsx                  |       0 |        0 |       0 |       0 | 12-81
+  TopBar.tsx                 |       0 |        0 |       0 |       0 | 28-387
+ src/constants               |   23.07 |        0 |       0 |   27.27 |
+  serviceCatalog.ts          |   23.07 |        0 |       0 |   27.27 | 96-111
+ src/contexts                |       0 |        0 |       0 |       0 |
+  AuthContext.tsx            |       0 |        0 |       0 |       0 | 61-539
+ src/hooks                   |       0 |        0 |       0 |       0 |
+  useDarkMode.ts             |       0 |        0 |       0 |       0 | 4-15
+  useDashboardData.ts        |       0 |        0 |       0 |       0 | 19-241
+  useEarningsSummary.ts      |       0 |        0 |       0 |       0 | 15-89
+  useFirestoreQuery.ts       |       0 |        0 |       0 |       0 | 21-100
+  useIsMobile.ts             |       0 |        0 |       0 |       0 | 4-16
+  useNotifications.ts        |       0 |        0 |       0 |       0 | 34-623
+  useProfileCompletion.ts    |       0 |        0 |       0 |       0 | 13-57
+  usePushNotifications.ts    |       0 |        0 |       0 |       0 | 23-96
+ src/lib                     |   29.26 |    37.25 |   17.94 |   30.13 |
+  collections.ts             |       0 |        0 |       0 |       0 | 2-12
+  queryClient.ts             |       0 |        0 |       0 |       0 | 5-74
+  sentry.ts                  |       0 |        0 |       0 |       0 | 4-48
+  validation.ts              |      96 |       95 |     100 |   95.65 | 130
+ src/pages                   |       0 |        0 |       0 |       0 |
+  BookingDetail.tsx          |       0 |        0 |       0 |       0 | 12-438
+  BookingFlow.tsx            |       0 |        0 |       0 |       0 | 14-518
+  BrowsePros.tsx             |       0 |        0 |       0 |       0 | 29-613
+  Contact.tsx                |       0 |        0 |       0 |       0 | 7-139
+  Dashboard.tsx              |       0 |        0 |       0 |       0 | 9-15
+  LandingPage.tsx            |       0 |        0 |       0 |       0 | 8-787
+  Messages.tsx               |       0 |        0 |       0 |       0 | 25-726
+  MyAccount.tsx              |       0 |        0 |       0 |       0 | 16-272
+  MyBookings.tsx             |       0 |        0 |       0 |       0 | 14-513
+  PrivacyPolicy.tsx          |       0 |      100 |       0 |       0 | 3-74
+  ProDetail.tsx              |       0 |        0 |       0 |       0 | 15-504
+  Profile.tsx                |       0 |        0 |       0 |       0 | 26-762
+  SubscriptionManage.tsx     |       0 |        0 |       0 |       0 | 21-598
+  Support.tsx                |       0 |        0 |       0 |       0 | 12-329
+  TermsOfService.tsx         |       0 |      100 |       0 |       0 | 3-82
+  Wallet.tsx                 |       0 |        0 |       0 |       0 | 19-782
+ src/pages/admin             |       0 |        0 |       0 |       0 |
+  AdminAuditLog.tsx          |       0 |        0 |       0 |       0 | 9-268
+  AdminBookings.tsx          |       0 |        0 |       0 |       0 | 11-262
+  AdminBroadcast.tsx         |       0 |        0 |       0 |       0 | 12-419
+  AdminDashboard.tsx         |       0 |        0 |       0 |       0 | 19-344
+  AdminDisputes.tsx          |       0 |        0 |       0 |       0 | 10-143
+  AdminReviews.tsx           |       0 |        0 |       0 |       0 | 11-147
+  AdminServices.tsx          |       0 |        0 |       0 |       0 | 47-1167
+  AdminSettings.tsx          |       0 |        0 |       0 |       0 | 33-319
+  AdminSocieties.tsx         |       0 |        0 |       0 |       0 | 10-340
+  AdminSubscriptions.tsx     |       0 |        0 |       0 |       0 | 23-536
+  AdminSupport.tsx           |       0 |        0 |       0 |       0 | 15-236
+  AdminTickets.tsx           |       0 |        0 |       0 |       0 | 11-300
+  AdminUsers.tsx             |       0 |        0 |       0 |       0 | 29-1335
+  AdminWallet.tsx            |       0 |        0 |       0 |       0 | 37-660
+ src/services                |   20.85 |     16.3 |   18.68 |    22.8 |
+  _shared.ts                 |       0 |        0 |       0 |       0 | 14-87
+  activityService.ts         |   61.76 |    41.37 |   71.42 |   67.85 | 61-62,99-124
+  auditService.ts            |   72.72 |    72.41 |     100 |   72.72 | 74,77,80,83,133-134
+  bookingService.ts          |       0 |        0 |       0 |       0 | 26-232
+  coinService.ts             |   34.66 |    23.24 |   26.31 |   38.81 | 149-153,170-181,211,221-233,259,265,271,278,312-413,507-513,553-653,664-682,746-991
+  feedService.ts             |       0 |        0 |       0 |       0 | 26-109
+  firestoreService.ts        |     100 |      100 |     100 |     100 |
+  messageService.ts          |      10 |     7.69 |    12.5 |   11.66 | 44-188
+  notificationService.ts     |       0 |        0 |       0 |       0 | 15-142
+  platformService.ts         |       0 |        0 |       0 |       0 | 22-88
+  razorpayService.ts         |   78.57 |       70 |      70 |      80 | 61-66,128-129
+  reviewService.ts           |    8.73 |     3.89 |    6.66 |    9.19 | 21-167
+  serviceService.ts          |       0 |        0 |       0 |       0 | 28-106
+  societyService.ts          |       0 |        0 |       0 |       0 | 19-45
+  subscriptionService.ts     |   23.72 |    46.07 |   22.22 |   21.79 | 104-119,143-145,160,220-553
+  supportService.ts          |   32.14 |    21.42 |      12 |   38.29 | 82-85,99-123,142-181,207-216
+  userService.ts             |    7.75 |     4.27 |   17.07 |    9.13 | 76-89,113-498
+ src/types                   |       0 |        0 |       0 |       0 |
+  firestore.ts               |       0 |        0 |       0 |       0 |
+  index.ts                   |       0 |        0 |       0 |       0 |
+ src/utils                   |   63.43 |    45.51 |   80.76 |   71.02 |
+  account.ts                 |      75 |     37.5 |   66.66 |     100 | 2-14
+  booking.ts                 |   71.42 |       25 |     100 |   83.33 | 9
+  browse.ts                  |   83.33 |    66.66 |     100 |     100 | 7-12
+  cloudinary.ts              |   18.18 |        0 |       0 |   18.18 | 31-42
+  rating.ts                  |   94.44 |    67.74 |     100 |   93.75 | 14
+  serviceSelection.ts        |   88.88 |       40 |     100 |   83.33 | 16
+  time.ts                    |      56 |    43.24 |      75 |   67.24 | 28,67-75,87-103
+-----------------------------|---------|----------|---------|---------|----------------

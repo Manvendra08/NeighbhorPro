@@ -212,11 +212,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (snap.exists()) {
         const data = toUserProfile(normalizeProfileData({ uid: snap.id, ...snap.data() }));
         setUserProfile(data);
-        if (!profileBonusClaimedRef.current && isProfileComplete(data)) {
-          profileBonusClaimedRef.current = true;
+        // CR-3 FIX: Remove local guard, rely on Firestore idempotency
+        if (isProfileComplete(data)) {
           earnCoins(user.uid, "earn_profile", user.uid).catch((error: unknown) => {
-            captureError(error, { operation: "earn_profile", uid: user.uid });
-            profileBonusClaimedRef.current = false;
+            captureError(error, { operation: "earn_profile_on_snapshot", uid: user.uid });
           });
         }
       } else {

@@ -71,7 +71,7 @@ describe('supportService - Secure Random Generation', () => {
       const ticketNumber = `NP${dateStr}${seq}`;
 
       expect(ticketNumber).toMatch(/^NP\d{8}\d{3}$/);
-      expect(ticketNumber.length).toBe(14); // NP + 8 digits + 3 digits
+      expect(ticketNumber.length).toBe(13); // NP + 8 digits + 3 digits
     });
   });
 });

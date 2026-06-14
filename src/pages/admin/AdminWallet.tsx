@@ -12,11 +12,12 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+import { v4 as uuidv4 } from "uuid";
 import {
   getAllCoinPurchases,
   getAllPayouts,
   getCoinEconomySummary,
-  updatePayoutStatus,
+  adminFinalizePayoutStatus,
   adminAdjustCoins,
   getLedger,
   ledgerColor,
@@ -208,7 +209,7 @@ export default function AdminWallet() {
     }
 
     setActionLoading(payoutId);
-    await updatePayoutStatus(payoutId, status, adminUid);
+    await adminFinalizePayoutStatus(payoutId, status, adminUid);
     const payoutUpi = payout.upiMasked || maskUpiId(payout.upiId || "");
     await logAudit(
       `payout.${status}`, adminUid, adminName,
@@ -237,7 +238,7 @@ export default function AdminWallet() {
 
     setAdjLoading(true);
 
-    const idempotencyKey = `${Date.now()}_${Math.abs(finalAmount)}`;
+    const idempotencyKey = uuidv4();
     const res = await adminAdjustCoins(adjUid, finalAmount, adjReason.trim(), adminUid, idempotencyKey);
     if (res.success) {
       await logAudit(

@@ -82,18 +82,22 @@ React Query hooks in `src/lib/queryClient.ts` cache public profiles (5m), servic
 
 ### Admin Panel
 
-10 admin pages under `src/pages/admin/`. Key patterns:
+11 admin pages under `src/pages/admin/`. Key patterns:
 - All admin mutations log to `auditLogs` via `captureAuditEvent()`
 - Destructive actions require confirmation dialogs
+- User management: verification, roles, account actions (`AdminUsers.tsx`)
 - Service moderation: approve/reject/feature with bulk actions (`AdminServices.tsx`)
 - Platform settings including service category management (`AdminSettings.tsx`)
 - Subscription pricing: edit 3m/6m/12m plan prices in `AdminSettings.tsx` → `config/platformSettings` (read dynamically by SubscribeSheet)
 - Subscription admin: KPI dashboard, grant/revoke/force-cancel actions (`AdminSubscriptions.tsx`)
-- Wallet admin: payout processing, ledger adjustments (`AdminWallet.tsx`)
+- Wallet admin: payout processing, ledger adjustments, manual credits/debits (`AdminWallet.tsx`)
+- Society management, reviews, broadcast, tickets, audit log, and booking admin pages
 
 ### Subscription System (Business Listings)
 
 **Model:** Business-category service listings require an active subscription (3/6/12 month tiers, NC-only payment). First 30 days free for all new pros (trial auto-enrolled on first activation).
+
+**Critical Ledger Pattern:** Subscription payments debit from `cashableBalance` only (via `subscription_debit` ledger type). Earned/promo NC cannot be used for subscriptions. This is enforced in `SubscribeSheet.tsx` validation.
 
 **Plans:** Admin-configurable via `config/platformSettings`:
 - `business_3m_v1`: 90 days @ 999 NC (333 NC/mo)
@@ -133,6 +137,28 @@ Service worker at `public/sw.js` (cache name `proneighbor-v3-*`). Network-first 
 - Use named `type`/`interface` for React props, not `React.FC`
 - No `console.log` in production code
 
+## Common Pitfalls & Anti-Patterns
+
+**Coin Service:**
+- ❌ Never call `holdEscrow()` and `createBooking()` together (shared ledger key). Use `createBooking()` alone.
+- ❌ Don't mix `cashableBalance` and `promoBalance` in subscription payments. Only cashable NC can be spent on subscriptions.
+- ❌ Never forget idempotency keys when crediting coins. Always use unique `refId` to prevent double-spend on network retries.
+
+**Booking Flow:**
+- ❌ Don't assume timezone offsets. Use UTC timestamps in Firebase, format in client with user's local timezone.
+- ❌ Avoid updating booking state directly. Always go through service layer which logs to audit/activity trails.
+- ❌ Don't refund coins and apply referral rewards in separate transactions. Use `runTransaction()` or risk partial failure.
+
+**Admin Operations:**
+- ❌ Never skip `captureAuditEvent()` on destructive actions. Audit trail is required for compliance.
+- ❌ Don't allow admins to mutate their own account (e.g., delete own user). Check `rule("allowSelfTarget")` in code.
+- ❌ Always require confirmation dialogs for bulk operations (service moderation, user deletion, etc.).
+
+**Firebase Rules:**
+- ❌ Don't trust client-side validation alone. Firestore rules are the single source of truth.
+- ❌ Never allow direct user edits to sensitive fields (`coinBalance`, `subscription.status`). Only service layer updates.
+- ❌ Don't use `request.auth.uid` without verifying the field exists. Always check `request.auth != null` first.
+
 ## Component & File Organization
 
 **Component structure:** Keep components focused, <400 lines typical, split at ~600 lines.
@@ -169,6 +195,18 @@ export function UserCard({ userId, onSelect }: UserCardProps) {
 **Server-side errors (Cloud Functions):** Return structured errors with HTTP status codes. Log via `activityService` for audit trails. Avoid leaking sensitive data in error messages.
 
 **Sentry integration:** Configured in `src/main.tsx`. Import `captureError` from `src/lib/sentry` for manual error reporting. Use `operation` context field to tag errors by feature.
+
+## Security & Firestore Rules
+
+**Role-based access:** All user/admin data access is controlled via Firestore rules in `firestore.rules`. Roles (`user` | `admin`) are read from Firestore `users/{uid}.role` field.
+
+**Idempotency keys:** Ledger entries use `refId` (unique keys like `booking_${id}_create_hold_${clientId}`) to ensure duplicate requests (network retries) don't double-charge.
+
+**Amount validation:** All coin operations constrain amounts via Firestore rules (`amount >= 0 AND amount <= 10000`). Input validation happens in service layer with Zod; Firestore rules are the final gate.
+
+**Admin audit trail:** All destructive admin mutations call `captureAuditEvent()` which logs to `auditLogs` collection with user ID, action, target, and timestamp. Prevents accidental self-targeting (e.g., deleting own admin account).
+
+**Subscription ledger integrity:** Subscription payments only debit `cashableBalance` (real-money sourced). Firestore rules enforce: `subscription_debit` entries NEVER touch `promoBalance`. This is also validated client-side in `SubscribeSheet.tsx`.
 
 ## State Management Pattern
 
@@ -253,11 +291,16 @@ Browser-based push notifications are enabled for all users (Resident, Pro, Admin
 - **Promo NC / Bonus** (`users.promoBalance`): Platform-earned (signup bonus, profile completion, referrals, reviews, milestones). Cannot be withdrawn. Used only for bookings.
 - **Total NC** (`users.coinBalance`): Sum of cashable + promo for display purposes.
 
-**Ledger Types (17):**
-- **Cashable sources:** `topup`, `booking_escrow_release`, `booking_refund`
-- **Promo sources:** `earn_signup_bonus`, `earn_profile`, `earn_referral`, `earn_review`, `earn_free_consult`, `earn_milestone`, `earn_groupsession`, `earn_ondemand`, `admin_credit`
-- **Debits:** `booking_debit`, `payout`, `subscription_debit`
-- **Special:** `booking_escrow` (temporary hold), `payout_cancelled` (refund on cancel), `admin_debit`
+**Ledger Types (19):**
+
+Defined in `src/services/coinService.ts` with explicit separation:
+
+- **Cashable sources** (`CASHABLE_LEDGER_TYPES`): `topup`, `booking_escrow_release`, `booking_refund` — real-money sourced NC only
+- **Promo sources** (`PROMO_LEDGER_TYPES`): `earn_signup_bonus`, `earn_profile`, `earn_referral`, `earn_review`, `earn_free_consult`, `earn_milestone`, `earn_groupsession`, `earn_ondemand`, `admin_credit` — platform-earned NC only
+- **Debits:** `booking_debit` (user spending on bookings), `payout` (UPI withdrawal), `subscription_debit` (subscription renewal), `admin_debit` (admin deduction)
+- **Special:** `booking_escrow` (temporary hold during booking), `payout_cancelled` (refund on payout cancellation)
+
+Each ledger entry is immutable and tracked with createdAt timestamp. `cashableBalance` is only affected by cashable types; `promoBalance` only by promo types.
 
 **Wallet Page** (`src/pages/Wallet.tsx`):
 - **Overview tab:** NC breakdown (Total/Cashable/Promo), subscription status card, earn rules, referral code
@@ -289,17 +332,21 @@ Browser-based push notifications are enabled for all users (Resident, Pro, Admin
 - Setup: `src/test/setup.ts` configures jsdom, Testing Library, and error handlers
 - Mocking: MSW handlers in `src/test/msw.ts` intercept Firestore/API calls
 - Coverage thresholds: 80% statements/lines/functions, 60% branches
-- Currently covers `loyaltyService.ts` and `src/lib/validation.ts`; expand as needed
+- Currently covers: `loyaltyService.ts`, `coinService.ts` (partial), `src/lib/validation.ts`
 - Run single test: `npx vitest run src/services/coinService.test.ts`
+- Run with coverage: `npm run test:coverage`
 
 **E2E Tests:**
 - Tool: Playwright (Chromium only)
 - Location: `e2e/` directory
 - Timeout: 30 seconds per test
-- Test critical user flows (login, booking, payment)
+- Test critical user flows: login, booking lifecycle, payment/payout, subscription
 - Use test user seeding: `npm run seed:test-users` (requires Firebase service account key)
 - Debug failing tests: `npm run test:e2e:debug` opens Playwright Inspector
 - View traces: `npm run test:e2e:trace` records browser actions for replay
+- Runs dotenv from `functions/` to access Firebase service account
+
+**Coverage Gaps:** AdminPanel pages, message service, notification service, and some payment flows are not yet covered by automated tests.
 
 ## Environment Variables
 
@@ -312,6 +359,42 @@ Required in `.env.local`:
 ## Deployment
 
 Firebase Hosting from `dist/`. Cache strategy: no-cache for HTML/SW/manifest, immutable (1yr) for JS/CSS assets. Firestore rules in `firestore.rules`, indexes in `firestore.indexes.json`.
+
+## Coin Service Transactional Patterns
+
+Critical patterns in `src/services/coinService.ts` (recently hardened for production):
+
+**Race Condition Prevention:**
+- `requestPayout()` and `topUpCoins()` use `runTransaction()` with internal lock checks — pending-payout existence check happens inside the transaction (not before) to prevent TOCTOU (time-of-check-time-of-use) race
+- Pattern: Use `tx.get()` for reads inside transaction, never `getDocs()` outside + transaction write
+
+**Referral Reward Split Flow:**
+- `applyReferralCodeAtSignup()` credits referrer (200 NC) at signup, sets `referralStatus: "rewarded_signup"`
+- `rewardReferral()` credits new user (200 NC) on first booking, transitions to `"rewarded_booking"`
+- Both have idempotency guards: ledger entry existence check before crediting
+- Pattern: Use `refId` (e.g., `referral_${referrerId}_signup`) to deduplicate ledger entries
+
+**Zero-Amount Guards:**
+- `releaseEscrow()` guards against zero-escrow early return and checks that `escrowStatus` is not already `"refunded"` or `"released"` (prevents re-completing cancelled bookings)
+- Pattern: Document state transitions explicitly to prevent double-spending
+
+**Recent Fixes:**
+- Removed `payForBooking` alias (was a type-unsafe cast of `holdEscrow`)
+- Fixed UPI masking to handle short handles correctly
+- Added explicit `CASHABLE_LEDGER_TYPES` and `PROMO_LEDGER_TYPES` exports for clarity
+
+## Known Issues
+
+See `BUGS.md` for active issue tracking. Key recent fixes (as of 2026-05-21):
+
+- ✅ Duplicate `cancelBookingAndRefund` removed from `bookingService.ts`
+- ✅ Shared ledger key race between `createBooking` + `holdEscrow` documented (use distinct keys)
+- ✅ Referral reward split restored (signup vs booking phases)
+- ✅ Payout request race condition fixed (lock inside transaction)
+- ⚠️ Timezone bug in rebook date picker (IST off-by-1) — still open
+- ⚠️ Platform fee default mismatch (10% vs 15%) — still open
+
+Future developers: Check `BUGS.md` before implementing booking or coin service changes.
 
 ## Graphify
 

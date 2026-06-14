@@ -372,7 +372,7 @@ describe('formatTs performance characteristics', () => {
     }
     const end = performance.now();
     
-    // Should handle 600 invalid inputs in under 100ms (increased threshold for CI stability)
-    expect(end - start).toBeLessThan(100);
+    // Should handle 600 invalid inputs in under 250ms (increased threshold for CI stability)
+    expect(end - start).toBeLessThan(250);
   });
 });

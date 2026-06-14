@@ -329,6 +329,11 @@ export default function AdminUsers() {
   ) => {
     setActionLoading(uid);
     try {
+      if (uid === adminId && (patch.role !== undefined || patch.disabled !== undefined)) {
+        showToast("You cannot demote or disable yourself", "error");
+        setActionLoading(null);
+        return;
+      }
       await updateUserProfile(uid, patch);
       await logAudit(auditAction, adminId, adminName, auditDetails, uid);
       await postSuccess?.();

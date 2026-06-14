@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/256</span>
+                <span class='fraction'>0/268</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/256</span>
+                <span class='fraction'>0/262</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/61</span>
+                <span class='fraction'>0/65</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/230</span>
+                <span class='fraction'>0/240</span>
             </div>
         
             
@@ -788,7 +788,25 @@
 <a name='L723'></a><a href='#L723'>723</a>
 <a name='L724'></a><a href='#L724'>724</a>
 <a name='L725'></a><a href='#L725'>725</a>
-<a name='L726'></a><a href='#L726'>726</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L726'></a><a href='#L726'>726</a>
+<a name='L727'></a><a href='#L727'>727</a>
+<a name='L728'></a><a href='#L728'>728</a>
+<a name='L729'></a><a href='#L729'>729</a>
+<a name='L730'></a><a href='#L730'>730</a>
+<a name='L731'></a><a href='#L731'>731</a>
+<a name='L732'></a><a href='#L732'>732</a>
+<a name='L733'></a><a href='#L733'>733</a>
+<a name='L734'></a><a href='#L734'>734</a>
+<a name='L735'></a><a href='#L735'>735</a>
+<a name='L736'></a><a href='#L736'>736</a>
+<a name='L737'></a><a href='#L737'>737</a>
+<a name='L738'></a><a href='#L738'>738</a>
+<a name='L739'></a><a href='#L739'>739</a>
+<a name='L740'></a><a href='#L740'>740</a>
+<a name='L741'></a><a href='#L741'>741</a>
+<a name='L742'></a><a href='#L742'>742</a>
+<a name='L743'></a><a href='#L743'>743</a>
+<a name='L744'></a><a href='#L744'>744</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -834,11 +852,26 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1455,6 +1488,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1558,6 +1594,21 @@ export default function <span class="fstat-no" title="function not covered" >Mes
   const [linkedBookingStatus, setLinkedBookingStatus<span class="cstat-no" title="statement not covered" >] = useState&lt;string | null&gt;(null);</span>
   const [conversationBookingStatus, setConversationBookingStatus<span class="cstat-no" title="statement not covered" >] = useState&lt;Record&lt;string, string&gt;&gt;({});</span>
   const [reportingConversation, setReportingConversation<span class="cstat-no" title="statement not covered" >] = useState(false);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  useEffect(<span class="fstat-no" title="function not covered" >() =&gt; {</span></span>
+<span class="cstat-no" title="statement not covered" >    if (!showEmojiPicker) <span class="cstat-no" title="statement not covered" >return;</span></span>
+&nbsp;
+    const handleClickOutside = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(e</span>: MouseEvent) =&gt; {</span>
+      const target = <span class="cstat-no" title="statement not covered" >e.target as HTMLElement;</span>
+<span class="cstat-no" title="statement not covered" >      if (target.closest("button") &amp;&amp; target.closest("button")?.innerHTML.includes("😀")) {</span>
+<span class="cstat-no" title="statement not covered" >        return;</span>
+      }
+<span class="cstat-no" title="statement not covered" >      setShowEmojiPicker(false);</span>
+    };
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    document.addEventListener("click", handleClickOutside);</span>
+<span class="cstat-no" title="statement not covered" >    return <span class="fstat-no" title="function not covered" >() =&gt; <span class="cstat-no" title="statement not covered" >d</span>ocument.removeEventListener("click", handleClickOutside);</span></span>
+  }, [showEmojiPicker]);
 &nbsp;
   // Find the nearest scrollable ancestor for the virtualizer. On mobile the
   // outer `.mobile-content` may be the actual scroll container, so we walk up
@@ -2180,7 +2231,10 @@ export default function <span class="fstat-no" title="function not covered" >Mes
               ) : (
                 &lt;div className="chat-input-bar" style={{ position: "relative", gap: 8 }}&gt;
                   {showEmojiPicker &amp;&amp; (
-                    &lt;div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, zIndex: 10 }}&gt;
+                    &lt;div 
+                      style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, zIndex: 10 }}
+                      onClick={<span class="fstat-no" title="function not covered" >(e</span>) =&gt; <span class="cstat-no" title="statement not covered" >e.stopPropagation()}</span>
+                    &gt;
                       &lt;EmojiPicker onEmojiClick={onEmojiClick} /&gt;
                     &lt;/div&gt;
                   )}
@@ -2245,7 +2299,7 @@ export default function <span class="fstat-no" title="function not covered" >Mes
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-10T18:10:36.741Z
+                at 2026-05-25T18:25:47.711Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

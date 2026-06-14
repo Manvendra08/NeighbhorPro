@@ -218,8 +218,22 @@ function MobileTabBar() {
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== "undefined" ? navigator.onLine : true);
   const isMobile = useIsMobile();
   const { loading } = useAuth();
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -234,6 +248,12 @@ export default function Layout() {
       <div className="mobile-shell">
         <MobileHeader />
         <EmailVerificationBanner />
+        {!isOnline && (
+          <div className="offline-banner" role="alert">
+            <span className="offline-banner-icon">⚡</span>
+            <span className="offline-banner-text">You are offline. Showing cached contents.</span>
+          </div>
+        )}
         <main className="mobile-content">
           <Outlet />
         </main>
@@ -249,6 +269,12 @@ export default function Layout() {
       <div className={`app-main${collapsed ? " sidebar-collapsed" : ""}`}>
         <TopBar />
         <EmailVerificationBanner />
+        {!isOnline && (
+          <div className="offline-banner" role="alert">
+            <span className="offline-banner-icon">⚡</span>
+            <span className="offline-banner-text">You are offline. Showing cached contents.</span>
+          </div>
+        )}
         <div className="app-content">
           <Outlet />
         </div>

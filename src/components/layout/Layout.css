@@ -34,4 +34,33 @@
   opacity: 0.6;
 }
 
-/* Add other layout classes here if needed */
+/* Offline status banner */
+.offline-banner {
+  background: #c2410c; /* Orange-red warning background */
+  color: #ffffff;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.83rem;
+  font-weight: 600;
+  animation: slideDownBanner 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 199;
+}
+
+.offline-banner-icon {
+  font-size: 1rem;
+}
+
+@keyframes slideDownBanner {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

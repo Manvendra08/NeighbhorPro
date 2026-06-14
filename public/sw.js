@@ -51,7 +51,7 @@ self.addEventListener('notificationclick', event => {
 });
 
 // ── App shell caching ──────────────────────────────────────────────────────
-const CACHE_NAME = 'proneighbor-v3-20260504';
+const CACHE_NAME = 'proneighbor-v3-20260525';
 
 const PRECACHE = [
   '/',

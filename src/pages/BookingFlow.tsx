@@ -384,7 +384,9 @@ export default function BookingFlow() {
           </div>
 
           {error && <div className="error-box">{error}</div>}
-          <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: 8 }} onClick={() => { if (!date || !timeSlot || !selectedSvc) { setError("Please select a service, date and time."); return; } setError(""); setStep(2); }}>Continue</button>
+          <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: 8 }} onClick={() => { if (!date || !timeSlot || !selectedSvc) { setError("Please select a service, date and time."); return; } setError(""); setStep(2); }} disabled={checkingAvail}>
+            {checkingAvail ? "Checking availability..." : "Continue"}
+          </button>
         </div>
       )}
 

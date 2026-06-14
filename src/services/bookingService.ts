@@ -21,6 +21,7 @@ import { auth } from "../firebase";
 import { db } from "../firebase";
 import { validateUpload } from "../utils/cloudinary";
 import { safeGetDocs, mergeAndSortByCreatedAt, uploadToCloudinary } from "./_shared";
+import { logActivity } from "./activityService";
 
 export async function createBooking(data: Record<string, unknown>) {
   const bookingPayload = { ...data };
@@ -83,16 +84,29 @@ export async function createBooking(data: Record<string, unknown>) {
   return bookingRef.id;
 }
 
-export async function updateBookingStatus(bookingId: string, status: string) {
+export async function updateBookingStatus(
+  bookingId: string,
+  status: string,
+  authorizedUid?: string
+) {
   const validStatuses = ["confirmed", "cancelled", "completed", "reviewed"];
   if (!validStatuses.includes(status)) throw new Error("INVALID_BOOKING_STATUS");
+
+  let bookingData: Record<string, unknown> | null = null;
+  let currentUserId: string | null = null;
+
   await runTransaction(db, async tx => {
     const ref = doc(db, "bookings", bookingId);
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("BOOKING_NOT_FOUND");
     const currentStatus = String(snap.data()?.status ?? "");
-    const currentUserId = auth.currentUser?.uid ?? null;
-    const bookingData = snap.data() as Record<string, unknown>;
+    // CR-5 FIX: Add auth check with authorizedUid parameter
+    currentUserId = authorizedUid ?? auth.currentUser?.uid ?? null;
+
+    if (!currentUserId) {
+      throw new Error("NOT_AUTHENTICATED");
+    }
+    bookingData = snap.data() as Record<string, unknown>;
     const clientId = String(bookingData.clientId || bookingData.clientUid || "");
     const proId = String(bookingData.proId || bookingData.proUid || "");
     const update: Record<string, unknown> = { status, updatedAt: serverTimestamp() };
@@ -128,6 +142,39 @@ export async function updateBookingStatus(bookingId: string, status: string) {
     }
     tx.update(ref, update);
   });
+
+  if (bookingData && currentUserId) {
+    const clientUid = String((bookingData as any).clientId || (bookingData as any).clientUid || "");
+    const serviceName = String((bookingData as any).serviceName || "Booking");
+    const clientName = String((bookingData as any).clientName || "Client");
+    const proName = String((bookingData as any).proName || "Pro");
+
+    if (status === "cancelled") {
+      const isClient = currentUserId === clientUid;
+      const counterparty = isClient ? proName : clientName;
+      await logActivity(currentUserId, "booking.cancelled", `${isClient ? "Cancelled" : "Declined"} booking: ${serviceName} ${isClient ? "with" : "from"} ${counterparty}`, {
+        bookingId,
+        role: isClient ? "client" : "pro",
+        escrowRefunded: (bookingData as any).escrowCoins || 0
+      });
+    } else if (status === "completed") {
+      await logActivity(currentUserId, "booking.completed", `Completed booking: ${serviceName} for ${clientName}`, {
+        bookingId,
+        role: "pro",
+        escrowReleased: (bookingData as any).escrowCoins || 0
+      });
+    } else if (status === "confirmed") {
+      await logActivity(currentUserId, "booking.confirmed", `Confirmed booking: ${serviceName} from ${clientName}`, {
+        bookingId,
+        role: "pro"
+      });
+    } else if (status === "reviewed") {
+      await logActivity(currentUserId, "booking.reviewed", `Reviewed booking: ${serviceName} with ${proName}`, {
+        bookingId,
+        role: "client"
+      });
+    }
+  }
 }
 
 export async function getBookingsForUser(uid: string) {

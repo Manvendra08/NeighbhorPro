@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FirestoreTimestamp } from "../types/firestore";
+import { logActivity } from "./activityService";
 
 export type LedgerType =
   | "topup" | "booking_debit" | "booking_refund" | "booking_escrow"
@@ -484,6 +485,10 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
 // Bug #4 fix: Changed default platformFeePct from 0.10 to 0.15 to match NC_TERMS_DEFAULTS
 export async function releaseEscrow(proUid: string, bookingId: string, serviceName: string, platformFeePct = 0.15): Promise<{ success: boolean; reason?: string }> {
   try {
+    let clientName = "Client";
+    let escrowCoins = 0;
+    let logged = false;
+
     await runTransaction(db, async tx => {
       const ledgerEntryId = `${bookingId}_release_${proUid}`;
       const ledgerEntryRef = doc(collection(db, "coinLedger", proUid, "entries"), ledgerEntryId);
@@ -496,12 +501,15 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       const data = bookingSnap.data()!;
       if (data.escrowStatus === "released" || data.status === "reviewed") return;
 
-      const escrowCoins = (data.escrowCoins as number) ?? 0;
+      escrowCoins = (data.escrowCoins as number) ?? 0;
       const escrowStatus = data.escrowStatus as string | undefined;
+      clientName = String(data.clientName || "Client");
 
       // [Fix #2] Guard zero-escrow early return: a booking with 0 escrow that was
       // already refunded/released must not be re-completed by the pro.
       if (escrowStatus === "refunded" || escrowStatus === "released") return;
+
+      logged = true;
 
       if (escrowCoins === 0) {
         tx.update(bookingRef, {
@@ -548,6 +556,15 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
         refId: bookingId, createdAt: serverTimestamp(),
       } as LedgerEntry);
     });
+
+    if (logged) {
+      await logActivity(proUid, "booking.completed", `Completed booking: ${serviceName} for ${clientName}`, {
+        bookingId,
+        role: "pro",
+        escrowReleased: escrowCoins
+      });
+    }
+
     return { success: true };
   } catch (e: unknown) {
     return { success: false, reason: e instanceof Error ? e.message : "TRANSACTION_FAILED" };
@@ -608,6 +625,13 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
  */
 export async function cancelBookingAndRefund(uid: string, bookingId: string, _role: "client" | "pro"): Promise<{ success: boolean; reason?: string }> {
   try {
+    let serviceName = "Booking";
+    let clientUid = "";
+    let clientName = "Client";
+    let proName = "Pro";
+    let escrowCoins = 0;
+    let logged = false;
+
     await runTransaction(db, async tx => {
       const bookingRef = doc(db, "bookings", bookingId);
       const bookingSnap = await tx.get(bookingRef);
@@ -619,10 +643,14 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
         throw new Error("ALREADY_FINALIZED");
       }
 
-      const escrowCoins = (data.escrowCoins as number) || 0;
+      escrowCoins = (data.escrowCoins as number) || 0;
       const escrowStatus = data.escrowStatus as string;
-      const clientUid = data.clientId as string;
-      const serviceName = (data.serviceName as string) || "Booking";
+      clientUid = data.clientId || data.clientUid;
+      serviceName = (data.serviceName as string) || "Booking";
+      clientName = (data.clientName as string) || "Client";
+      proName = (data.proName as string) || "Pro";
+
+      logged = true;
 
       tx.update(bookingRef, {
         status: "cancelled",
@@ -647,6 +675,17 @@ export async function cancelBookingAndRefund(uid: string, bookingId: string, _ro
         } as LedgerEntry);
       }
     });
+
+    if (logged) {
+      const isClient = uid === clientUid;
+      const counterparty = isClient ? proName : clientName;
+      await logActivity(uid, "booking.cancelled", `${isClient ? "Cancelled" : "Declined"} booking: ${serviceName} ${isClient ? "with" : "from"} ${counterparty}`, {
+        bookingId,
+        role: isClient ? "client" : "pro",
+        escrowRefunded: escrowCoins
+      });
+    }
+
     return { success: true };
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Unknown error";
@@ -664,7 +703,8 @@ export async function earnCoins(uid: string, type: LedgerType, refId?: string): 
   const rule = EARN_RULES[type];
   if (!rule || rule.coins === 0) return;
 
-  const dedupDocId = refId ? `${uid}_${type}_${refId}` : `${uid}_${type}`;
+  // CR-3 FIX: Ensure dedup key always includes singleton for non-refId types
+  const dedupDocId = `${uid}_${type}_${refId || 'singleton'}`;
   const dedupRef = doc(collection(db, "coinLedger", uid, "entries"), dedupDocId);
 
   await runTransaction(db, async tx => {
@@ -728,11 +768,14 @@ export async function requestPayout(uid: string, displayName: string, coins: num
       const payoutRef = doc(collection(db, "coinPayouts"));
       const ledgerEntryId = `${payoutRef.id}_payout_${uid}`;
 
+      // CR-1 FIX: Increment generation counter for optimistic locking
+      const newGen = ((sentinelSnap.data()?.generation ?? 0) as number) + 1;
+
       tx.update(userRef, { coinBalance: newCoinBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.set(payoutRef, { uid, displayName, coinsRedeemed: coins, amountRs: coins, upiId, upiMasked: maskedUpi, status: "pending", createdAt: serverTimestamp() } as CoinPayout);
       tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), { uid, type: "payout", amount: -coins, balanceAfter: newCoinBal, description: `Payout ₹${coins} -> ${maskedUpi}`, refId: payoutRef.id, createdAt: serverTimestamp() } as LedgerEntry);
-      // Write sentinel atomically with the payout document.
-      tx.set(sentinelRef, { uid, status: "pending", payoutId: payoutRef.id, createdAt: serverTimestamp() });
+      // Write sentinel atomically with generation counter for conflict detection
+      tx.set(sentinelRef, { uid, status: "pending", payoutId: payoutRef.id, generation: newGen, createdAt: serverTimestamp() });
     });
     return { success: true };
   } catch (e: unknown) {
@@ -796,8 +839,8 @@ export async function cancelPayoutRequest(uid: string, payoutId: string): Promis
         refId: payoutId,
         createdAt: serverTimestamp(),
       } as LedgerEntry);
-      // Clear sentinel so user can request a new payout after cancellation.
-      tx.set(doc(db, "payoutLock", uid), { uid, status: "idle", updatedAt: serverTimestamp() });
+      // CR-1 FIX: Reset generation counter on cancellation
+      tx.set(doc(db, "payoutLock", uid), { uid, status: "idle", generation: 0, updatedAt: serverTimestamp() });
     });
     return { success: true };
   } catch (e: unknown) {

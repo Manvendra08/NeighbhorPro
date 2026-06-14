@@ -87,7 +87,10 @@ service cloud.firestore {
           'earn_signup_bonus', 'earn_profile', 'earn_referral',
           'earn_review', 'earn_free_consult'
         ]
-        && getAfter(ledgerPath).data.balanceAfter == request.resource.data.coinBalance;
+        // CR-7 FIX: Verify ledger entry matches balance and is recent
+        && getAfter(ledgerPath).data.balanceAfter == request.resource.data.coinBalance
+        && getAfter(ledgerPath).data.uid == userId
+        && getAfter(ledgerPath).data.createdAt > request.time - duration.time(1, 'm');
     }
 
     function bookingStatusTransitionAllowed() {
@@ -132,7 +135,15 @@ service cloud.firestore {
         && request.resource.data.amount >= -10000
         && request.resource.data.amount <= 10000
         && request.resource.data.balanceAfter is int
-        && request.resource.data.balanceAfter >= 0;
+        && request.resource.data.balanceAfter >= 0
+        // CR-2 FIX: Check debit limit for subscription_debit type
+        && (
+          request.resource.data.type != "subscription_debit"
+          || (
+            request.resource.data.amount <= 0
+            && -request.resource.data.amount <= getAfter(/databases/$(database)/documents/users/$(uid)).data.cashableBalance
+          )
+        );
     }
 
     function isBookingParticipant(bookingId) {
@@ -330,7 +341,15 @@ service cloud.firestore {
             && request.resource.data.currency == 'free'
             && request.resource.data.amount == 0)
       );
-      allow update: if isAdmin();
+      // CR-4 FIX: Add rule validation for 30-day max trial duration
+      allow update: if isAdmin() && (
+        (!('source' in resource.data) || resource.data.source != 'trial')
+        || (
+          resource.data.source == 'trial'
+          && request.resource.data.currentPeriodEnd.toMillis() <= 
+             request.resource.data.currentPeriodStart.toMillis() + duration.time(30, 'd').toMillis()
+        )
+      );
       allow delete: if false;
     }
 
@@ -426,7 +445,7 @@ service cloud.firestore {
     // ── Messages ───────────────────────────────────────────
     match /messages/{convId} {
       allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
-      allow get:  if isSignedIn() && resource != null && request.auth.uid in resource.data.participants;
+      allow get:  if isSignedIn() && (resource == null || request.auth.uid in resource.data.participants);
       allow create: if isSignedIn() && (
         (isAdmin() && request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
         || (

@@ -14,6 +14,7 @@ import {
 import { z } from "zod";
 import { db } from "../firebase";
 import { captureAuditEvent } from "./auditService";
+import { captureError } from "../lib/sentry";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -273,17 +274,17 @@ export async function activateTrial(uid: string): Promise<Subscription> {
 
     if (userData.trialUsed === true) throw new Error("TRIAL_ALREADY_USED");
 
-    // Check for any existing active subscription
-    const activeSubSnap = await getDocs(
-      query(
-        collection(db, "subscriptions"),
-        where("uid", "==", uid),
-        where("status", "not-in", ["expired", "cancelled"]),
-        limit(1)
-      )
-    );
+    const trialSubId = `sub_${uid}_trial`;
+    const trialSubRef = doc(db, "subscriptions", trialSubId);
+    const trialSubSnap = await tx.get(trialSubRef);
 
-    if (!activeSubSnap.empty) throw new Error("ACTIVE_SUB_EXISTS");
+    if (trialSubSnap.exists()) {
+      const existingSub = trialSubSnap.data() as Subscription;
+      const end = toDate(existingSub.currentPeriodEnd);
+      if (end && end > new Date()) {
+        throw new Error("ACTIVE_SUB_EXISTS");
+      }
+    }
 
     const now = new Date();
     // FIX #2: Use DST-safe date arithmetic instead of hardcoded milliseconds
@@ -351,7 +352,9 @@ export async function activateTrial(uid: string): Promise<Subscription> {
       amount: 0,
       currency: "free",
       },
-    }).catch((err: Error) => console.error("Audit log failed:", err));
+    }).catch((err: unknown) => {
+      captureError(err, { operation: "audit_log_subscription_activated", uid });
+    });
     return result;
   });
 }
@@ -381,12 +384,14 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
 
     if (cashableBalance < price) throw new Error("INSUFFICIENT_CASHABLE_BALANCE");
 
-    // FIX #1: Check for existing active subscription using deterministic doc ID
-    // to prevent race conditions with concurrent subscription attempts
-    // Using a predictable subscription ID allows atomic check inside transaction
-    const activeSubId = `sub_${uid}_active`;
-    const activeSubRef = doc(db, "subscriptions", activeSubId);
-    const existingSubSnap = await tx.get(activeSubRef);
+    // CR-2 FIX: Double-check balance inside transaction before debit
+    const balanceCheck = await tx.get(userRef);
+    const finalBalance = (balanceCheck.data()?.cashableBalance as number) ?? 0;
+    if (finalBalance < price) {
+      throw new Error("INSUFFICIENT_CASHABLE_BALANCE");
+    }
+
+    const existingSubSnap = await tx.get(doc(db, "subscriptions", subId));
 
     if (existingSubSnap.exists()) {
       const existingSub = existingSubSnap.data() as Subscription;
@@ -451,7 +456,9 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
 
     tx.set(subRef, sub);
     tx.set(invRef, invoice);
+    const newCoinBal = Math.max(0, (userData.coinBalance as number ?? 0) - price);
     tx.update(userRef, {
+      coinBalance: newCoinBal,
       cashableBalance: newCashable,
       subscription: {
         status: "active",
@@ -480,7 +487,9 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
         currency: "NC",
         ledgerEntryId: subResult.ledgerEntryId,
       },
-    }).catch((err: Error) => console.error("Audit log failed:", err));
+    }).catch((err: unknown) => {
+      captureError(err, { operation: "audit_log_subscription_purchased", uid });
+    });
     // Return subscription without the extra ledgerEntryId field for type safety
     const { ledgerEntryId: _, ...subscription } = subResult;
     return subscription as Subscription;
@@ -514,7 +523,9 @@ export async function cancelSubscription(uid: string): Promise<void> {
       plan: activeSub.plan,
       cancelAtPeriodEnd: true,
     },
-  }).catch((err: Error) => console.error("Audit log failed:", err));
+  }).catch((err: unknown) => {
+    captureError(err, { operation: "audit_log_subscription_cancelled", uid });
+  });
 }
 
 export async function resumeSubscription(uid: string): Promise<void> {
@@ -545,5 +556,7 @@ export async function resumeSubscription(uid: string): Promise<void> {
       plan: activeSub.plan,
       cancelAtPeriodEnd: false,
     },
-  }).catch((err: Error) => console.error("Audit log failed:", err));
+  }).catch((err: unknown) => {
+    captureError(err, { operation: "audit_log_subscription_resumed", uid });
+  });
 }

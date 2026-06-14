@@ -11,6 +11,8 @@ export type ActivityEvent =
   | "booking.created"
   | "booking.cancelled"
   | "booking.completed"
+  | "booking.confirmed"
+  | "booking.reviewed"
   | "payment.initiated"
   | "payment.success"
   | "message.sent"

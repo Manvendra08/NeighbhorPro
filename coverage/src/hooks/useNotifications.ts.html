@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/331</span>
+                <span class='fraction'>0/339</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/177</span>
+                <span class='fraction'>0/183</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/65</span>
+                <span class='fraction'>0/68</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/289</span>
+                <span class='fraction'>0/297</span>
             </div>
         
             
@@ -691,7 +691,26 @@
 <a name='L626'></a><a href='#L626'>626</a>
 <a name='L627'></a><a href='#L627'>627</a>
 <a name='L628'></a><a href='#L628'>628</a>
-<a name='L629'></a><a href='#L629'>629</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L629'></a><a href='#L629'>629</a>
+<a name='L630'></a><a href='#L630'>630</a>
+<a name='L631'></a><a href='#L631'>631</a>
+<a name='L632'></a><a href='#L632'>632</a>
+<a name='L633'></a><a href='#L633'>633</a>
+<a name='L634'></a><a href='#L634'>634</a>
+<a name='L635'></a><a href='#L635'>635</a>
+<a name='L636'></a><a href='#L636'>636</a>
+<a name='L637'></a><a href='#L637'>637</a>
+<a name='L638'></a><a href='#L638'>638</a>
+<a name='L639'></a><a href='#L639'>639</a>
+<a name='L640'></a><a href='#L640'>640</a>
+<a name='L641'></a><a href='#L641'>641</a>
+<a name='L642'></a><a href='#L642'>642</a>
+<a name='L643'></a><a href='#L643'>643</a>
+<a name='L644'></a><a href='#L644'>644</a>
+<a name='L645'></a><a href='#L645'>645</a>
+<a name='L646'></a><a href='#L646'>646</a>
+<a name='L647'></a><a href='#L647'>647</a>
+<a name='L648'></a><a href='#L648'>648</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1306,6 +1325,25 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1937,6 +1975,25 @@ export function <span class="fstat-no" title="function not covered" >useNotifica
         [notifications, readIds]
     );
 &nbsp;
+    // Sync PWA App Icon Badge count
+<span class="cstat-no" title="statement not covered" >    useEffect(<span class="fstat-no" title="function not covered" >() =&gt; {</span></span>
+<span class="cstat-no" title="statement not covered" >        if (typeof navigator !== "undefined" &amp;&amp; "setAppBadge" in navigator) {</span>
+            const badgeNavigator = <span class="cstat-no" title="statement not covered" >navigator as unknown as {</span>
+                setAppBadge(count: number): Promise&lt;void&gt;;
+                clearAppBadge(): Promise&lt;void&gt;;
+            };
+<span class="cstat-no" title="statement not covered" >            if (unreadCount &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >                badgeNavigator.setAppBadge(unreadCount).catch(<span class="fstat-no" title="function not covered" >err =&gt; {</span></span>
+<span class="cstat-no" title="statement not covered" >                    console.warn("Failed to set PWA app badge:", err);</span>
+                });
+            } else {
+<span class="cstat-no" title="statement not covered" >                badgeNavigator.clearAppBadge().catch(<span class="fstat-no" title="function not covered" >err =&gt; {</span></span>
+<span class="cstat-no" title="statement not covered" >                    console.warn("Failed to clear PWA app badge:", err);</span>
+                });
+            }
+        }
+    }, [unreadCount]);
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return {</span>
         notifications,
         loading,
@@ -1954,7 +2011,7 @@ export function <span class="fstat-no" title="function not covered" >useNotifica
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-10T18:10:36.741Z
+                at 2026-05-25T18:25:47.711Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

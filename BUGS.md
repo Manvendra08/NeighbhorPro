@@ -1,28 +1,74 @@
-# ProNeighbor — Booking Flow Bug Report
+# ProNeighbor — Bug Tracking
 
-**Reviewed:** 2026-05-21  
+**Last Updated:** 2026-05-22  
+**Critical Audit Fixes:** ✅ **COMPLETED** (See `CRITICAL_FIXES_COMPLETE.md`)
+
+---
+
+## ✅ RESOLVED - Critical Audit Fixes (2026-05-22)
+
+The following 7 critical bugs from `COMPREHENSIVE_CODE_AUDIT_2026.md` have been **FIXED**:
+
+| ID | Severity | Description | Status |
+|----|----------|-------------|--------|
+| CR-1 | 🔴 Critical | Duplicate Payout Race Condition | ✅ FIXED (generation counter) |
+| CR-2 | 🔴 Critical | Subscription Overspending | ✅ FIXED (double-check + rules) |
+| CR-3 | 🔴 Critical | Profile Bonus Multi-Claim | ✅ FIXED (idempotency key) |
+| CR-4 | 🔴 Critical | Trial Duration Bypass | ✅ FIXED (firestore rule) |
+| CR-5 | 🔴 Critical | Auth Check Missing | ✅ FIXED (authorizedUid param) |
+| CR-6 | 🔴 Critical | Missing Database Indexes | ✅ FIXED (compound indexes) |
+| CR-7 | 🔴 Critical | Ledger Desync | ✅ FIXED (balance validation) |
+
+**Documentation:** See `AUDIT_FIXES_VERIFICATION.md`, `DEPLOYMENT_CHECKLIST.md`, `CRITICAL_FIXES_COMPLETE.md`
+
+---
+
+## ⚠️ OPEN - Booking Flow Bugs (Reviewed 2026-05-21)
+
 **Files:** `BookingFlow.tsx`, `BookingDetail.tsx`, `coinService.ts`, `bookingService.ts`
 
----
+### Summary
 
-## Summary
-
-| # | Severity | File(s) | Issue |
-|---|----------|---------|-------|
-| 1 | 🔴 Critical | coinService + bookingService | Duplicate `cancelBookingAndRefund` — auth bypass risk |
-| 2 | 🔴 Critical | bookingService + coinService | Shared ledger key between `createBooking` + `holdEscrow` — silent deduct failure risk |
-| 3 | 🔴 Critical | BookingDetail | Timezone bug in rebook date — off by 1 day for IST users |
-| 4 | 🟡 Medium | coinService | Wrong default `platformFeePct` (10% vs 15%) |
-| 5 | 🟡 Medium | BookingDetail | `rewardReferral` after `releaseEscrow` — no rollback on partial failure |
-| 6 | 🟡 Medium | BookingDetail | Past date pre-filled in rebook |
-| 7 | 🟡 Medium | BookingFlow | Orphaned Cloudinary file if booking creation fails |
-| 8 | 🟢 Low | BookingDetail | Variable shadowing `escrowCoins` |
-| 9 | 🟢 Low | BookingFlow | No-op `useMemo` on `filteredServices` |
-| 10 | 🟢 Low | bookingService | `cashableBalance` not updated on refund (dead code) |
+| # | Severity | File(s) | Issue | Status |
+|---|----------|---------|-------|--------|
+| 1 | 🔴 Critical | coinService + bookingService | Duplicate `cancelBookingAndRefund` — auth bypass risk | ⚠️ OPEN |
+| 2 | ✅ FIXED | bookingService + coinService | Shared ledger key — distinct keys now used | ✅ FIXED |
+| 3 | 🔴 Critical | BookingDetail | Timezone bug in rebook date — off by 1 day for IST users | ⚠️ OPEN |
+| 4 | ✅ FIXED | coinService | Wrong default `platformFeePct` (10% vs 15%) | ✅ FIXED |
+| 5 | 🟡 Medium | BookingDetail | `rewardReferral` after `releaseEscrow` — no rollback on partial failure | ⚠️ OPEN |
+| 6 | 🟡 Medium | BookingDetail | Past date pre-filled in rebook | ⚠️ OPEN |
+| 7 | 🟡 Medium | BookingFlow | Orphaned Cloudinary file if booking creation fails | ⚠️ OPEN |
+| 8 | 🟢 Low | BookingDetail | Variable shadowing `escrowCoins` | ⚠️ OPEN |
+| 9 | 🟢 Low | BookingFlow | No-op `useMemo` on `filteredServices` | ⚠️ OPEN |
+| 10 | 🟢 Low | bookingService | `cashableBalance` not updated on refund (dead code) | ⚠️ OPEN |
 
 ---
 
-## Bugs
+## ✅ FIXED - Bug Details
+
+### 2. ✅ Shared Ledger Key Between `createBooking` + `holdEscrow`
+
+**Files:** `src/services/bookingService.ts`, `src/services/coinService.ts`  
+**Status:** ✅ **FIXED** (2026-05-22)
+
+**Issue:** Both used the same idempotency key: `${bookingId}_hold_${clientId}`
+
+**Fix Applied:** `createBooking` now uses `${bookingId}_create_hold_${clientId}` (distinct key)
+
+---
+
+### 4. ✅ Wrong Default `platformFeePct` in `releaseEscrow`
+
+**File:** `src/services/coinService.ts`  
+**Status:** ✅ **FIXED** (2026-05-22)
+
+**Issue:** Default was `0.10` (10%) instead of `0.15` (15%)
+
+**Fix Applied:** Changed default to `0.15` to match `NC_TERMS_DEFAULTS.platformFeePct`
+
+---
+
+## ⚠️ OPEN - Bug Details
 
 ### 1. 🔴 Duplicate `cancelBookingAndRefund` — Auth Bypass Risk
 
@@ -38,15 +84,9 @@ Both files export `cancelBookingAndRefund` with different signatures:
 
 ---
 
-### 2. 🔴 Shared Ledger Key Between `createBooking` + `holdEscrow`
+### 2. ✅ Shared Ledger Key Between `createBooking` + `holdEscrow`
 
-**Files:** `src/services/bookingService.ts`, `src/services/coinService.ts`
-
-Both use the same idempotency key: `${bookingId}_hold_${clientId}`
-
-`createBooking()` already deducts escrow in its own transaction. If `holdEscrow()` is ever called post-creation (reasonable refactor), the key collision causes `holdEscrow` to silently no-op — booking stays `escrowStatus: "held"` but coins aren't actually deducted.
-
-**Fix:** Use distinct ledger keys. `createBooking` → `${bookingId}_create_hold_${clientId}`. Or remove `holdEscrow` as a separate export and route all escrow through `createBooking`.
+**RESOLVED** - See above
 
 ---
 
@@ -69,17 +109,9 @@ const base = new Date(y, m - 1, d); // local timezone — no UTC shift
 
 ---
 
-### 4. 🟡 Wrong Default `platformFeePct` in `releaseEscrow`
+### 4. ✅ Wrong Default `platformFeePct` in `releaseEscrow`
 
-**File:** `src/services/coinService.ts`
-
-```ts
-export async function releaseEscrow(..., platformFeePct = 0.10) // ← 10%
-```
-
-`NC_TERMS_DEFAULTS.platformFeePct = 15` (15%). Fallback fires only when stored `commissionRate` is invalid/missing — but if it does, pro gets overpaid and platform underpaid.
-
-**Fix:** Change default to `0.15` or read from `NC_TERMS_DEFAULTS`.
+**RESOLVED** - See above
 
 ---
 

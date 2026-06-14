@@ -143,14 +143,21 @@ export async function getPublicProfile(uid: string): Promise<Record<string, unkn
 }
 
 export async function updateUserProfile(uid: string, data: Record<string, unknown>) {
+  if (auth.currentUser?.uid === uid && (typeof data.role === "string" || typeof data.disabled === "boolean")) {
+    throw new Error("Cannot modify own role or disabled status");
+  }
+
   const userRef = doc(db, "users", uid);
   const current = await getDoc(userRef);
   const currentData = current.data() ?? {};
 
   const nextRole = typeof data.role === "string" ? data.role : currentData.role;
   const nextDisabled = typeof data.disabled === "boolean" ? data.disabled : currentData.disabled;
-  const mutatesAdminControls = currentData.role === "admin" &&
-    (typeof data.role === "string" || typeof data.disabled === "boolean");
+
+  const wasActiveAdmin = currentData.role === "admin" && currentData.disabled !== true;
+  const isActiveAdminAfter = nextRole === "admin" && nextDisabled !== true;
+  const isPromotingToAdmin = !wasActiveAdmin && isActiveAdminAfter;
+  const isDemotingOrDisablingAdmin = wasActiveAdmin && !isActiveAdminAfter;
 
   const nextData: Record<string, unknown> = { ...data };
   const nextDisplayName =
@@ -175,12 +182,32 @@ export async function updateUserProfile(uid: string, data: Record<string, unknow
   if ("flatVisible" in mergedData && mergedData.flatVisible !== true) safe.flatNumber = deleteField();
 
   await runTransaction(db, async tx => {
-    if (mutatesAdminControls && (nextRole !== "admin" || nextDisabled === true)) {
-      const usersSnap = await getDocs(
-        query(collection(db, "users"), where("role", "==", "admin"), where("disabled", "==", false), limit(2))
-      );
-      if (usersSnap.size <= 1) throw new Error("At least one active admin must remain");
+    if (isPromotingToAdmin || isDemotingOrDisablingAdmin) {
+      const adminStatsRef = doc(db, "appSettings", "adminStats");
+      const statsSnap = await tx.get(adminStatsRef);
+      let activeAdminUids: string[] = [];
+      if (statsSnap.exists()) {
+        activeAdminUids = statsSnap.data().activeAdminUids || [];
+      } else {
+        const usersSnap = await getDocs(
+          query(collection(db, "users"), where("role", "==", "admin"), where("disabled", "==", false))
+        );
+        activeAdminUids = usersSnap.docs.map(d => d.id);
+      }
+
+      if (isPromotingToAdmin) {
+        if (!activeAdminUids.includes(uid)) {
+          activeAdminUids.push(uid);
+        }
+      } else if (isDemotingOrDisablingAdmin) {
+        activeAdminUids = activeAdminUids.filter(id => id !== uid);
+        if (activeAdminUids.length === 0) {
+          throw new Error("At least one active admin must remain");
+        }
+      }
+      tx.set(adminStatsRef, { activeAdminUids }, { merge: true });
     }
+
     tx.update(userRef, { ...nextData, updatedAt: serverTimestamp() });
     if (Object.keys(safe).length > 1) {
       tx.set(doc(db, "publicProfiles", uid), { ...safe, updatedAt: serverTimestamp() }, { merge: true });

@@ -107,6 +107,7 @@ vi.mock("firebase/firestore", () => {
   return {
     Timestamp: firestoreState.MockTimestamp,
     Transaction: MockTransaction,
+    addDoc: vi.fn(async () => ({ id: "mock-doc-id" })),
     collection: (...parts: unknown[]) => ({ path: collectionPath(parts) }),
     collectionGroup: vi.fn(),
     count: vi.fn(),
@@ -200,8 +201,8 @@ describe("coinService", () => {
     firestoreState.seed("users/pro-1", { coinBalance: 10 });
     firestoreState.seed("bookings/booking-1", { escrowCoins: 100, escrowStatus: "held", status: "confirmed" });
 
-    const first = await releaseEscrow("pro-1", "booking-1", "Cleaning");
-    const second = await releaseEscrow("pro-1", "booking-1", "Cleaning");
+    const first = await releaseEscrow("pro-1", "booking-1", "Cleaning", 0.10);
+    const second = await releaseEscrow("pro-1", "booking-1", "Cleaning", 0.10);
 
     expect(first).toEqual({ success: true });
     expect(second).toEqual({ success: true });
@@ -219,6 +220,8 @@ describe("coinService", () => {
   });
 
   it("blocks payout request when a pending payout already exists", async () => {
+    firestoreState.seed("users/user-1", { coinBalance: 1000, cashableBalance: 1000 });
+    firestoreState.seed("payoutLock/user-1", { status: "pending", uid: "user-1" });
     vi.mocked(getDocs).mockResolvedValueOnce({
       empty: false,
       docs: [{ id: "pending_1", data: () => ({ uid: "user-1", status: "pending", upiId: "test@upi" }) }],

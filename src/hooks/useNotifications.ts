@@ -616,6 +616,25 @@ export function useNotifications(uid: string | undefined, userProfile: UserProfi
         [notifications, readIds]
     );
 
+    // Sync PWA App Icon Badge count
+    useEffect(() => {
+        if (typeof navigator !== "undefined" && "setAppBadge" in navigator) {
+            const badgeNavigator = navigator as unknown as {
+                setAppBadge(count: number): Promise<void>;
+                clearAppBadge(): Promise<void>;
+            };
+            if (unreadCount > 0) {
+                badgeNavigator.setAppBadge(unreadCount).catch(err => {
+                    console.warn("Failed to set PWA app badge:", err);
+                });
+            } else {
+                badgeNavigator.clearAppBadge().catch(err => {
+                    console.warn("Failed to clear PWA app badge:", err);
+                });
+            }
+        }
+    }, [unreadCount]);
+
     return {
         notifications,
         loading,
