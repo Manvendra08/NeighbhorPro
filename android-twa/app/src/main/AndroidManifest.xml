@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Required for TWA verification (Digital Asset Links) -->
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ProNeighbor"
+        android:usesCleartextTraffic="false">
+
+        <!--
+            ── TWA Launcher Activity ─────────────────────────────────
+            Runs the PWA as a Trusted Web Activity — a full-screen
+            Chrome Custom Tab with origin verification.
+        -->
+        <activity
+            android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+
+            <meta-data
+                android:name="android.support.customtabs.trusted.DEFAULT_URL"
+                android:value="https://neighbhorpro.web.app" />
+
+            <!-- Splash screen configuration -->
+            <meta-data
+                android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
+                android:resource="@drawable/splash_logo" />
+
+            <meta-data
+                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
+                android:resource="@color/splash_background" />
+
+            <!-- Status bar color (applied after splash) -->
+            <meta-data
+                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
+                android:resource="@color/primary_dark" />
+
+            <!-- Digital Asset Links: declares relationship with the website -->
+            <meta-data
+                android:name="asset_statements"
+                android:resource="@string/asset_statements" />
+
+            <!-- Launcher intent -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Deep link: opens this app when user taps a proneighbor URL -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="neighbhorpro.web.app" />
+                <data
+                    android:scheme="https"
+                    android:host="neighbhorpro.firebaseapp.com" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            ── Notification Service ──────────────────────────────────
+            Bridges PWA push notifications (via the service worker / FCM)
+            to Android system notifications. The PWA's sw.js handles
+            FCM on the web side; this service bridges them to Android.
+            LauncherActivity handles TWA→WebView fallback automatically.
+        -->
+        <service
+            android:name="com.google.androidbrowserhelper.trusted.TwaNotificationService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>

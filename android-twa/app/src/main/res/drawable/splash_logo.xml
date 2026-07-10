@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Placeholder splash logo — displays the app icon centered on a dark background.
+    For production, replace this with a proper vector or use an actual PNG.
+    Recommended: generate adaptive icons via Android Studio's Image Asset tool.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Rounded square background (matches logo shape) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,0 L108,0 C114.627,0 120,5.373 120,12 L120,108 C120,114.627 114.627,120 108,120 L12,120 C5.373,120 0,114.627 0,108 L0,12 C0,5.373 5.373,0 12,0 Z" />
+
+    <!-- P letter (ProNeighbor brand) -->
+    <path
+        android:fillColor="#1B6B8A"
+        android:pathData="M60,25 L60,95 L72,95 L72,68 L82,68 C92,68 96,60 96,46 C96,32 92,25 82,25 Z M72,35 L80,35 C85,35 87,39 87,46 C87,53 85,57 80,57 L72,57 Z" />
+
+    <!-- N letter (Neighbor brand) -->
+    <path
+        android:fillColor="#F5692C"
+        android:pathData="M22,60 L22,95 L34,95 L34,70 L38,75 L50,95 L60,95 L60,60 L48,60 L48,85 L44,80 L34,60 Z" />
+</vector>

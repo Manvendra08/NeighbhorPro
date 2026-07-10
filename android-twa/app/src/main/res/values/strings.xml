@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ProNeighbor</string>
+
+    <!--
+        Asset statements: declares that this app is allowed to open
+        the website as a TWA. Must match the website's assetlinks.json.
+
+        ⚠ IMPORTANT: Replace SHA256_HASH with the actual SHA-256 fingerprint
+        of your signing certificate. Generate it with:
+
+            keytool -list -v -keystore keystore.jks -alias proneighbor \
+                | grep "SHA256:" | awk "{print \$2}"
+
+        Then paste the 59-character hex string below.
+    -->
+    <string name="asset_statements" translatable="false">
+        [{
+            \"relation\": [\"delegate_permission/common.handle_all_urls\"],
+            \"target\": {
+                \"namespace\": \"web\",
+                \"site\": \"https://neighbhorpro.web.app\"
+            }
+        }]
+    </string>
+</resources>

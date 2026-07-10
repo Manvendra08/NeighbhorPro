@@ -56,7 +56,24 @@ export async function createBooking(data: Record<string, unknown>) {
     updatedAt: now,
   };
 
+  // BUG #1 FIX: Create deterministic dedup key BEFORE transaction to prevent
+  // double-charge race condition from double-click or network retry
+  const date = (bookingPayload.date as string) || new Date().toISOString().split('T')[0];
+  const timeSlot = (bookingPayload.timeSlot as string) || "any";
+  const dedupKey = `${clientId}_${proId}_${date}_${timeSlot}`;
+  const dedupRef = doc(db, "bookingDedup", dedupKey);
+
   await runTransaction(db, async tx => {
+    // Idempotency guard: check if this booking request was already processed
+    const existingDedup = await tx.get(dedupRef);
+    if (existingDedup.exists()) {
+      const existingData = existingDedup.data();
+      const existingBookingId = existingData?.bookingId;
+      if (existingBookingId) {
+        throw new Error(`DUPLICATE_BOOKING_REQUEST:${existingBookingId}`);
+      }
+    }
+
     if (escrowCoins > 0) {
       const userRef = doc(db, "users", clientId);
       const userSnap = await tx.get(userRef);
@@ -77,9 +94,19 @@ export async function createBooking(data: Record<string, unknown>) {
         refId: bookingRef.id,
         createdAt: serverTimestamp(),
       });
-      return;
+    } else {
+      tx.set(bookingRef, bookingDoc);
     }
-    tx.set(bookingRef, bookingDoc);
+
+    // Mark dedup key atomically with booking creation
+    tx.set(dedupRef, {
+      clientId,
+      proId,
+      date,
+      timeSlot,
+      bookingId: bookingRef.id,
+      createdAt: serverTimestamp(),
+    });
   });
   return bookingRef.id;
 }

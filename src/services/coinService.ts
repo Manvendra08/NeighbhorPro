@@ -512,6 +512,13 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
       logged = true;
 
       if (escrowCoins === 0) {
+        // BUG #5 FIX: Add guard to prevent re-completing an already completed booking
+        // This prevents state machine corruption when releaseEscrow is called multiple times
+        const currentStatus = data.status as string;
+        if (currentStatus === "completed" || currentStatus === "reviewed") {
+          return;
+        }
+        
         tx.update(bookingRef, {
           status: "completed",
           completedAt: serverTimestamp(),
@@ -583,9 +590,19 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
     const data = bookingSnap.data();
     if (!data) return;
 
+    // BUG #3 FIX: Check BOTH booking status AND escrowStatus to prevent double-spend
+    // A completed booking (where pro was already paid) must NOT be refundable
+    const bookingStatus = data.status as string;
     const escrowCoins = (data.escrowCoins as number) ?? 0;
     const escrowStatus = data.escrowStatus as string;
+    
+    // Cannot refund if booking is already completed or reviewed
+    if (bookingStatus === "completed" || bookingStatus === "reviewed") {
+      return;
+    }
+    // Cannot refund if escrow was already released to pro
     if (escrowStatus === "released") return;
+    // Cannot refund if escrow was already refunded
     if (escrowStatus === "refunded") return;
 
     if (escrowCoins === 0) {

@@ -365,12 +365,12 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
   const plan = SUB_PLANS.find(p => p.id === planId);
   if (!plan) throw new Error("INVALID_PLAN");
 
-  // FIX #1: Use deterministic subscription ID based on user + month to ensure idempotency
-  // This prevents duplicate subscriptions on retry and allows atomic check inside transaction
+  // BUG #4 FIX: Use timestamp-based subscription ID instead of month-based ID
+  // This prevents collision when user subscribes, cancels, and re-subscribes
+  // within the same month (old code used sub_${uid}_${monthKey} which collided)
   const now = new Date();
-  const monthKey = now.toISOString().slice(0, 7).replace("-", ""); // e.g., "202401"
-  const subId = `sub_${uid}_${monthKey}`;
-  const ledgerEntryId = `sub_debit_${uid}_${monthKey}`;
+  const subId = `sub_${uid}_${now.getTime()}`;
+  const ledgerEntryId = `sub_debit_${uid}_${now.getTime()}`;
 
   return runTransaction(db, async tx => {
     const userRef = doc(db, "users", uid);
@@ -391,12 +391,15 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
       throw new Error("INSUFFICIENT_CASHABLE_BALANCE");
     }
 
+    // Check for any active (non-cancelled, non-expired) subscription
     const existingSubSnap = await tx.get(doc(db, "subscriptions", subId));
 
     if (existingSubSnap.exists()) {
       const existingSub = existingSubSnap.data() as Subscription;
       const end = toDate(existingSub.currentPeriodEnd);
-      if (end && end > new Date()) {
+      // BUG #4 FIX: Allow re-subscription if existing sub is cancelled or past period end
+      // Only block if subscription is genuinely active (not cancelled and not expired)
+      if (end && end > new Date() && !existingSub.cancelAtPeriodEnd && existingSub.status !== "cancelled") {
         throw new Error("ACTIVE_SUB_EXISTS");
       }
     }
@@ -406,7 +409,6 @@ export async function subscribeWithNC(uid: string, planId: PlanId): Promise<Subs
 
     if (ledgerSnap.exists()) throw new Error("DUPLICATE_LEDGER_ENTRY");
 
-    const now = new Date();
     // FIX #2: Use DST-safe date arithmetic instead of hardcoded milliseconds
     const periodEnd = addDaysDSTSafe(now, plan.durationDays);
     const periodEndTs = Timestamp.fromDate(periodEnd);
