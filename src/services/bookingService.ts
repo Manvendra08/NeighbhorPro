@@ -56,11 +56,12 @@ export async function createBooking(data: Record<string, unknown>) {
     updatedAt: now,
   };
 
-  // BUG #1 FIX: Create deterministic dedup key BEFORE transaction to prevent
-  // double-charge race condition from double-click or network retry
+  // [Bug #4 FIX] Include serviceName in dedup key — previously two different services
+  // from the same pro on the same date/time were falsely rejected as duplicates.
   const date = (bookingPayload.date as string) || new Date().toISOString().split('T')[0];
   const timeSlot = (bookingPayload.timeSlot as string) || "any";
-  const dedupKey = `${clientId}_${proId}_${date}_${timeSlot}`;
+  const serviceName = (bookingPayload.serviceName as string) || "general";
+  const dedupKey = `${clientId}_${proId}_${date}_${timeSlot}_${serviceName}`;
   const dedupRef = doc(db, "bookingDedup", dedupKey);
 
   await runTransaction(db, async tx => {
@@ -81,9 +82,26 @@ export async function createBooking(data: Record<string, unknown>) {
       const balance = Math.max(0, Math.trunc(Number(userSnap.data()?.coinBalance ?? 0) || 0));
       if (balance < escrowCoins) throw new Error("INSUFFICIENT_BALANCE");
       const newBal = balance - escrowCoins;
-      // Bug #2 fix: Use distinct ledger key to prevent collision with holdEscrow
+      // [Bug #1 FIX v2] Deduct from cashable first, overflow to promo.
+      // Maintains invariant: coinBalance = cashableBalance + promoBalance
+      const cashableBal = Math.max(0, Math.trunc(Number(userSnap.data()?.cashableBalance ?? 0) || 0));
+      const promoBal = Math.max(0, Math.trunc(Number(userSnap.data()?.promoBalance ?? 0) || 0));
+      const cashableDeduction = Math.min(cashableBal, escrowCoins);
+      const promoDeduction = escrowCoins - cashableDeduction;
+      const newCashable = cashableBal - cashableDeduction;
+      const newPromo = promoBal - promoDeduction;
+      
+      // [Bug #1 FIX v3] MUST update promoBalance to maintain invariant:
+      // coinBalance === cashableBalance + promoBalance
+      // Without this, promoBalance drifts out of sync when escrow overflows to promo.
       const ledgerEntryId = `${bookingRef.id}_create_hold_${clientId}`;
-      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+      tx.update(userRef, { 
+        coinBalance: newBal, 
+        cashableBalance: newCashable, 
+        promoBalance: newPromo, 
+        updatedAt: serverTimestamp(), 
+        lastLedgerEntryId: ledgerEntryId 
+      });
       tx.set(bookingRef, bookingDoc);
       tx.set(doc(collection(db, "coinLedger", clientId, "entries"), ledgerEntryId), {
         uid: clientId,
@@ -150,6 +168,17 @@ export async function updateBookingStatus(
         }
         if (currentUserId !== clientId && currentUserId !== proId) {
           throw new Error("ONLY_PARTICIPANT_CAN_CANCEL");
+        }
+        // [Bug #5 FIX] Block direct cancellation when escrow is held.
+        // Callers MUST use cancelBookingAndRefund() from coinService to ensure
+        // escrow coins are atomically refunded. Allowing updateBookingStatus("cancelled")
+        // with held escrow would permanently lose the client's coins.
+        {
+          const escrowStatus = String(bookingData.escrowStatus || "none");
+          const escrowCoins = Number(bookingData.escrowCoins || 0);
+          if (escrowCoins > 0 && escrowStatus === "held") {
+            throw new Error("USE_CANCEL_WITH_REFUND");
+          }
         }
         update.cancelledAt = serverTimestamp();
         update.cancelledBy = currentUserId;

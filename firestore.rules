@@ -64,13 +64,17 @@ service cloud.firestore {
     }
 
     // [Fix #4] Added cashableBalance to allowed keys.
-    // The service layer writes cashableBalance alongside coinBalance in topUpCoins,
-    // releaseEscrow, refundEscrow, and cancelBookingAndRefund. The previous rule
-    // only allowed coinBalance, silently blocking all those writes.
+    // [Bug #2 FIX] Added promoBalance to allowed keys.
+    // earnCoins() writes promoBalance alongside coinBalance for all PROMO_LEDGER_TYPES.
+    // Without this, all client-side earn operations (profile, reviews, referrals,
+    // milestones) silently fail for non-admin users.
+    // [Bug #3 FIX] Added ALL LedgerType values to the allowlist.
+    // Previously missing: earn_milestone, earn_groupsession, earn_ondemand,
+    // admin_credit, admin_debit, subscription_debit, topup.
     function ownerWalletMutationAllowed(userId) {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       let ledgerPath = /databases/$(database)/documents/coinLedger/$(userId)/entries/$(request.resource.data.lastLedgerEntryId);
-      return changed.hasOnly(["coinBalance", "cashableBalance", "updatedAt", "lastLedgerEntryId"])
+      return changed.hasOnly(["coinBalance", "cashableBalance", "promoBalance", "updatedAt", "lastLedgerEntryId"])
         && request.resource.data.lastLedgerEntryId is string
         && request.resource.data.lastLedgerEntryId.size() > 0
         && request.resource.data.coinBalance is int
@@ -79,13 +83,19 @@ service cloud.firestore {
             request.resource.data.cashableBalance is int
             && request.resource.data.cashableBalance >= 0
         ))
+        && (!('promoBalance' in request.resource.data) || (
+            request.resource.data.promoBalance is int
+            && request.resource.data.promoBalance >= 0
+        ))
         && existsAfter(ledgerPath)
         && getAfter(ledgerPath).data.uid == userId
         && getAfter(ledgerPath).data.type in [
-          'booking_debit', 'booking_refund', 'booking_escrow',
+          'topup', 'booking_debit', 'booking_refund', 'booking_escrow',
           'booking_escrow_release', 'payout', 'payout_cancelled',
           'earn_signup_bonus', 'earn_profile', 'earn_referral',
-          'earn_review', 'earn_free_consult'
+          'earn_review', 'earn_free_consult', 'earn_milestone',
+          'earn_groupsession', 'earn_ondemand',
+          'admin_credit', 'admin_debit', 'subscription_debit'
         ]
         // CR-7 FIX: Verify ledger entry matches balance and is recent
         && getAfter(ledgerPath).data.balanceAfter == request.resource.data.coinBalance

@@ -281,8 +281,11 @@ export async function applyReferralCodeAtSignup(
 
       const currentBalance = ((referrerSnap.data()?.coinBalance as number) ?? 0);
       const newBalance = currentBalance + rule.coins;
+      // [Bug #9 FIX] earn_referral is a PROMO_LEDGER_TYPE — must also update promoBalance.
+      // Without this, promoBalance drifts out of sync with actual earned NC.
+      const referrerPromo = ((referrerSnap.data()?.promoBalance as number) ?? 0) + rule.coins;
 
-      tx.update(referrerRef, { coinBalance: newBalance, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerId });
+      tx.update(referrerRef, { coinBalance: newBalance, promoBalance: referrerPromo, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerId });
       tx.set(ledgerRef, {
         uid: referrerUid,
         type: "earn_referral",
@@ -373,7 +376,9 @@ export async function rewardReferral(newUserUid: string, bookingId: string): Pro
       throw new Error("USER_NOT_FOUND");
     }
     const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
-    tx.update(nRef, { coinBalance: nBal, updatedAt: serverTimestamp(), lastLedgerEntryId: newUserLedgerId });
+    // [Bug #9 FIX] earn_referral is a PROMO_LEDGER_TYPE — must also update promoBalance.
+    const nPromo = ((nSnap.data()?.promoBalance as number) ?? 0) + rule.coins;
+    tx.update(nRef, { coinBalance: nBal, promoBalance: nPromo, updatedAt: serverTimestamp(), lastLedgerEntryId: newUserLedgerId });
     tx.set(newUserLedgerRef, {
       uid: newUserUid,
       type: "earn_referral",
@@ -471,7 +476,21 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
       const clientBal = (clientSnap.data()?.coinBalance as number) ?? 0;
       if (clientBal < coins) throw new Error("INSUFFICIENT_BALANCE");
       const newBal = clientBal - coins;
-      tx.update(clientRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+      // [Bug #1 FIX] Deduct from cashableBalance too — escrow holds real-money NC.
+      // Without this, cashableBalance stays inflated and requestPayout() allows
+      // withdrawing coins that are already locked in escrow → money creation exploit.
+      const clientCashable = (clientSnap.data()?.cashableBalance as number) ?? 0;
+      const clientPromo = (clientSnap.data()?.promoBalance as number) ?? 0;
+      // [Bug #1 FIX v2] Deduct from cashable first, overflow to promo.
+      // Math.max(0, cashable - coins) BREAKS the invariant coinBalance = cashable + promo
+      // when spend > cashable (e.g. coin=300, cashable=100, promo=200, spend=250 →
+      // old: cashable=0, promo=200, coin=50 → 50≠0+200 BROKEN).
+      // Cashable-first deduction always maintains the invariant.
+      const cashableDeduction = Math.min(clientCashable, coins);
+      const promoDeduction = coins - cashableDeduction;
+      const newCashable = clientCashable - cashableDeduction;
+      const newPromo = clientPromo - promoDeduction;
+      tx.update(clientRef, { coinBalance: newBal, cashableBalance: newCashable, promoBalance: newPromo, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.update(doc(db, "bookings", bookingId), { escrowCoins: coins, coinsPaid: true, escrowStatus: "held", updatedAt: serverTimestamp() });
       tx.set(ledgerEntryRef, { uid: clientUid, type: "booking_escrow", amount: -coins, balanceAfter: newBal, description: `Payment held: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
     });
@@ -733,9 +752,11 @@ export async function earnCoins(uid: string, type: LedgerType, refId?: string): 
     const newBal = ((snap.data()?.coinBalance as number) ?? 0) + rule.coins;
     const isPromoType = PROMO_LEDGER_TYPES.includes(type);
     const promoUpdate = isPromoType
-      ? { promoBalance: ((snap.data()?.promoBalance as number) ?? 0) + rule.coins }
-      : {};
-    tx.update(userRef, { coinBalance: newBal, ...promoUpdate, updatedAt: serverTimestamp(), lastLedgerEntryId: dedupDocId });
+    ? { promoBalance: ((snap.data()?.promoBalance as number) ?? 0) + rule.coins }
+    : {};
+    // [Bug #7 partial] Earned coins are promo (non-cashable) — do NOT touch cashableBalance.
+      // cashableBalance only increases on topup, escrow release, and refund.
+      tx.update(userRef, { coinBalance: newBal, ...promoUpdate, updatedAt: serverTimestamp(), lastLedgerEntryId: dedupDocId });
     tx.set(dedupRef, {
       uid, type, amount: rule.coins, balanceAfter: newBal,
       description: rule.label, refId: refId ?? null, createdAt: serverTimestamp(),
@@ -947,7 +968,27 @@ export async function adminAdjustCoins(uid: string, amount: number, reason: stri
       const newBal = ((snap.data()?.coinBalance as number) ?? 0) + amount;
       if (newBal < 0) throw new Error("WOULD_GO_NEGATIVE");
 
-      tx.update(userRef, { coinBalance: newBal, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+      // [Bug #7 FIX] Admin adjustments must maintain dual-bucket consistency.
+      // admin_credit is a PROMO_LEDGER_TYPE → goes to promoBalance (non-cashable).
+      // admin_debit reduces from promoBalance first, then cashableBalance if needed.
+      const currentCashable = (snap.data()?.cashableBalance as number) ?? 0;
+      const currentPromo = (snap.data()?.promoBalance as number) ?? 0;
+      let newCashable = currentCashable;
+      let newPromo = currentPromo;
+
+      if (amount > 0) {
+        // Credit: admin_credit is promo-type → add to promoBalance only
+        newPromo = currentPromo + amount;
+      } else {
+        // Debit: reduce promoBalance first, overflow to cashableBalance
+        const deficit = Math.abs(amount);
+        const promoDeduction = Math.min(currentPromo, deficit);
+        const cashableDeduction = deficit - promoDeduction;
+        newPromo = currentPromo - promoDeduction;
+        newCashable = Math.max(0, currentCashable - cashableDeduction);
+      }
+
+      tx.update(userRef, { coinBalance: newBal, cashableBalance: newCashable, promoBalance: newPromo, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
       tx.set(doc(db, "coinLedger", uid, "entries", ledgerEntryId), { uid, type: amount > 0 ? "admin_credit" : "admin_debit", amount, balanceAfter: newBal, description: `Admin ${amount > 0 ? "credit" : "debit"}: ${reason}`, refId: adminUid, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };

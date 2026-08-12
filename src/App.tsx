@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { LoginPage, RegisterPage, ForgotPasswordPage } from "./components/auth/AuthPages";
 import { EmailVerifiedPage } from "./components/auth/EmailVerifiedPage";
@@ -97,13 +97,17 @@ export default function App() {
 
 function PWAWrapper() {
   const auth = useAuth();
+  // [Bug #6 FIX] Use React Router's useLocation() instead of window.location.pathname.
+  // window.location is read once on mount and never re-renders on SPA navigation,
+  // causing the install banner to appear/disappear incorrectly.
+  const location = useLocation();
   
   // Initialize push notifications for logged-in users
   usePushNotifications(auth?.user?.uid);
   
   // Only show install banner when user is logged in (inside the webapp)
   // AND not on landing page
-  const isLandingPage = window.location.pathname === "/";
+  const isLandingPage = location.pathname === "/";
   if (!auth?.user || isLandingPage) return null;
   return <PWAInstallBanner />;
 }

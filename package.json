@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "lint": "tsc --noEmit",
     "pretest": "node -e \"require('fs').mkdirSync('coverage/.tmp',{recursive:true})\"",
     "test": "vitest run --coverage --pool=threads",
     "test:coverage": "vitest run --coverage --pool=threads",
