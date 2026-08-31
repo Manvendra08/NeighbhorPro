@@ -283,14 +283,23 @@ export default function Wallet() {
           <h1 className="page-title">💰 NeighbourCoins Wallet</h1>
           <p className="page-subtitle">1 NC = ₹1 · Spend within platform · Pros cash out anytime</p>
         </div>
-        <div style={{ background: "linear-gradient(135deg,#1B6B8A,#0F4E68)", borderRadius: 16, padding: "16px 28px", textAlign: "center", color: "#fff" }}>
-          <div style={{ fontSize: "0.75rem", opacity: 0.8, textTransform: "uppercase", letterSpacing: 1 }}>Balance</div>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: "2rem", fontWeight: 800, lineHeight: 1.1, marginBottom: 8 }}>{balance.toLocaleString("en-IN")}</div>
-          <div style={{ fontSize: "0.8rem", opacity: 0.75, marginBottom: 12 }}>NeighbourCoins</div>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", fontSize: "0.75rem", opacity: 0.85 }}>
-            <div>💳 Cashable: {cashableBalance.toLocaleString("en-IN")} NC</div>
-            <div>•</div>
-            <div>🎁 Bonus: {promoBalance.toLocaleString("en-IN")} NC</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "flex-end", flex: 1 }}>
+          <div className="wallet-bucket-cashable" style={{ flex: 1, minWidth: 160 }}>
+            <span className="bucket-badge">Withdrawable</span>
+            <div style={{ fontSize: "0.75rem", opacity: 0.8, textTransform: "uppercase", letterSpacing: 1, color: "#16a34a", fontWeight: 700 }}>💳 Cashable</div>
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: "2rem", fontWeight: 800, lineHeight: 1.1, margin: "8px 0 4px", color: "#14532d" }}>
+              {cashableBalance.toLocaleString("en-IN")} NC
+            </div>
+            <div style={{ fontSize: "0.8rem", color: "#16a34a", opacity: 0.85 }}>Available for payouts & subs</div>
+          </div>
+
+          <div className="wallet-bucket-promo" style={{ flex: 1, minWidth: 160 }}>
+            <span className="bucket-badge">Bookings Only</span>
+            <div style={{ fontSize: "0.75rem", opacity: 0.8, textTransform: "uppercase", letterSpacing: 1, color: "#c2410c", fontWeight: 700 }}>🎁 Promo / Bonus</div>
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: "2rem", fontWeight: 800, lineHeight: 1.1, margin: "8px 0 4px", color: "#7c2d12" }}>
+              {promoBalance.toLocaleString("en-IN")} NC
+            </div>
+            <div style={{ fontSize: "0.8rem", color: "#c2410c", opacity: 0.85 }}>Earned from referrals & reviews</div>
           </div>
         </div>
       </div>

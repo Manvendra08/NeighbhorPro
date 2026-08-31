@@ -42,7 +42,6 @@ export default function ProCard({
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const location = `${pro.society || pro.locality || "Community Member"}${pro.tower ? `, ${pro.tower}` : ""}`;
   const skills = pro.skills || [];
   const visibleSkills = mobile ? skills.slice(0, 2) : grid ? skills.slice(0, 3) : skills.slice(0, 2);
   const { rating, reviewCount } = computeAggregateRating(pro.rating, pro.reviewCount, undefined);
@@ -69,12 +68,16 @@ export default function ProCard({
             <div className="m-pro-name">{name}</div>
             {isVerifiedResident && (
               <span className="badge badge-success m-pro-resident-badge">
-                ✓ Verified Resident
+                ✓ Verified
                 <InfoTooltip text={verificationTooltip} label="Verified resident proof" />
               </span>
             )}
           </div>
-          <div className="m-pro-society">📍 {location}</div>
+          <div className="m-pro-society-wrap" style={{ marginTop: 4, marginBottom: 8 }}>
+            <span className="tower-pill">
+              📍 {pro.tower ? `${pro.tower}` : ""} {pro.society || pro.locality || "Community"}
+            </span>
+          </div>
           <div className="m-pro-skills">
             {visibleSkills.map((skill) => (
               <span key={skill} className="skill-tag" style={{ fontSize: 10, padding: "2px 8px" }}>
@@ -130,20 +133,9 @@ export default function ProCard({
                 <div className="pro-card-list__identity">
                   <div className="pro-card-name">{name}</div>
                   <div className="pro-card-society">
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    <span>{location}</span>
+                    <span className="tower-pill">
+                      📍 {pro.tower ? `${pro.tower}` : ""} {pro.society || pro.locality || "Community Member"}
+                    </span>
                   </div>
                 </div>
 
@@ -241,23 +233,11 @@ export default function ProCard({
                 </span>
               )}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div className="pro-card-society" style={{ marginBottom: 4 }}>
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ marginRight: 4, verticalAlign: "middle" }}
-                >
-                  <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-                  <circle cx="12" cy="10" r="3" />
-                </svg>
-                {location}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div className="pro-card-society" style={{ marginBottom: 2 }}>
+                <span className="tower-pill">
+                  📍 {pro.tower ? `${pro.tower}` : ""} {pro.society || pro.locality || "Community Member"}
+                </span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {visibleSkills.map((skill) => (

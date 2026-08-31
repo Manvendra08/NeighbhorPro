@@ -41,6 +41,7 @@ export default function LandingPage() {
     pinCode: "",
   });
   const [tab, setTab] = useState("resident");
+  const [mockupTab, setMockupTab] = useState("Yoga");
   const [counter, setCounter] = useState(0);
   const [serviceCategories, setServiceCategories] = useState<string[]>(DEFAULT_SERVICE_CATEGORIES);
   const adminEmail = "support@proneighbor.com";
@@ -424,39 +425,62 @@ export default function LandingPage() {
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
                     <span>Search skill or name…</span>
                   </div>
-                  <div className="app-chips">
-                    {["All", "Yoga", "CA / Tax", "Health"].map((c, i) => (
-                      <span key={c} className={`app-chip ${i === 1 ? "app-chip-active" : ""}`}>{c}</span>
+                  <div className="app-chips" style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "10px" }}>
+                    {["All", "Yoga", "CA / Tax", "Health"].map((c) => (
+                      <span
+                        key={c}
+                        className={`app-chip ${mockupTab === c ? "app-chip-active" : ""}`}
+                        onClick={() => setMockupTab(c)}
+                        style={{ cursor: "pointer", transition: "all 0.2s" }}
+                      >
+                        {c}
+                      </span>
                     ))}
                   </div>
-                  <div className="app-results-label">4 experts near you · Tower B</div>
-                  <div className="pro-card-mockup pro-card-featured">
-                    <div className="pro-card-mockup-top">
-                      <div className="pro-avatar pro-avatar-priya">PS</div>
-                      <div className="pro-info">
-                        <div className="pro-name">Priya Sharma <span className="pro-verified-badge">✓ Verified</span></div>
-                        <div className="pro-meta">Yoga Coach · Tower B, Flat 402</div>
-                        <div className="pro-rating-row"><span className="pro-stars">★★★★★</span><span className="pro-rating-num">4.9</span><span className="pro-review-count">(34 reviews)</span></div>
+
+                  {mockupTab === "Yoga" || mockupTab === "All" ? (
+                    <>
+                      <div className="app-results-label">2 experts near you · Tower B</div>
+                      <div className="pro-card-mockup pro-card-featured" style={{ transition: "all 0.2s" }}>
+                        <div className="pro-card-mockup-top">
+                          <div className="pro-avatar pro-avatar-priya">PS</div>
+                          <div className="pro-info">
+                            <div className="pro-name">Priya Sharma <span className="pro-verified-badge" style={{ background: "#dcfce7", color: "#16a34a", padding: "2px 6px", borderRadius: "8px" }}>✓ Verified</span></div>
+                            <div className="pro-meta"><span className="tower-pill" style={{ marginLeft: 0, marginTop: 4 }}>📍 Tower B, Flat 402</span></div>
+                            <div className="pro-rating-row"><span className="pro-stars">★★★★★</span><span className="pro-rating-num">4.9</span><span className="pro-review-count">(34 reviews)</span></div>
+                          </div>
+                          <div className="pro-price-block"><div className="pro-price">₹290</div><div className="pro-price-unit">/session</div></div>
+                        </div>
+                        <div className="pro-endorsement" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--surface-2)", padding: "6px 12px", borderRadius: "8px", marginTop: "8px" }}>
+                           <div className="endorsement-avatars">{["MK", "RS", "AP"].map(e => <span key={e} className="e-avatar">{e}</span>)}</div>
+                           <span className="endorsement-text" style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Trusted by 12 residents in Tower B</span>
+                        </div>
+                        <div className="pro-slots-row"><span className="pro-slots-label">Today</span>{["7:00 AM", "8:00 AM", "5:30 PM"].map((s, i) => <span key={s} className={`pro-slot ${i === 0 ? "pro-slot-active" : ""}`} style={{ cursor: "pointer" }}>{s}</span>)}</div>
+                        <button className="pro-book-btn" style={{ transition: "all 0.15s", cursor: "pointer" }}>Book Now · 7:00 AM</button>
                       </div>
-                      <div className="pro-price-block"><div className="pro-price">₹290</div><div className="pro-price-unit">/session</div></div>
+                    </>
+                  ) : mockupTab === "CA / Tax" ? (
+                    <>
+                      <div className="app-results-label">1 expert near you · Tower A</div>
+                      <div className="pro-card-mockup pro-card-compact" style={{ transition: "all 0.2s" }}>
+                        <div className="pro-avatar pro-avatar-amit">AK</div>
+                        <div className="pro-info" style={{ flex: 1 }}>
+                          <div className="pro-name" style={{ fontSize: "0.75rem" }}>Amit Kumar <span className="pro-verified-badge" style={{ background: "#dcfce7", color: "#16a34a" }}>✓</span></div>
+                          <div className="pro-meta"><span className="tower-pill" style={{ marginLeft: 0, marginTop: 4 }}>📍 Tower A</span></div>
+                          <div className="pro-rating-row"><span className="pro-stars" style={{ fontSize: "0.6rem" }}>★★★★★</span><span className="pro-rating-num" style={{ fontSize: "0.65rem" }}>4.8</span><span className="pro-review-count">(28)</span></div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                          <div className="pro-price" style={{ fontSize: "0.8rem" }}>₹0</div>
+                          <div className="pro-price-unit">Free consult</div>
+                          <button className="pro-book-btn-sm" style={{ cursor: "pointer" }}>Book</button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--muted)", fontSize: "0.85rem" }}>
+                      No {mockupTab.toLowerCase()} experts available right now in your building.
                     </div>
-                    <div className="pro-endorsement"><div className="endorsement-faces">{["MK", "RS", "AP"].map(e => <span key={e} className="e-face">{e}</span>)}</div><span className="endorsement-text">Trusted by 12 residents in Tower B</span></div>
-                    <div className="pro-slots-row"><span className="pro-slots-label">Today</span>{["7:00 AM", "8:00 AM", "5:30 PM"].map((s, i) => <span key={s} className={`pro-slot ${i === 0 ? "pro-slot-active" : ""}`}>{s}</span>)}</div>
-                    <button className="pro-book-btn">Book Now · 7:00 AM</button>
-                  </div>
-                  <div className="pro-card-mockup pro-card-compact">
-                    <div className="pro-avatar pro-avatar-amit">AK</div>
-                    <div className="pro-info" style={{ flex: 1 }}>
-                      <div className="pro-name" style={{ fontSize: "0.75rem" }}>Amit Kumar <span className="pro-verified-badge">✓</span></div>
-                      <div className="pro-meta">CA · Tax Filing · Tower A</div>
-                      <div className="pro-rating-row"><span className="pro-stars" style={{ fontSize: "0.6rem" }}>★★★★★</span><span className="pro-rating-num" style={{ fontSize: "0.65rem" }}>4.8</span><span className="pro-review-count">(28)</span></div>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                      <div className="pro-price" style={{ fontSize: "0.8rem" }}>₹0</div>
-                      <div className="pro-price-unit">Free consult</div>
-                      <button className="pro-book-btn-sm">Book</button>
-                    </div>
-                  </div>
+                  )}
                   <div className="app-bottom-nav">
                     {[
                       { icon: "🏠", label: "Home", active: false },

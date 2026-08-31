@@ -78,6 +78,14 @@ export default function ActiveProPill({ status, size = "md" }: ActiveProPillProp
       }}
     >
       <span style={pillStyle}>
+        <span className="active-pro-dot" style={{
+          width: isSm ? 6 : 8,
+          height: isSm ? 6 : 8,
+          borderRadius: "50%",
+          background: "#16a34a",
+          display: "inline-block",
+          animation: "pulse-dot 2s infinite ease-in-out"
+        }} />
         ✓ Active Pro
       </span>
       <span data-tooltip style={tooltipStyle}>

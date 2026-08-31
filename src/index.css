@@ -3328,3 +3328,105 @@ select.form-input {
   opacity: 0.5;
   cursor: default;
 }
+
+/* ═══════════════════════════════════════════
+   DESIGN ENHANCEMENTS (MICRO-TRANSITIONS & PILLS)
+═══════════════════════════════════════════ */
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+
+.pro-card, .pro-card-list, .stat-card, .lp-cat-card, .m-pro-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.pro-card:hover, .pro-card-list:hover, .stat-card:hover, .lp-cat-card:hover, .m-pro-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(28, 26, 23, 0.08);
+}
+
+.tower-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(13, 107, 107, 0.08);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.endorsement-stack {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 6px;
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border-radius: 6px;
+}
+
+.endorsement-avatars {
+  display: flex;
+}
+
+.endorsement-avatars .e-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--surface);
+  margin-left: -6px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+}
+.endorsement-avatars .e-avatar:first-child {
+  margin-left: 0;
+}
+
+.wallet-bucket-cashable, .wallet-bucket-promo {
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.wallet-bucket-cashable {
+  background: linear-gradient(145deg, rgba(22, 163, 74, 0.04), rgba(22, 163, 74, 0.08));
+  border: 1px solid rgba(22, 163, 74, 0.2);
+}
+.wallet-bucket-cashable .bucket-badge {
+  background: rgba(22, 163, 74, 0.15);
+  color: #16a34a;
+}
+
+.wallet-bucket-promo {
+  background: linear-gradient(145deg, rgba(245, 105, 44, 0.04), rgba(245, 105, 44, 0.08));
+  border: 1px solid rgba(245, 105, 44, 0.2);
+}
+.wallet-bucket-promo .bucket-badge {
+  background: rgba(245, 105, 44, 0.15);
+  color: #c2410c;
+}
+
+.bucket-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
