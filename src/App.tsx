@@ -3,7 +3,6 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { LoginPage, RegisterPage, ForgotPasswordPage } from "./components/auth/AuthPages";
 import { EmailVerifiedPage } from "./components/auth/EmailVerifiedPage";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
-import ErrorBoundary from "./components/ErrorBoundary";
 import Layout from "./components/layout/Layout";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import PWASplashScreen from "./components/PWASplashScreen";
@@ -41,9 +40,8 @@ import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <PWASplashScreen />
+    <BrowserRouter>
+      <PWASplashScreen />
         <AuthProvider>
           <Routes>
           <Route path="/"               element={<LandingPage />} />
@@ -91,7 +89,6 @@ export default function App() {
         <PWAWrapper />
       </AuthProvider>
     </BrowserRouter>
-    </ErrorBoundary>
   );
 }
 

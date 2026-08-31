@@ -212,8 +212,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (snap.exists()) {
         const data = toUserProfile(normalizeProfileData({ uid: snap.id, ...snap.data() }));
         setUserProfile(data);
-        // CR-3 FIX: Remove local guard, rely on Firestore idempotency
-        if (isProfileComplete(data)) {
+        const complete = isProfileComplete(data);
+        if (complete && !profileBonusClaimedRef.current) {
+          profileBonusClaimedRef.current = true;
           earnCoins(user.uid, "earn_profile", user.uid).catch((error: unknown) => {
             captureError(error, { operation: "earn_profile_on_snapshot", uid: user.uid });
           });
@@ -279,6 +280,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneNumber: u.phoneNumber ?? "",
         uid: u.uid,
       });
+      const refCodeSnap = await getDoc(doc(db, "referralCodes", referralCode));
+      const finalReferralCode = refCodeSnap.exists()
+        ? `${referralCode}_${Math.floor(1000 + Math.random() * 9000)}`
+        : referralCode;
       const profile: UserProfile = {
         uid: u.uid, displayName: u.displayName ?? "", email: u.email ?? "",
         photoURL: u.photoURL ?? "", bio: "", skills: [], hourlyRate: 0,
@@ -286,19 +291,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         residentVerificationStatus: "none", verificationReviewNote: null, verificationMethod: null,
         isServiceProvider: false, priceAfterQuote: false,
         role: "user", rating: 0, reviewCount: 0, coinBalance: 0,
-        referralCode,
+        referralCode: finalReferralCode,
         emailVerified: u.emailVerified,
         emailVisible: false, phoneVisible: false, flatVisible: false,
         createdAt: serverTimestamp(),
       };
       await setDoc(ref, profile);
-      // Use merge to avoid duplicate key errors on concurrent creates
-      await setDoc(doc(db, "referralCodes", referralCode), {
+      await setDoc(doc(db, "referralCodes", finalReferralCode), {
         uid: u.uid,
-        code: referralCode,
+        code: finalReferralCode,
         createdAt: serverTimestamp(),
-      }, { merge: true }).catch((error: unknown) => {
-        captureError(error, { operation: "create_referral_code_doc", uid: u.uid, referralCode });
       });
       return true;
     }

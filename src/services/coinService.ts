@@ -18,7 +18,7 @@
 //          holdEscrow does not accept, silently dropped at runtime). No callers existed.
 
 import {
-  collection, collectionGroup, doc, getDoc, getDocs, updateDoc,
+  collection, collectionGroup, doc, getDoc, getDocs,
   serverTimestamp, query, orderBy, limit, runTransaction, where, startAfter,
   getAggregateFromServer, sum, count, type QueryConstraint, type DocumentSnapshot,
 } from "firebase/firestore";
@@ -257,26 +257,26 @@ export async function applyReferralCodeAtSignup(
       const referralRef = doc(db, "referrals", newUserUid);
       const referralSnap = await tx.get(referralRef);
       if (referralSnap.exists()) {
-        throw new Error("REFERRAL_ALREADY_APPLIED");
+        throw new Error("REFERRAL_ALREADY_APPLIED: Referral code has already been applied.");
       }
 
       const userRef = doc(db, "users", newUserUid);
       const userSnap = await tx.get(userRef);
       if (!userSnap.exists()) {
-        throw new Error("USER_NOT_FOUND");
+        throw new Error("USER_NOT_FOUND: User profile not found.");
       }
 
       const referrerRef = doc(db, "users", referrerUid);
       const referrerSnap = await tx.get(referrerRef);
       if (!referrerSnap.exists()) {
-        throw new Error("REFERRER_NOT_FOUND");
+        throw new Error("REFERRER_NOT_FOUND: Referrer profile not found.");
       }
 
       const ledgerId = `${newUserUid}_signup_referral_referrer`;
       const ledgerRef = doc(db, "coinLedger", referrerUid, "entries", ledgerId);
       const ledgerSnap = await tx.get(ledgerRef);
       if (ledgerSnap.exists()) {
-        throw new Error("REFERRAL_ALREADY_APPLIED");
+        throw new Error("REFERRAL_ALREADY_APPLIED: Referral code has already been applied.");
       }
 
       const currentBalance = ((referrerSnap.data()?.coinBalance as number) ?? 0);
@@ -314,13 +314,13 @@ export async function applyReferralCodeAtSignup(
     return { success: true };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "";
-    if (message === "REFERRAL_ALREADY_APPLIED") {
+    if (message.includes("REFERRAL_ALREADY_APPLIED")) {
       return { success: false, reason: "Referral code already applied." };
     }
-    if (message === "USER_NOT_FOUND") {
+    if (message.includes("USER_NOT_FOUND")) {
       return { success: false, reason: "User profile not found." };
     }
-    if (message === "REFERRER_NOT_FOUND") {
+    if (message.includes("REFERRER_NOT_FOUND")) {
       return { success: false, reason: "Referrer profile not found." };
     }
     if (message.includes("permission") || message.includes("PERMISSION_DENIED")) {
@@ -373,7 +373,7 @@ export async function rewardReferral(newUserUid: string, bookingId: string): Pro
     const nRef = doc(db, "users", newUserUid);
     const nSnap = await tx.get(nRef);
     if (!nSnap.exists()) {
-      throw new Error("USER_NOT_FOUND");
+      throw new Error("USER_NOT_FOUND: User profile could not be found.");
     }
     const nBal = ((nSnap.data()?.coinBalance as number) ?? 0) + rule.coins;
     // [Bug #9 FIX] earn_referral is a PROMO_LEDGER_TYPE — must also update promoBalance.
@@ -422,7 +422,7 @@ export async function getLedger(uid: string, pageLimit = 50): Promise<LedgerEntr
 
 export async function topUpCoins(uid: string, priceRs: number, coins: number, packLabel: string, paymentId: string): Promise<void> {
   const purchaseId = paymentId.trim();
-  if (!purchaseId) throw new Error("MISSING_PAYMENT_ID");
+  if (!purchaseId) throw new Error("MISSING_PAYMENT_ID: Payment transaction ID is required for top-up.");
 
   await runTransaction(db, async tx => {
     const userRef = doc(db, "users", uid);
@@ -474,7 +474,7 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
       const clientRef = doc(db, "users", clientUid);
       const clientSnap = await tx.get(clientRef);
       const clientBal = (clientSnap.data()?.coinBalance as number) ?? 0;
-      if (clientBal < coins) throw new Error("INSUFFICIENT_BALANCE");
+      if (clientBal < coins) throw new Error("INSUFFICIENT_BALANCE: Insufficient NeighbourCoins balance.");
       const newBal = clientBal - coins;
       // [Bug #1 FIX] Deduct from cashableBalance too — escrow holds real-money NC.
       // Without this, cashableBalance stays inflated and requestPayout() allows
@@ -491,13 +491,13 @@ export async function holdEscrow(clientUid: string, bookingId: string, coins: nu
       const newCashable = clientCashable - cashableDeduction;
       const newPromo = clientPromo - promoDeduction;
       tx.update(clientRef, { coinBalance: newBal, cashableBalance: newCashable, promoBalance: newPromo, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
-      tx.update(doc(db, "bookings", bookingId), { escrowCoins: coins, coinsPaid: true, escrowStatus: "held", updatedAt: serverTimestamp() });
+      tx.update(doc(db, "bookings", bookingId), { escrowCoins: coins, escrowCashableDeduction: cashableDeduction, escrowPromoDeduction: promoDeduction, coinsPaid: true, escrowStatus: "held", updatedAt: serverTimestamp() });
       tx.set(ledgerEntryRef, { uid: clientUid, type: "booking_escrow", amount: -coins, balanceAfter: newBal, description: `Payment held: ${serviceName}`, refId: bookingId, createdAt: serverTimestamp() } as LedgerEntry);
     });
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
-    return { success: false, reason: msg === "INSUFFICIENT_BALANCE" ? "INSUFFICIENT_BALANCE" : "TRANSACTION_FAILED" };
+    return { success: false, reason: msg.includes("INSUFFICIENT_BALANCE") ? "INSUFFICIENT_BALANCE" : "TRANSACTION_FAILED" };
   }
 }
 
@@ -516,7 +516,7 @@ export async function releaseEscrow(proUid: string, bookingId: string, serviceNa
 
       const bookingRef = doc(db, "bookings", bookingId);
       const bookingSnap = await tx.get(bookingRef);
-      if (!bookingSnap.exists()) throw new Error("BOOKING_NOT_FOUND");
+      if (!bookingSnap.exists()) throw new Error("BOOKING_NOT_FOUND: Booking record could not be found.");
       const data = bookingSnap.data()!;
       if (data.escrowStatus === "released" || data.status === "reviewed") return;
 
@@ -637,9 +637,21 @@ export async function refundEscrow(clientUid: string, bookingId: string, service
 
     const userRef = doc(db, "users", clientUid);
     const snap = await tx.get(userRef);
-    const newBal = ((snap.data()?.coinBalance as number) ?? 0) + escrowCoins;
-    const newCashable = ((snap.data()?.cashableBalance as number) ?? 0) + escrowCoins;
-    tx.update(userRef, { coinBalance: newBal, cashableBalance: newCashable, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
+    const currentBal = (snap.data()?.coinBalance as number) ?? 0;
+    const currentCashable = (snap.data()?.cashableBalance as number) ?? 0;
+    const currentPromo = (snap.data()?.promoBalance as number) ?? 0;
+
+    // Restore exact deduction proportions if available, otherwise default to cashable
+    const storedCashableDeduction = typeof data.escrowCashableDeduction === "number" ? data.escrowCashableDeduction : escrowCoins;
+
+    const cashableRefund = Math.min(escrowCoins, storedCashableDeduction);
+    const promoRefund = escrowCoins - cashableRefund;
+
+    const newBal = currentBal + escrowCoins;
+    const newCashable = currentCashable + cashableRefund;
+    const newPromo = currentPromo + promoRefund;
+
+    tx.update(userRef, { coinBalance: newBal, cashableBalance: newCashable, promoBalance: newPromo, updatedAt: serverTimestamp(), lastLedgerEntryId: ledgerEntryId });
     tx.update(bookingRef, {
       status: "cancelled",
       escrowStatus: "refunded",
@@ -793,13 +805,13 @@ export async function requestPayout(uid: string, displayName: string, coins: num
       const sentinelRef = doc(db, "payoutLock", uid);
       const sentinelSnap = await tx.get(sentinelRef);
       if (sentinelSnap.exists() && sentinelSnap.data()?.status === "pending") {
-        throw new Error("DUPLICATE_PAYOUT");
+        throw new Error("DUPLICATE_PAYOUT: A payout request is already pending.");
       }
 
       const userRef = doc(db, "users", uid);
       const snap = await tx.get(userRef);
       const cashable = (snap.data()?.cashableBalance as number) ?? 0;
-      if (cashable < coins) throw new Error("INSUFFICIENT_BALANCE");
+      if (cashable < coins) throw new Error("INSUFFICIENT_BALANCE: Insufficient cashable balance.");
       const coinBal = (snap.data()?.coinBalance as number) ?? 0;
       const newCashable = cashable - coins;
       const newCoinBal = Math.max(0, coinBal - coins);
@@ -818,13 +830,13 @@ export async function requestPayout(uid: string, displayName: string, coins: num
     return { success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
-    if (msg === "DUPLICATE_PAYOUT") {
+    if (msg.includes("DUPLICATE_PAYOUT")) {
       return {
         success: false,
         reason: "A payout request is already pending. Please wait for processing or cancel existing request.",
       };
     }
-    return { success: false, reason: msg === "INSUFFICIENT_BALANCE" ? "Insufficient cashable balance. Only real-money sourced NC (from top-ups, booking earnings, refunds) can be withdrawn." : "Transaction failed" };
+    return { success: false, reason: msg.includes("INSUFFICIENT_BALANCE") ? "Insufficient cashable balance. Only real-money sourced NC (from top-ups, booking earnings, refunds) can be withdrawn." : "Transaction failed" };
   }
 }
 
@@ -927,7 +939,14 @@ export async function getPendingPayouts(): Promise<CoinPayout[]> {
 }
 
 export async function updatePayoutStatus(payoutId: string, status: "processed" | "failed", adminUid: string): Promise<void> {
-  await updateDoc(doc(db, "coinPayouts", payoutId), { status, processedBy: adminUid, processedAt: serverTimestamp() });
+  await runTransaction(db, async tx => {
+    const payoutRef = doc(db, "coinPayouts", payoutId);
+    const payoutSnap = await tx.get(payoutRef);
+    if (!payoutSnap.exists()) throw new Error("PAYOUT_NOT_FOUND");
+    const payout = payoutSnap.data() as CoinPayout;
+    if (payout.status !== "pending") throw new Error("PAYOUT_NOT_PENDING");
+    tx.update(payoutRef, { status, processedBy: adminUid, processedAt: serverTimestamp() });
+  });
 }
 
 /**
@@ -944,7 +963,9 @@ export async function adminFinalizePayoutStatus(
     const payoutRef = doc(db, "coinPayouts", payoutId);
     const payoutSnap = await tx.get(payoutRef);
     if (!payoutSnap.exists()) throw new Error("PAYOUT_NOT_FOUND");
-    const { uid } = payoutSnap.data() as CoinPayout;
+    const payout = payoutSnap.data() as CoinPayout;
+    if (payout.status !== "pending") throw new Error("PAYOUT_NOT_PENDING");
+    const { uid } = payout;
     tx.update(payoutRef, { status, processedBy: adminUid, processedAt: serverTimestamp() });
     // Clear sentinel so user can submit a new payout after this one is finalized.
     tx.set(doc(db, "payoutLock", uid), { uid, status: "idle", updatedAt: serverTimestamp() });

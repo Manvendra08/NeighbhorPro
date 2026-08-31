@@ -48,7 +48,7 @@ export const onReviewWrite = functions.firestore
 
     const update = {
       rating: Math.round(avg * 10) / 10,
-      reviewCount: snap.size,
+      reviewCount: ratings.length,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 

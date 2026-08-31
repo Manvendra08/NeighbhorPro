@@ -257,7 +257,7 @@ export async function uploadResidencyProof(uid: string, file: File) {
   if (!uploadPreset) throw new Error("Cloudinary upload preset is missing.");
 
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-  const resourceTypeToUse: "image" | "raw" | "auto" = isPdf ? "image" : "auto";
+  const resourceTypeToUse: "image" | "raw" | "auto" = "auto";
   const data = await uploadToCloudinary(file, "ProNeighbor/residency-proofs", uploadPreset, cloudName, resourceTypeToUse);
   const residencyProofUrl = normalizeCloudinaryResidencyUrl(data.secure_url);
   const residencyProofPreviewUrl = isPdf ? getPdfPreviewUrl(residencyProofUrl) : null;

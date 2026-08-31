@@ -99,9 +99,10 @@ export function listenForForegroundMessages(
   onNotification?: (payload: unknown) => void
 ): () => void {
   let unsub: (() => void) | null = null;
+  let cancelled = false;
 
   getMessagingInstance().then(messaging => {
-    if (!messaging) return;
+    if (!messaging || cancelled) return;
 
     unsub = onMessage(messaging, payload => {
       // Notify the app so it can re-fetch / update state
@@ -123,11 +124,16 @@ export function listenForForegroundMessages(
         });
       }
     });
+
+    if (cancelled && unsub) {
+      unsub();
+    }
   }).catch(err => {
     captureError(err, { operation: "listen_foreground_messages" });
   });
 
   return () => {
+    cancelled = true;
     if (unsub) unsub();
   };
 }

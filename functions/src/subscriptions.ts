@@ -27,7 +27,7 @@ const PAID_PLANS: Record<string, { durationDays: number; priceNC: number; label:
   business_12m_v1: { durationDays: 365, priceNC: 2299, label: "12 Months" },
 };
 
-const BUSINESS_CATEGORIES = [
+const DEFAULT_BUSINESS_CATEGORIES = [
   "Tuition & Coaching",
   "Yoga & Fitness",
   "Music & Dance",
@@ -35,13 +35,27 @@ const BUSINESS_CATEGORIES = [
   "Nutrition & Diet",
 ];
 
+async function getBusinessCategories(): Promise<string[]> {
+  try {
+    const snap = await db.collection("config").doc("platformSettings").get();
+    const data = snap.data();
+    if (data && Array.isArray(data.businessCategories) && data.businessCategories.length > 0) {
+      return (data.businessCategories as unknown[]).filter((c): c is string => typeof c === "string" && c.length > 0);
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch businessCategories from platformSettings, using fallback", err);
+  }
+  return DEFAULT_BUSINESS_CATEGORIES;
+}
+
 const ACTIVE_STATUSES = new Set([
   "trial", "trial_ending", "active", "renewing", "past_due", "grace", "comped",
 ]);
 
-// ─── Helper: is sub period still live? ───────────────────────────────────────
-function isLive(currentPeriodEnd: admin.firestore.Timestamp): boolean {
-  return currentPeriodEnd.toMillis() > Date.now();
+function addDaysDSTSafe(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
 }
 
 // ─── Helper: write wallet-kind notification ───────────────────────────────────
@@ -64,10 +78,12 @@ async function writeNotification(
 
 // ─── Helper: batch-flip Business services to paused_subscription ──────────────
 async function pauseBusinessListings(uid: string): Promise<void> {
+  const bizCategories = await getBusinessCategories();
+  const validCategories = bizCategories.slice(0, 30); // Firestore 'in' limit is 30
   const servicesSnap = await db
     .collection("services")
     .where("userId", "==", uid)
-    .where("category", "in", BUSINESS_CATEGORIES)
+    .where("category", "in", validCategories)
     .get();
 
   if (servicesSnap.empty) return;
@@ -131,17 +147,10 @@ export const subscribeWithNCCallable = functions.onCall(
           throw new functions.HttpsError("resource-exhausted", "INSUFFICIENT_CASHABLE_BALANCE");
         }
 
-        // Idempotency + active-sub guard
-        const existingSnap = await db
-          .collection("subscriptions")
-          .where("uid", "==", uid)
-          .where("status", "not-in", ["expired", "cancelled"])
-          .limit(1)
-          .get();
-
-        if (!existingSnap.empty) {
-          const existingSub = existingSnap.docs[0].data();
-          const end = (existingSub.currentPeriodEnd as Timestamp)?.toDate();
+        // Idempotency + active-sub guard (read from user snap inside transaction)
+        const currentSub = userData.subscription as { status?: string; currentPeriodEnd?: Timestamp } | undefined;
+        if (currentSub && currentSub.status && ACTIVE_STATUSES.has(currentSub.status)) {
+          const end = currentSub.currentPeriodEnd?.toDate();
           if (end && end > new Date()) {
             throw new functions.HttpsError("already-exists", "ACTIVE_SUB_EXISTS");
           }
@@ -153,7 +162,7 @@ export const subscribeWithNCCallable = functions.onCall(
         if (ledgerSnap.exists) throw new functions.HttpsError("already-exists", "DUPLICATE_LEDGER_ENTRY");
 
         const now = new Date();
-        const periodEnd = new Date(now.getTime() + plan.durationDays * 86_400_000);
+        const periodEnd = addDaysDSTSafe(now, plan.durationDays);
         const periodEndTs = Timestamp.fromDate(periodEnd);
         const nowTs = Timestamp.fromDate(now);
         const newCashable = cashable - plan.priceNC;
@@ -258,7 +267,7 @@ export const activateTrialCallable = functions.onCall(
         }
 
         const now = new Date();
-        const periodEnd = new Date(now.getTime() + 30 * 86_400_000);
+        const periodEnd = addDaysDSTSafe(now, 30);
         const periodEndTs = Timestamp.fromDate(periodEnd);
         const nowTs = Timestamp.fromDate(now);
         const subId = `sub_${uid}_trial`;
@@ -431,11 +440,14 @@ export const adminSubscriptionAction = functions.onCall(
     const callerUid: string = request.auth?.uid;
     if (!callerUid) throw new functions.HttpsError("unauthenticated", "Must be signed in.");
 
-    // Verify caller is admin
-    const adminSnap = await db.collection("users").doc(callerUid).get();
-    if (!adminSnap.exists || adminSnap.data()?.role !== "admin") {
-      throw new functions.HttpsError("permission-denied", "Admin only.");
+    // Verify caller is admin (JWT claim + doc fallback)
+    if (!request.auth?.token?.admin) {
+      const adminSnap = await db.collection("users").doc(callerUid).get();
+      if (!adminSnap.exists || adminSnap.data()?.role !== "admin") {
+        throw new functions.HttpsError("permission-denied", "Admin only.");
+      }
     }
+    const adminSnap = await db.collection("users").doc(callerUid).get();
 
     const { action, uid, planId, reason } = request.data as {
       action?: string;
@@ -452,7 +464,7 @@ export const adminSubscriptionAction = functions.onCall(
       }
       const plan = PAID_PLANS[planId];
       const now = new Date();
-      const periodEnd = new Date(now.getTime() + plan.durationDays * 86_400_000);
+      const periodEnd = addDaysDSTSafe(now, plan.durationDays);
       const periodEndTs = Timestamp.fromDate(periodEnd);
       const subId = `sub_${uid}_comp_${Date.now()}`;
 

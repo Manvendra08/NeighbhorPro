@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/224</span>
+                <span class='fraction'>0/225</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/165</span>
+                <span class='fraction'>0/167</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/38</span>
+                <span class='fraction'>0/37</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/205</span>
+                <span class='fraction'>0/206</span>
             </div>
         
             
@@ -603,7 +603,8 @@
 <a name='L538'></a><a href='#L538'>538</a>
 <a name='L539'></a><a href='#L539'>539</a>
 <a name='L540'></a><a href='#L540'>540</a>
-<a name='L541'></a><a href='#L541'>541</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L541'></a><a href='#L541'>541</a>
+<a name='L542'></a><a href='#L542'>542</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -886,8 +887,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -897,14 +900,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1357,11 +1359,11 @@ export function <span class="fstat-no" title="function not covered" >AuthProvide
 <span class="cstat-no" title="statement not covered" >      if (snap.exists()) {</span>
         const data = <span class="cstat-no" title="statement not covered" >toUserProfile(normalizeProfileData({ uid: snap.id, ...snap.data() }));</span>
 <span class="cstat-no" title="statement not covered" >        setUserProfile(data);</span>
-<span class="cstat-no" title="statement not covered" >        if (!profileBonusClaimedRef.current &amp;&amp; isProfileComplete(data)) {</span>
+        const complete = <span class="cstat-no" title="statement not covered" >isProfileComplete(data);</span>
+<span class="cstat-no" title="statement not covered" >        if (complete &amp;&amp; !profileBonusClaimedRef.current) {</span>
 <span class="cstat-no" title="statement not covered" >          profileBonusClaimedRef.current = true;</span>
 <span class="cstat-no" title="statement not covered" >          earnCoins(user.uid, "earn_profile", user.uid).catch(<span class="fstat-no" title="function not covered" >(e</span>rror: unknown) =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >            captureError(error, { operation: "earn_profile", uid: user.uid });</span>
-<span class="cstat-no" title="statement not covered" >            profileBonusClaimedRef.current = false;</span>
+<span class="cstat-no" title="statement not covered" >            captureError(error, { operation: "earn_profile_on_snapshot", uid: user.uid });</span>
           });
         }
       } else {
@@ -1425,6 +1427,10 @@ export function <span class="fstat-no" title="function not covered" >AuthProvide
         phoneNumber: u.phoneNumber ?? "",
         uid: u.uid,
       });
+      const refCodeSnap = <span class="cstat-no" title="statement not covered" >await getDoc(doc(db, "referralCodes", referralCode));</span>
+      const finalReferralCode = <span class="cstat-no" title="statement not covered" >refCodeSnap.exists()</span>
+        ? `${referralCode}_${Math.floor(1000 + Math.random() * 9000)}`
+        : referralCode;
       const profile: UserProfile = <span class="cstat-no" title="statement not covered" >{</span>
         uid: u.uid, displayName: u.displayName ?? "", email: u.email ?? "",
         photoURL: u.photoURL ?? "", bio: "", skills: [], hourlyRate: 0,
@@ -1432,19 +1438,16 @@ export function <span class="fstat-no" title="function not covered" >AuthProvide
         residentVerificationStatus: "none", verificationReviewNote: null, verificationMethod: null,
         isServiceProvider: false, priceAfterQuote: false,
         role: "user", rating: 0, reviewCount: 0, coinBalance: 0,
-        referralCode,
+        referralCode: finalReferralCode,
         emailVerified: u.emailVerified,
         emailVisible: false, phoneVisible: false, flatVisible: false,
         createdAt: serverTimestamp(),
       };
 <span class="cstat-no" title="statement not covered" >      await setDoc(ref, profile);</span>
-      // Use merge to avoid duplicate key errors on concurrent creates
-<span class="cstat-no" title="statement not covered" >      await setDoc(doc(db, "referralCodes", referralCode), {</span>
+<span class="cstat-no" title="statement not covered" >      await setDoc(doc(db, "referralCodes", finalReferralCode), {</span>
         uid: u.uid,
-        code: referralCode,
+        code: finalReferralCode,
         createdAt: serverTimestamp(),
-      }, { merge: true }).catch(<span class="fstat-no" title="function not covered" >(e</span>rror: unknown) =&gt; {
-<span class="cstat-no" title="statement not covered" >        captureError(error, { operation: "create_referral_code_doc", uid: u.uid, referralCode });</span>
       });
 <span class="cstat-no" title="statement not covered" >      return true;</span>
     }
@@ -1690,7 +1693,7 @@ export function <span class="fstat-no" title="function not covered" >useAuth() {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-25T18:25:47.711Z
+                at 2026-08-30T10:58:06.151Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

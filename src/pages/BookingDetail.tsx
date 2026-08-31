@@ -65,7 +65,7 @@ export default function BookingDetail() {
     setLoading(true); setError("");
     try {
       const b = await getBookingById(id);
-      if (b && (b.clientId === user.uid || b.proId === user.uid)) {
+      if (b && ((typeof b.clientId === "string" && b.clientId === user.uid) || (typeof b.proId === "string" && b.proId === user.uid))) {
         setBooking(b);
         const status = String(b.status || "");
         if (user.uid === b.proId && ["completed", "reviewed"].includes(status)) {

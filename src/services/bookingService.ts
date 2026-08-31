@@ -65,13 +65,16 @@ export async function createBooking(data: Record<string, unknown>) {
   const dedupRef = doc(db, "bookingDedup", dedupKey);
 
   await runTransaction(db, async tx => {
-    // Idempotency guard: check if this booking request was already processed
+    // Idempotency guard: check if this booking request was already processed and active
     const existingDedup = await tx.get(dedupRef);
     if (existingDedup.exists()) {
       const existingData = existingDedup.data();
       const existingBookingId = existingData?.bookingId;
       if (existingBookingId) {
-        throw new Error(`DUPLICATE_BOOKING_REQUEST:${existingBookingId}`);
+        const existingBookingSnap = await tx.get(doc(db, "bookings", existingBookingId));
+        if (existingBookingSnap.exists() && existingBookingSnap.data()?.status !== "cancelled") {
+          throw new Error(`DUPLICATE_BOOKING_REQUEST:${existingBookingId}`);
+        }
       }
     }
 

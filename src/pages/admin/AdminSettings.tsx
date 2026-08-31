@@ -4,7 +4,12 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { logAudit } from "./AdminAuditLog";
-import { DEFAULT_SERVICE_CATEGORIES, normalizeServiceCategories } from "../../constants/serviceCatalog";
+import {
+  DEFAULT_SERVICE_CATEGORIES,
+  DEFAULT_BUSINESS_CATEGORIES,
+  normalizeServiceCategories,
+  normalizeBusinessCategories,
+} from "../../constants/serviceCatalog";
 
 type Settings = {
   commissionRate: number;
@@ -22,6 +27,7 @@ type Settings = {
   featureMessaging: boolean;
   featurePremiumSocieties: boolean;
   serviceCategories: string[];
+  businessCategories: string[];
   subscriptionEnabled?: boolean;
   sub3mPriceNC?: number;
   sub6mPriceNC?: number;
@@ -37,6 +43,7 @@ const DEFAULTS: Settings = {
   minBookingAmount: 0, maintenanceMessage: "We'll be back shortly. Scheduled maintenance.",
   featureReviews: true, featureMessaging: true, featurePremiumSocieties: true,
   serviceCategories: [...DEFAULT_SERVICE_CATEGORIES],
+  businessCategories: [...DEFAULT_BUSINESS_CATEGORIES],
   subscriptionEnabled: false,
   sub3mPriceNC: 999,
   sub6mPriceNC: 1799,
@@ -67,6 +74,7 @@ export default function AdminSettings() {
         if (snap.exists()) {
           const data = { ...DEFAULTS, ...snap.data() as Settings };
           data.serviceCategories = normalizeServiceCategories((snap.data() as Record<string, unknown>).serviceCategories);
+          data.businessCategories = normalizeBusinessCategories((snap.data() as Record<string, unknown>).businessCategories);
           setSettings(data);
           setPrevSettings(data);
         }

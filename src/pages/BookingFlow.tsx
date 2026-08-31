@@ -30,7 +30,7 @@ export default function BookingFlow() {
   const [postBookingWarning, setPostBookingWarning] = useState("");
 
   const [proAvail, setProAvail] = useState<Record<string, { active: boolean; slots: string[] }> | null>(null);
-  const [commissionRate, setCommissionRate] = useState(10);
+  const [commissionRate, setCommissionRate] = useState(15);
   const [availableSlots, setAvailSlots] = useState<string[]>([]);
   const [checkingAvail, setCA] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);

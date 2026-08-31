@@ -173,6 +173,14 @@ service cloud.firestore {
           && participants.hasOnly([clientId, proId]);
     }
 
+    function isBusinessCategory(category) {
+      let settings = get(/databases/$(database)/documents/config/platformSettings).data;
+      let bizCats = ('businessCategories' in settings)
+        ? settings.businessCategories
+        : ['Tuition & Coaching', 'Yoga & Fitness', 'Music & Dance', 'Language Classes', 'Nutrition & Diet'];
+      return category in bizCats;
+    }
+
     // ── referralCodes ──────────────────────────────────────
     match /referralCodes/{code} {
       allow get: if isSignedIn();
@@ -245,7 +253,7 @@ service cloud.firestore {
         && request.resource.data.category is string
         && request.resource.data.description is string
         && (!('status' in request.resource.data) || request.resource.data.status == 'pending')
-        && (!(request.resource.data.category in ['Tuition & Coaching', 'Yoga & Fitness', 'Music & Dance', 'Language Classes', 'Nutrition & Diet'])
+        && (!isBusinessCategory(request.resource.data.category)
             || (
               'subscription' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data
               && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.status in ['trial','trial_ending','active','renewing','past_due','grace','comped']

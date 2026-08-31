@@ -103,6 +103,14 @@
         {"fieldPath": "status", "order": "ASCENDING"},
         {"fieldPath": "currentPeriodEnd", "order": "DESCENDING"}
       ]
+    },
+    {
+      "collectionGroup": "chats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "senderId", "order": "ASCENDING"},
+        {"fieldPath": "timestamp", "order": "ASCENDING"}
+      ]
     }
   ],
   "fieldOverrides": []

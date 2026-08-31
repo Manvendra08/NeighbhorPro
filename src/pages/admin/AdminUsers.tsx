@@ -582,8 +582,7 @@ export default function AdminUsers() {
     try {
       const now = new Date();
       const periodEnd = new Date(now.getTime() + grantSubMonths * 30 * 24 * 60 * 60 * 1000);
-      const monthKey = now.toISOString().slice(0, 7).replace("-", "");
-      const subId = `sub_${uid}_${monthKey}`;
+      const subId = `sub_${uid}_comp_${Date.now()}`;
 
       await runTransaction(db, async (tx) => {
         const subRef = doc(db, "subscriptions", subId);
@@ -678,7 +677,7 @@ export default function AdminUsers() {
 
   const exportUsers = () => {
     const csv = ["Name,Email,Society,Role,Pro,Status"]
-      .concat(users.map((u: UserRow) => `"${u.displayName}","${u.email}","${u.society || ""}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`))
+      .concat(users.map((u: UserRow) => `"${(String(u.displayName || "")).replace(/"/g, '""')}","${(String(u.email || "")).replace(/"/g, '""')}","${(String(u.society || "")).replace(/"/g, '""')}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`))
       .join("\n");
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
@@ -1286,6 +1285,8 @@ function AddUserModal({ adminId, adminName, onClose, onDone }: { adminId: string
         photoURL: "", bio: "", skills: [], hourlyRate: 0, isFreeConsultation: true,
         rating: 0, reviewCount: 0, disabled: false, createdAt: serverTimestamp(),
         residentVerificationStatus: "none",
+        coinBalance: 0, cashableBalance: 0, promoBalance: 0, referralCode: "",
+        emailVerified: false, emailVisible: false, phoneVisible: false, flatVisible: false,
       };
       await setDoc(doc(db, "users", uid), profileData);
       await mirrorPublicProfile(uid, profileData);

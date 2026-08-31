@@ -7,6 +7,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   serverTimestamp,
   onSnapshot,
   Unsubscribe,
@@ -174,7 +175,7 @@ export async function getUnreadCount(convId: string, uid: string): Promise<numbe
   const lastRead = convSnap.data()?.lastReadAt?.[uid] as Timestamp | undefined;
   if (!lastRead) {
     const snap = await getDocs(
-      query(collection(db, `messages/${convId}/chats`), where("senderId", "!=", uid))
+      query(collection(db, `messages/${convId}/chats`), where("senderId", "!=", uid), limit(100))
     );
     return snap.size;
   }
@@ -182,7 +183,8 @@ export async function getUnreadCount(convId: string, uid: string): Promise<numbe
     query(
       collection(db, `messages/${convId}/chats`),
       where("senderId", "!=", uid),
-      where("timestamp", ">", lastRead)
+      where("timestamp", ">", lastRead),
+      limit(100)
     )
   );
   return snap.size;

@@ -25,14 +25,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/528</span>
+                <span class='fraction'>0/527</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/436</span>
+                <span class='fraction'>0/440</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/476</span>
+                <span class='fraction'>0/475</span>
             </div>
         
             
@@ -1413,7 +1413,8 @@
 <a name='L1348'></a><a href='#L1348'>1348</a>
 <a name='L1349'></a><a href='#L1349'>1349</a>
 <a name='L1350'></a><a href='#L1350'>1350</a>
-<a name='L1351'></a><a href='#L1351'>1351</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L1351'></a><a href='#L1351'>1351</a>
+<a name='L1352'></a><a href='#L1352'>1352</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1998,7 +1999,6 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2696,6 +2696,8 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -3347,8 +3349,7 @@ export default function <span class="fstat-no" title="function not covered" >Adm
 <span class="cstat-no" title="statement not covered" >    try {</span>
       const now = <span class="cstat-no" title="statement not covered" >new Date();</span>
       const periodEnd = <span class="cstat-no" title="statement not covered" >new Date(now.getTime() + grantSubMonths * 30 * 24 * 60 * 60 * 1000);</span>
-      const monthKey = <span class="cstat-no" title="statement not covered" >now.toISOString().slice(0, 7).replace("-", "");</span>
-      const subId = <span class="cstat-no" title="statement not covered" >`sub_${uid}_${monthKey}`;</span>
+      const subId = <span class="cstat-no" title="statement not covered" >`sub_${uid}_comp_${Date.now()}`;</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >      await runTransaction(db, <span class="fstat-no" title="function not covered" >async (t</span>x) =&gt; {</span>
         const <span class="cstat-no" title="statement not covered" >subRef = doc(db, "subscriptions", subId);</span>
@@ -3443,7 +3444,7 @@ export default function <span class="fstat-no" title="function not covered" >Adm
 &nbsp;
   const exportUsers = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >() =&gt; {</span></span>
     const csv = <span class="cstat-no" title="statement not covered" >["Name,Email,Society,Role,Pro,Status"]</span>
-      .concat(users.map(<span class="fstat-no" title="function not covered" >(u</span>: UserRow) =&gt; <span class="cstat-no" title="statement not covered" >`"${u.displayName}","${u.email}","${u.society || ""}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`)</span>)
+      .concat(users.map(<span class="fstat-no" title="function not covered" >(u</span>: UserRow) =&gt; <span class="cstat-no" title="statement not covered" >`"${(String(u.displayName || "")).replace(/"/g, '""')}","${(String(u.email || "")).replace(/"/g, '""')}","${(String(u.society || "")).replace(/"/g, '""')}","${u.role}","${u.isServiceProvider ? "Yes" : "No"}","${u.disabled ? "Disabled" : "Active"}"`)</span>)
       .join("\n");
     const a = <span class="cstat-no" title="statement not covered" >document.createElement("a");</span>
 <span class="cstat-no" title="statement not covered" >    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);</span>
@@ -4051,6 +4052,8 @@ function <span class="fstat-no" title="function not covered" >AddUserModal({</sp
         photoURL: "", bio: "", skills: [], hourlyRate: 0, isFreeConsultation: true,
         rating: 0, reviewCount: 0, disabled: false, createdAt: serverTimestamp(),
         residentVerificationStatus: "none",
+        coinBalance: 0, cashableBalance: 0, promoBalance: 0, referralCode: "",
+        emailVerified: false, emailVisible: false, phoneVisible: false, flatVisible: false,
       };
 <span class="cstat-no" title="statement not covered" >      await setDoc(doc(db, "users", uid), profileData);</span>
 <span class="cstat-no" title="statement not covered" >      await mirrorPublicProfile(uid, profileData);</span>
@@ -4120,7 +4123,7 @@ function <span class="fstat-no" title="function not covered" >AddUserModal({</sp
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-05-25T18:25:47.711Z
+                at 2026-08-30T10:58:06.151Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>
