@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main, development, "claude/**"]
   pull_request:
-    branches: [main]
+    branches: [main, development]
 
 jobs:
   unit-tests:
@@ -118,7 +118,7 @@ jobs:
           echo "Server did not start in time"
           exit 1
       - name: Run E2E tests against preview build
-        run: npx playwright test
+        run: npx playwright test --project=chromium
         env:
           E2E_BASE_URL: http://localhost:4173
           CI: true

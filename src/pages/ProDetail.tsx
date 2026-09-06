@@ -310,7 +310,7 @@ export default function ProDetail() {
               {publicFlatNumber ? ` | Flat ${publicFlatNumber}` : ""}
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12, alignItems: "center" }}>
-              <span style={{ color: "var(--warning)", fontWeight: 600 }}>
+              <span data-testid="pro-rating" style={{ color: "var(--warning)", fontWeight: 600 }}>
                 {reviewCount > 0 ? `★ ${rating === null ? "—" : rating.toFixed(1)} (${reviewCount})` : "No reviews yet"}
               </span>
               <ResponseTimeBadge avgResponseHours={avgResponseHrs} />
@@ -322,7 +322,7 @@ export default function ProDetail() {
                 </span>
               )}
             </div>
-            <p style={{ color: "var(--text-2)", lineHeight: 1.6 }}>{(pro.bio as string) || "No bio available."}</p>
+            <p data-testid="pro-description" style={{ color: "var(--text-2)", lineHeight: 1.6 }}>{(pro.bio as string) || "No bio available."}</p>
           </div>
 
           {!isOwnProfile && (

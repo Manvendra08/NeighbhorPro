@@ -14,7 +14,6 @@ import {
   Timestamp,
   runTransaction,
 } from "firebase/firestore";
-import { auth } from "../firebase";
 import { db } from "../firebase";
 import { validateUpload } from "../utils/cloudinary";
 import { uploadToCloudinary } from "./_shared";
@@ -107,8 +106,6 @@ export async function sendMessage(
     payload.attachmentName = attachment.name;
   }
   const lastMsg = attachment ? (text ? `📎 ${text}` : `📎 Attachment`) : text;
-  const senderDisplayName = auth.currentUser?.displayName || "User";
-  const senderPhotoURL = auth.currentUser?.photoURL || "";
 
   await runTransaction(db, async tx => {
     const chatRef = doc(collection(db, `messages/${conversationId}/chats`));
@@ -118,8 +115,6 @@ export async function sendMessage(
       lastMessage: lastMsg,
       lastMessageAt: serverTimestamp(),
       lastSenderId: senderId,
-      [`participantNames.${senderId}`]: senderDisplayName,
-      [`participantPhotos.${senderId}`]: senderPhotoURL,
     }, { merge: true });
   });
 }

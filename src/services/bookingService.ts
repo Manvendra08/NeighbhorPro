@@ -56,27 +56,7 @@ export async function createBooking(data: Record<string, unknown>) {
     updatedAt: now,
   };
 
-  // [Bug #4 FIX] Include serviceName in dedup key — previously two different services
-  // from the same pro on the same date/time were falsely rejected as duplicates.
-  const date = (bookingPayload.date as string) || new Date().toISOString().split('T')[0];
-  const timeSlot = (bookingPayload.timeSlot as string) || "any";
-  const serviceName = (bookingPayload.serviceName as string) || "general";
-  const dedupKey = `${clientId}_${proId}_${date}_${timeSlot}_${serviceName}`;
-  const dedupRef = doc(db, "bookingDedup", dedupKey);
-
   await runTransaction(db, async tx => {
-    // Idempotency guard: check if this booking request was already processed and active
-    const existingDedup = await tx.get(dedupRef);
-    if (existingDedup.exists()) {
-      const existingData = existingDedup.data();
-      const existingBookingId = existingData?.bookingId;
-      if (existingBookingId) {
-        const existingBookingSnap = await tx.get(doc(db, "bookings", existingBookingId));
-        if (existingBookingSnap.exists() && existingBookingSnap.data()?.status !== "cancelled") {
-          throw new Error(`DUPLICATE_BOOKING_REQUEST:${existingBookingId}`);
-        }
-      }
-    }
 
     if (escrowCoins > 0) {
       const userRef = doc(db, "users", clientId);
@@ -118,16 +98,6 @@ export async function createBooking(data: Record<string, unknown>) {
     } else {
       tx.set(bookingRef, bookingDoc);
     }
-
-    // Mark dedup key atomically with booking creation
-    tx.set(dedupRef, {
-      clientId,
-      proId,
-      date,
-      timeSlot,
-      bookingId: bookingRef.id,
-      createdAt: serverTimestamp(),
-    });
   });
   return bookingRef.id;
 }

@@ -19,12 +19,18 @@ const GoogleIcon = () => (
    LOGIN PAGE
 ══════════════════════════════════════════ */
 export function LoginPage() {
-  const { signIn, signInWithGoogle } = useAuth();
+  const { user, signIn, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -63,7 +69,7 @@ export function LoginPage() {
           <h1 className="auth-title">Welcome back</h1>
           <p className="auth-sub">Sign in to your ProNeighbor account</p>
 
-          {error && <div className="error-box">{error}</div>}
+          {error && <div className="error-box error-message" role="alert">{error}</div>}
 
           <button className="btn-google" onClick={handleGoogle} disabled={loading}>
             <GoogleIcon /> Continue with Google
@@ -215,7 +221,7 @@ export function RegisterPage() {
           <h1 className="auth-title">Create account</h1>
           <p className="auth-sub">Join your neighborhood network</p>
 
-          {error && <div className="error-box">{error}</div>}
+          {error && <div className="error-box error-message" role="alert">{error}</div>}
 
           <button className="btn-google" onClick={handleGoogle} disabled={loading}>
             <GoogleIcon /> Continue with Google

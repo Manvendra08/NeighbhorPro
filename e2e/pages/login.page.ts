@@ -69,6 +69,7 @@ export class LoginPage extends BasePage {
    * Assert successful login (redirected to dashboard)
    */
   async assertLoginSuccess(): Promise<void> {
+    await this.page.waitForURL(/\/dashboard|\/home|\/browse/, { timeout: 15000 });
     await expect(this.page).not.toHaveURL(/login|auth/);
     await expect(this.page).toHaveURL(/dashboard|home|browse/);
   }

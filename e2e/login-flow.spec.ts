@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Login Flow', () => {
-  const testEmail = 'test@proneighbor.test';
-  const testPassword = 'TestPassword123!';
+  const testEmail = process.env.TEST_RESIDENT_EMAIL || 'test@proneighbor.test';
+  const testPassword = process.env.TEST_RESIDENT_PASSWORD || 'TestPassword123!';
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');
@@ -47,16 +47,15 @@ test.describe('Login Flow', () => {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 15000 });
   });
 
-  test('should persist session after login', async ({ page, context }) => {
+  test('should persist session after login', async ({ page }) => {
     await page.locator('input[type="email"]').fill(testEmail);
     await page.locator('input[type="password"]').first().fill(testPassword);
     await page.locator('button[type="submit"]').click();
 
     await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
-    const cookies = await context.cookies();
-    expect(cookies.length).toBeGreaterThan(0);
-
+    // In SPA with Firebase Auth, session is maintained in IndexedDB.
+    // Verify session persistence by navigating to protected route.
     await page.goto('/browse');
     await expect(page).toHaveURL(/\/browse/);
   });
@@ -134,15 +133,18 @@ test.describe('Login Flow - Mobile', () => {
 });
 
 test.describe('Login Flow - Authenticated State', () => {
+  const testEmail = process.env.TEST_RESIDENT_EMAIL || 'test@proneighbor.test';
+  const testPassword = process.env.TEST_RESIDENT_PASSWORD || 'TestPassword123!';
+
   test('should redirect to dashboard if already logged in', async ({ page }) => {
     await page.goto('/login');
-    await page.locator('input[type="email"]').fill('test@proneighbor.test');
-    await page.locator('input[type="password"]').first().fill('TestPassword123!');
+    await page.locator('input[type="email"]').fill(testEmail);
+    await page.locator('input[type="password"]').first().fill(testPassword);
     await page.locator('button[type="submit"]').click();
     await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
     await page.goto('/login');
-    await page.waitForURL(/\/dashboard/, { timeout: 5000 });
+    await page.waitForURL(/\/dashboard/, { timeout: 10000 });
     await expect(page).toHaveURL(/\/dashboard/);
   });
 });

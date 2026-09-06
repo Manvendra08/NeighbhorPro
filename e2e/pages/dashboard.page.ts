@@ -20,7 +20,7 @@ export class DashboardPage extends BasePage {
     this.welcomeMessage = page.locator("h1, .welcome-message").filter({ hasText: /welcome|hello/i }).first();
     this.bookingsSection = page.locator("[data-testid='bookings'], .bookings-section, #bookings");
     this.messagesSection = page.locator("[data-testid='messages'], .messages-section, #messages");
-    this.walletBalance = page.locator("[data-testid='wallet-balance'], .wallet-balance, #wallet, [href='/wallet'], [ref*='wallet'], link:has-text('🪙'), .wallet-info, [data-testid*='coin'], [data-testid*='balance']");
+    this.walletBalance = page.locator("[data-testid='wallet-balance'], .wallet-balance, #wallet, [href='/wallet'], [ref*='wallet'], link:has-text('🪙'), .wallet-info, [data-testid*='coin'], [data-testid*='balance']").first();
     this.newBookingButton = page.getByRole("button", { name: /new booking|book now|hire pro/i }).first();
     this.profileLink = page.getByRole("link", { name: /my profile|profile|account/i }).first();
     this.logoutButton = page.getByRole("button", { name: /log out|sign out/i }).first();
